@@ -2,6 +2,8 @@ package com.example.uleammed
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.concurrent.TimeUnit
@@ -98,12 +100,16 @@ class QuestionnaireNotificationManager(context: Context) {
             if (existingNotification == null) {
                 // Obtener última fecha de completado
                 val lastCompleted = config.lastCompletedDates[type.name] ?: 0L
-                val daysSinceCompleted = TimeUnit.MILLISECONDS.toDays(now - lastCompleted)
 
-                // Si han pasado suficientes días o nunca se ha completado
-                if (lastCompleted == 0L || daysSinceCompleted >= config.periodDays) {
-                    val notification = createNotification(type, config.periodDays)
-                    currentNotifications.add(notification)
+                // CAMBIO CRÍTICO: Solo generar notificación si ya se completó al menos una vez
+                if (lastCompleted > 0L) {
+                    val daysSinceCompleted = TimeUnit.MILLISECONDS.toDays(now - lastCompleted)
+
+                    // Si han pasado suficientes días desde la última vez
+                    if (daysSinceCompleted >= config.periodDays) {
+                        val notification = createNotification(type, config.periodDays)
+                        currentNotifications.add(notification)
+                    }
                 }
             }
         }
@@ -159,6 +165,18 @@ class QuestionnaireNotificationManager(context: Context) {
         saveNotifications(filtered)
     }
 
+    // Limpiar todas las notificaciones leídas
+    fun clearReadNotifications() {
+        val notifications = getNotifications()
+        val filtered = notifications.filter { !it.isRead }
+        saveNotifications(filtered)
+    }
+
+    // Limpiar TODAS las notificaciones
+    fun clearAllNotifications() {
+        saveNotifications(emptyList())
+    }
+
     private fun getPeriodText(days: Int): String {
         return when (days) {
             7 -> "semanal"
@@ -174,7 +192,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Ergonomía y Ambiente de Trabajo",
                 description = "Evalúa tu espacio de trabajo",
-                icon = androidx.compose.material.icons.Icons.Filled.Chair,
+                icon = Icons.Filled.Computer,
                 estimatedTime = "8-10 min",
                 totalQuestions = 22
             )
@@ -182,7 +200,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Síntomas Músculo-Esqueléticos",
                 description = "Identifica dolores y molestias",
-                icon = androidx.compose.material.icons.Icons.Filled.Healing,
+                icon = Icons.Filled.MonitorHeart,
                 estimatedTime = "6-8 min",
                 totalQuestions = 18
             )
@@ -190,7 +208,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Síntomas Visuales",
                 description = "Evalúa fatiga ocular",
-                icon = androidx.compose.material.icons.Icons.Filled.Visibility,
+                icon = Icons.Filled.RemoveRedEye,
                 estimatedTime = "4-5 min",
                 totalQuestions = 14
             )
@@ -198,7 +216,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Carga de Trabajo",
                 description = "Analiza demanda laboral",
-                icon = androidx.compose.material.icons.Icons.Filled.WorkHistory,
+                icon = Icons.Filled.Work,
                 estimatedTime = "5-7 min",
                 totalQuestions = 15
             )
@@ -206,7 +224,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Estrés y Salud Mental",
                 description = "Identifica niveles de estrés",
-                icon = androidx.compose.material.icons.Icons.Filled.Psychology,
+                icon = Icons.Filled.Psychology,
                 estimatedTime = "7-9 min",
                 totalQuestions = 19
             )
@@ -214,7 +232,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Hábitos de Sueño",
                 description = "Evalúa calidad de descanso",
-                icon = androidx.compose.material.icons.Icons.Filled.Bedtime,
+                icon = Icons.Filled.NightlightRound,
                 estimatedTime = "3-4 min",
                 totalQuestions = 9
             )
@@ -222,7 +240,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Actividad Física y Nutrición",
                 description = "Analiza hábitos de ejercicio",
-                icon = androidx.compose.material.icons.Icons.Filled.FitnessCenter,
+                icon = Icons.Filled.SportsGymnastics,
                 estimatedTime = "4-5 min",
                 totalQuestions = 10
             )
@@ -230,7 +248,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 type = type,
                 title = "Balance Vida-Trabajo",
                 description = "Evalúa equilibrio personal",
-                icon = androidx.compose.material.icons.Icons.Filled.Balance,
+                icon = Icons.Filled.Scale,
                 estimatedTime = "3-4 min",
                 totalQuestions = 8
             )

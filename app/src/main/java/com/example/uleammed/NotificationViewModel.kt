@@ -85,4 +85,19 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             loadNotifications()
         }
     }
+
+    // NUEVAS FUNCIONES
+    fun clearReadNotifications() {
+        viewModelScope.launch {
+            notificationManager.clearReadNotifications()
+            loadNotifications()
+        }
+    }
+
+    fun clearAllNotifications() {
+        viewModelScope.launch {
+            notificationManager.clearAllNotifications()
+            loadNotifications()
+        }
+    }
 }
