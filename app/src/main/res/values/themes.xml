@@ -1,0 +1,15 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Tema principal de la aplicación, usado por el Activity de Compose. -->
+    <style name="Theme.Uleammed" parent="Theme.Material3.DayNight.NoActionBar">
+
+        <!-- Las líneas a continuación son cruciales para Jetpack Compose:
+             Permiten que Compose dibuje la pantalla de borde a borde y previenen
+             el "flash" de un fondo de ventana blanco o gris antes de que Compose cargue. -->
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackground">@android:color/transparent</item>
+
+        <!-- Opcional: Esto ayuda a manejar la barra de estado en versiones antiguas,
+             aunque Compose lo maneja en el código Kotlin. -->
+        <item name="android:statusBarColor" tools:targetApi="l">@android:color/transparent</item>
+    </style>
+</resources>
