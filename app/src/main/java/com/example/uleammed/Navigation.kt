@@ -14,6 +14,7 @@ sealed class Screen(val route: String) {
     object Explore : Screen("explore")
     object Notifications : Screen("notifications")
     object Resources : Screen("resources")
+    object Settings : Screen("settings") // NUEVA RUTA
 
     // Cuestionarios específicos
     object ErgonomiaQuestionnaire : Screen("ergonomia_questionnaire")

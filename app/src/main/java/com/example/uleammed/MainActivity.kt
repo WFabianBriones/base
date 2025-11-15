@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -37,7 +38,13 @@ class MainActivity : ComponentActivity() {
 fun UleamApp() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
+    val notificationViewModel: NotificationViewModel = viewModel()
     val context = LocalContext.current
+
+    // Verificar notificaciones cuando la app inicia
+    LaunchedEffect(Unit) {
+        notificationViewModel.checkForNewNotifications()
+    }
 
     NavHost(
         navController = navController,
@@ -108,6 +115,20 @@ fun UleamApp() {
                     navController.navigate(route) {
                         launchSingleTop = true
                     }
+                },
+                onNavigateToSettings = {
+                    navController.navigate(Screen.Settings.route) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        // Pantalla de Configuración
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -116,6 +137,8 @@ fun UleamApp() {
         composable(Screen.ErgonomiaQuestionnaire.route) {
             ErgonomiaQuestionnaireScreen(
                 onComplete = {
+                    // Marcar como completado
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ERGONOMIA)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Ergonomía completado",
@@ -132,6 +155,7 @@ fun UleamApp() {
         composable(Screen.EstresSaludMentalQuestionnaire.route) {
             EstresSaludMentalQuestionnaireScreen(
                 onComplete = {
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ESTRES_SALUD_MENTAL)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Estrés y Salud Mental completado",
@@ -148,6 +172,7 @@ fun UleamApp() {
         composable(Screen.SintomasMuscularesQuestionnaire.route) {
             SintomasMuscularesQuestionnaireScreen(
                 onComplete = {
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_MUSCULARES)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Síntomas Músculo-Esqueléticos completado",
@@ -164,6 +189,7 @@ fun UleamApp() {
         composable(Screen.CargaTrabajoQuestionnaire.route) {
             CargaTrabajoQuestionnaireScreen(
                 onComplete = {
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.CARGA_TRABAJO)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Carga de Trabajo completado",
@@ -180,6 +206,7 @@ fun UleamApp() {
         composable(Screen.SintomasVisualesQuestionnaire.route) {
             SintomasVisualesQuestionnaireScreen(
                 onComplete = {
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_VISUALES)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Síntomas Visuales completado",
@@ -196,6 +223,7 @@ fun UleamApp() {
         composable(Screen.ActividadFisicaQuestionnaire.route) {
             ActividadFisicaQuestionnaireScreen(
                 onComplete = {
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ACTIVIDAD_FISICA)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Actividad Física completado",
@@ -212,6 +240,7 @@ fun UleamApp() {
         composable(Screen.HabitosSuenoQuestionnaire.route) {
             HabitosSuenoQuestionnaireScreen(
                 onComplete = {
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.HABITOS_SUENO)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Hábitos de Sueño completado",
@@ -228,6 +257,7 @@ fun UleamApp() {
         composable(Screen.BalanceVidaTrabajoQuestionnaire.route) {
             BalanceVidaTrabajoQuestionnaireScreen(
                 onComplete = {
+                    notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.BALANCE_VIDA_TRABAJO)
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Balance Vida-Trabajo completado",

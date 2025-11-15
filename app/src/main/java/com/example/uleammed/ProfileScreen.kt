@@ -11,17 +11,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.LibraryBooks
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.Help
-import androidx.compose.material.icons.filled.Send
 
 @Composable
 fun ProfileContent(
     user: User?,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToSettings: () -> Unit
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -175,7 +170,7 @@ fun ProfileContent(
                 ProfileOption(
                     icon = Icons.Filled.Settings,
                     title = "Configuración",
-                    onClick = { /* TODO: Configuración */ }
+                    onClick = onNavigateToSettings
                 )
 
                 HorizontalDivider()
