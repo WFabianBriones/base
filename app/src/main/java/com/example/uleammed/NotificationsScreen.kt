@@ -234,6 +234,7 @@ fun NotificationCard(
     onDelete: () -> Unit,
     onOpenQuestionnaire: () -> Unit
 ) {
+    // ✅ CAMBIO CRÍTICO: Usar dueDate en lugar de createdAt
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -347,8 +348,9 @@ fun NotificationCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
+                    // ✅ CORRECCIÓN CRÍTICA: Mostrar dueDate (fecha de vencimiento)
                     Text(
-                        text = dateFormat.format(Date(notification.createdAt)),
+                        text = dateFormat.format(Date(notification.dueDate)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

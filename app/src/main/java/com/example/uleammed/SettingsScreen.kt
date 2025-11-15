@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +23,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: NotificationViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val scheduleConfig by viewModel.scheduleConfig.collectAsState()
     var selectedFrequency by remember {
         mutableStateOf(
@@ -35,6 +37,7 @@ fun SettingsScreen(
     }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var pendingFrequency by remember { mutableStateOf<QuestionnaireFrequency?>(null) }
+    var showPermissionHandler by remember { mutableStateOf(false) }
 
     LaunchedEffect(scheduleConfig) {
         scheduleConfig?.let { config ->
@@ -45,6 +48,15 @@ fun SettingsScreen(
                 else -> QuestionnaireFrequency.WEEKLY
             }
         }
+    }
+
+    // ✅ NUEVO: Handler de permisos
+    if (showPermissionHandler) {
+        NotificationPermissionHandler(
+            onPermissionGranted = {
+                showPermissionHandler = false
+            }
+        )
     }
 
     if (showConfirmDialog && pendingFrequency != null) {
@@ -107,6 +119,32 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
+            // ✅ NUEVO: Estado de permisos
+            Text(
+                text = "Permisos",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Gestiona los permisos necesarios para las notificaciones.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            NotificationPermissionStatus(
+                onRequestPermission = {
+                    showPermissionHandler = true
+                }
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
             // Sección de Notificaciones
             Text(
                 text = "Notificaciones de Cuestionarios",

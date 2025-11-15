@@ -81,8 +81,11 @@ dependencies {
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.googleid)
 
-    // Gson para serialización (NUEVO)
+    // Gson para serialización
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // ✅ NUEVO: WorkManager para notificaciones programadas
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

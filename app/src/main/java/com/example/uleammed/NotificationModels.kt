@@ -8,8 +8,8 @@ data class QuestionnaireNotification(
     val questionnaireType: QuestionnaireType,
     val title: String,
     val message: String,
-    val dueDate: Long,
-    val createdAt: Long = System.currentTimeMillis(),
+    val dueDate: Long, // ✅ Fecha de vencimiento (FUTURA)
+    val createdAt: Long = System.currentTimeMillis(), // Fecha de creación (HOY)
     val isRead: Boolean = false,
     val isCompleted: Boolean = false
 )

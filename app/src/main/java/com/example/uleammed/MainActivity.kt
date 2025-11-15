@@ -16,18 +16,32 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // ✅ Inicializar canal de notificaciones
+        LocalNotificationScheduler.createNotificationChannel(this)
+
+        // ✅ NUEVO: Iniciar verificación periódica automática
+        LocalNotificationScheduler.schedulePeriodicCheck(this)
+
         setContent {
             UleamAppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    UleamApp()
+                    UleamApp(
+                        openFromNotification = intent.getBooleanExtra("open_from_notification", false),
+                        questionnaireType = intent.getStringExtra("questionnaire_type")
+                    )
                 }
             }
         }
@@ -35,15 +49,56 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun UleamApp() {
+fun UleamApp(
+    openFromNotification: Boolean = false,
+    questionnaireType: String? = null
+) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val notificationViewModel: NotificationViewModel = viewModel()
     val context = LocalContext.current
 
+    // ✅ NUEVO: Solicitar permiso de notificaciones al inicio
+    var permissionGranted by remember { mutableStateOf(context.hasNotificationPermission()) }
+
+    if (!permissionGranted) {
+        NotificationPermissionHandler(
+            onPermissionGranted = {
+                permissionGranted = true
+            }
+        )
+    }
+
     // Verificar notificaciones cuando la app inicia
     LaunchedEffect(Unit) {
         notificationViewModel.checkForNewNotifications()
+    }
+
+    // ✅ Navegar al cuestionario si se abrió desde notificación
+    LaunchedEffect(openFromNotification, questionnaireType) {
+        if (openFromNotification && questionnaireType != null) {
+            try {
+                val type = QuestionnaireType.valueOf(questionnaireType)
+                val route = when (type) {
+                    QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
+                    QuestionnaireType.SINTOMAS_MUSCULARES -> Screen.SintomasMuscularesQuestionnaire.route
+                    QuestionnaireType.SINTOMAS_VISUALES -> Screen.SintomasVisualesQuestionnaire.route
+                    QuestionnaireType.CARGA_TRABAJO -> Screen.CargaTrabajoQuestionnaire.route
+                    QuestionnaireType.ESTRES_SALUD_MENTAL -> Screen.EstresSaludMentalQuestionnaire.route
+                    QuestionnaireType.HABITOS_SUENO -> Screen.HabitosSuenoQuestionnaire.route
+                    QuestionnaireType.ACTIVIDAD_FISICA -> Screen.ActividadFisicaQuestionnaire.route
+                    QuestionnaireType.BALANCE_VIDA_TRABAJO -> Screen.BalanceVidaTrabajoQuestionnaire.route
+                }
+
+                // Primero ir a Home, luego al cuestionario
+                navController.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Login.route) { inclusive = true }
+                }
+                navController.navigate(route)
+            } catch (e: Exception) {
+                // Ignorar si el tipo no es válido
+            }
+        }
     }
 
     NavHost(
@@ -137,7 +192,6 @@ fun UleamApp() {
         composable(Screen.ErgonomiaQuestionnaire.route) {
             ErgonomiaQuestionnaireScreen(
                 onComplete = {
-                    // Marcar como completado
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ERGONOMIA)
                     Toast.makeText(
                         context,

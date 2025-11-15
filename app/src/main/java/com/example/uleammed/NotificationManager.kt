@@ -14,6 +14,7 @@ class QuestionnaireNotificationManager(context: Context) {
         Context.MODE_PRIVATE
     )
     private val gson = Gson()
+    private val statsManager = QuestionnaireStatsManager(context) // ✅ NUEVO
 
     companion object {
         private const val KEY_NOTIFICATIONS = "notifications"
@@ -63,21 +64,80 @@ class QuestionnaireNotificationManager(context: Context) {
     // Marcar cuestionario como completado
     fun markQuestionnaireCompleted(userId: String, questionnaireType: QuestionnaireType) {
         val config = getScheduleConfig(userId)
+        val now = System.currentTimeMillis()
         val updatedDates = config.lastCompletedDates.toMutableMap()
-        updatedDates[questionnaireType.name] = System.currentTimeMillis()
+
+        // ✅ NUEVO: Calcular fecha de vencimiento (si existe) para estadísticas
+        val previousCompleted = updatedDates[questionnaireType.name] ?: 0L
+        val dueDate = if (previousCompleted > 0L) {
+            previousCompleted + TimeUnit.DAYS.toMillis(config.periodDays.toLong())
+        } else {
+            now // Primera vez, se considera a tiempo
+        }
+
+        // ✅ NUEVO: Registrar en estadísticas
+        statsManager.recordCompletion(
+            userId = userId,
+            questionnaireType = questionnaireType,
+            completedAt = now,
+            dueDate = dueDate,
+            periodDays = config.periodDays
+        )
+
+        updatedDates[questionnaireType.name] = now
 
         val updatedConfig = config.copy(lastCompletedDates = updatedDates)
         saveScheduleConfig(updatedConfig)
 
-        // Eliminar notificaciones de este tipo y crear la siguiente
+        // ✅ CORRECCIÓN: Eliminar TODAS las notificaciones de este tipo (completadas o no)
         val notifications = getNotifications().toMutableList()
         notifications.removeAll { it.questionnaireType == questionnaireType }
 
-        // Crear siguiente notificación
-        val nextNotification = createNotification(questionnaireType, config.periodDays)
-        notifications.add(nextNotification)
+        // ✅ Calcular la próxima fecha de vencimiento
+        val nextDueDate = now + TimeUnit.DAYS.toMillis(config.periodDays.toLong())
 
+        // 🔍 DEBUG: Imprimir fechas para verificación
+        android.util.Log.d("NotificationManager", """
+            ============ CUESTIONARIO COMPLETADO ============
+            Tipo: $questionnaireType
+            Fecha completado: ${java.util.Date(now)}
+            Periodicidad: ${config.periodDays} días
+            Próxima notificación: ${java.util.Date(nextDueDate)}
+            Días hasta próxima: ${TimeUnit.MILLISECONDS.toDays(nextDueDate - now)} días
+            ============================================
+        """.trimIndent())
+
+        // ✅ NUEVO: Programar recordatorio 1 día antes (si la periodicidad es mayor a 1 día)
+        if (config.periodDays > 1) {
+            val reminderDate = nextDueDate - TimeUnit.DAYS.toMillis(1)
+
+            android.util.Log.d("NotificationManager", """
+                ============ PROGRAMANDO RECORDATORIO PREVIO ============
+                Fecha recordatorio: ${java.util.Date(reminderDate)}
+                Días hasta recordatorio: ${TimeUnit.MILLISECONDS.toDays(reminderDate - now)} días
+            """.trimIndent())
+
+            LocalNotificationScheduler.scheduleNotification(
+                questionnaireType = questionnaireType,
+                dueDate = reminderDate,
+                title = "📅 Recordatorio: ${getQuestionnaireInfo(questionnaireType).title}",
+                message = "Mañana es el día de completar tu cuestionario ${getPeriodText(config.periodDays)}. ¡Prepárate!",
+                isReminder = true // Flag para identificar que es recordatorio
+            )
+        }
+
+        // ✅ NO crear notificación en la app todavía
+        // Solo programar la notificación push que se disparará en la fecha futura
         saveNotifications(notifications)
+
+        // Programar notificación push principal
+        LocalNotificationScheduler.scheduleNotification(
+            questionnaireType = questionnaireType,
+            dueDate = nextDueDate,
+            title = "⏰ Cuestionario pendiente: ${getQuestionnaireInfo(questionnaireType).title}",
+            message = "Es momento de completar tu cuestionario ${getPeriodText(config.periodDays)}.",
+            isReminder = false
+        )
     }
 
     // Verificar y generar notificaciones pendientes
@@ -92,7 +152,7 @@ class QuestionnaireNotificationManager(context: Context) {
                 return@forEach
             }
 
-            // Verificar si ya existe una notificación para este tipo
+            // Verificar si ya existe una notificación activa para este tipo
             val existingNotification = currentNotifications.find {
                 it.questionnaireType == type && !it.isCompleted
             }
@@ -101,14 +161,40 @@ class QuestionnaireNotificationManager(context: Context) {
                 // Obtener última fecha de completado
                 val lastCompleted = config.lastCompletedDates[type.name] ?: 0L
 
-                // CAMBIO CRÍTICO: Solo generar notificación si ya se completó al menos una vez
+                // ✅ Solo si ya se completó al menos una vez
                 if (lastCompleted > 0L) {
-                    val daysSinceCompleted = TimeUnit.MILLISECONDS.toDays(now - lastCompleted)
+                    val nextDueDate = lastCompleted + TimeUnit.DAYS.toMillis(config.periodDays.toLong())
 
-                    // Si han pasado suficientes días desde la última vez
-                    if (daysSinceCompleted >= config.periodDays) {
-                        val notification = createNotification(type, config.periodDays)
+                    // ✅ CAMBIO CRÍTICO: Solo crear notificación si YA LLEGÓ la fecha de vencimiento
+                    if (now >= nextDueDate) {
+                        android.util.Log.d("NotificationManager", """
+                            ============ GENERANDO NOTIFICACIÓN ============
+                            Tipo: $type
+                            Última completada: ${java.util.Date(lastCompleted)}
+                            Fecha vencimiento: ${java.util.Date(nextDueDate)}
+                            Fecha actual: ${java.util.Date(now)}
+                            Estado: VENCIDA - Creando notificación
+                            ============================================
+                        """.trimIndent())
+
+                        val notification = createNotification(
+                            type = type,
+                            periodDays = config.periodDays,
+                            dueDate = nextDueDate
+                        )
                         currentNotifications.add(notification)
+                    } else {
+                        // ✅ Aún no es tiempo, solo log
+                        val daysRemaining = TimeUnit.MILLISECONDS.toDays(nextDueDate - now)
+                        android.util.Log.d("NotificationManager", """
+                            ============ VERIFICANDO NOTIFICACIÓN ============
+                            Tipo: $type
+                            Última completada: ${java.util.Date(lastCompleted)}
+                            Próxima fecha: ${java.util.Date(nextDueDate)}
+                            Días restantes: $daysRemaining días
+                            Estado: AÚN NO ES TIEMPO
+                            ============================================
+                        """.trimIndent())
                     }
                 }
             }
@@ -119,17 +205,19 @@ class QuestionnaireNotificationManager(context: Context) {
         saveNotifications(currentNotifications)
     }
 
-    // Crear una notificación
+    // ✅ CORRECCIÓN: Crear notificación con fecha de vencimiento específica
     private fun createNotification(
         type: QuestionnaireType,
-        periodDays: Int
+        periodDays: Int,
+        dueDate: Long // ✅ Recibe la fecha de vencimiento
     ): QuestionnaireNotification {
         val info = getQuestionnaireInfo(type)
         return QuestionnaireNotification(
             questionnaireType = type,
             title = "Cuestionario pendiente: ${info.title}",
             message = "Es momento de completar tu cuestionario ${getPeriodText(periodDays)}. ${info.estimatedTime}",
-            dueDate = System.currentTimeMillis()
+            dueDate = dueDate, // ✅ Usa la fecha de vencimiento proporcionada
+            createdAt = System.currentTimeMillis() // Fecha de creación es ahora
         )
     }
 
@@ -146,6 +234,13 @@ class QuestionnaireNotificationManager(context: Context) {
     // Eliminar notificación
     fun deleteNotification(notificationId: String) {
         val notifications = getNotifications().toMutableList()
+        val notification = notifications.find { it.id == notificationId }
+
+        // Cancelar notificación push si existe
+        notification?.let {
+            LocalNotificationScheduler.cancelNotification(it.questionnaireType)
+        }
+
         notifications.removeAll { it.id == notificationId }
         saveNotifications(notifications)
     }
@@ -168,13 +263,30 @@ class QuestionnaireNotificationManager(context: Context) {
     // Limpiar todas las notificaciones leídas
     fun clearReadNotifications() {
         val notifications = getNotifications()
+        val toCancel = notifications.filter { it.isRead }
+
+        // Cancelar notificaciones push
+        toCancel.forEach {
+            LocalNotificationScheduler.cancelNotification(it.questionnaireType)
+        }
+
         val filtered = notifications.filter { !it.isRead }
         saveNotifications(filtered)
     }
 
     // Limpiar TODAS las notificaciones
     fun clearAllNotifications() {
+        // Cancelar todas las notificaciones push
+        QuestionnaireType.values().forEach {
+            LocalNotificationScheduler.cancelNotification(it)
+        }
+
         saveNotifications(emptyList())
+    }
+
+    // ✅ NUEVO: Obtener gestor de estadísticas
+    fun getStatsManager(): QuestionnaireStatsManager {
+        return statsManager
     }
 
     private fun getPeriodText(days: Int): String {
