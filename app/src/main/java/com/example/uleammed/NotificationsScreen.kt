@@ -348,35 +348,24 @@ fun NotificationCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    // ✅ CORRECCIÓN CRÍTICA: Mostrar dueDate (fecha de vencimiento)
                     Text(
-                        text = dateFormat.format(Date(notification.dueDate)),
+                        text = if (notification.dueDate <= System.currentTimeMillis()) {
+                            "✅ Disponible ahora"
+                        } else {
+                            "Fecha: ${dateFormat.format(Date(notification.dueDate))}"
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!notification.isRead) {
-                        OutlinedButton(
-                            onClick = onMarkAsRead,
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Text(
-                                text = "Marcar leído",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                        color = if (notification.dueDate <= System.currentTimeMillis()) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontWeight = if (notification.dueDate <= System.currentTimeMillis()) {
+                            FontWeight.Bold
+                        } else {
+                            FontWeight.Normal
                         }
-                    }
-                    Button(
-                        onClick = onOpenQuestionnaire,
-                        modifier = Modifier.height(32.dp)
-                    ) {
-                        Text(
-                            text = "Completar",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    )
                 }
             }
         }

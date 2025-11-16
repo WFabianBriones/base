@@ -31,9 +31,20 @@ fun HomeScreen(
     val currentUser by authViewModel.currentUser.collectAsState()
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
-    // Actualizar notificaciones cuando entra a Home
+    // ✅ CRÍTICO: Forzar recarga de notificaciones cada vez que se abre Home
     LaunchedEffect(Unit) {
+        android.util.Log.d("HomeScreen", "🔄 Recargando notificaciones...")
+        notificationViewModel.loadNotifications()
         notificationViewModel.checkForNewNotifications()
+        android.util.Log.d("HomeScreen", "📊 Notificaciones cargadas: $unreadCount no leídas")
+    }
+
+    // ✅ NUEVO: Recargar cuando currentUser cambia
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
+            android.util.Log.d("HomeScreen", "👤 Usuario detectado, verificando notificaciones...")
+            notificationViewModel.checkForNewNotifications()
+        }
     }
 
     Scaffold(
@@ -94,6 +105,10 @@ fun BottomNavigationBar(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    LaunchedEffect(unreadCount) {
+        android.util.Log.d("BottomNav", "📊 Badge actualizado: $unreadCount notificaciones pendientes")
+    }
+
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp
@@ -101,18 +116,24 @@ fun BottomNavigationBar(
         bottomNavItems.forEach { item ->
             NavigationBarItem(
                 icon = {
-                    BadgedBox(
-                        badge = {
-                            if (item.route == Screen.Notifications.route && unreadCount > 0) {
-                                Badge {
+                    if (item.route == Screen.Notifications.route && unreadCount > 0) {
+                        BadgedBox(
+                            badge = {
+                                Badge(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ) {
                                     Text(
                                         text = if (unreadCount > 99) "99+" else unreadCount.toString(),
-                                        style = MaterialTheme.typography.labelSmall
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
+                        ) {
+                            Icon(item.icon, contentDescription = item.title)
                         }
-                    ) {
+                    } else {
                         Icon(item.icon, contentDescription = item.title)
                     }
                 },
@@ -130,7 +151,8 @@ fun BottomNavigationBar(
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }

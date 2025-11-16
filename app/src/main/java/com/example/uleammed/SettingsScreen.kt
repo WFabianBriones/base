@@ -1,5 +1,6 @@
 package com.example.uleammed
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -352,8 +353,111 @@ fun SettingsScreen(
                     }
                 }
             }
+            OutlinedButton(
+                onClick = {
+                    DebugNotificationHelper.diagnoseNotifications(context)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.BugReport, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Diagnosticar Notificaciones")
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            // ✅ NUEVO: Sección de pruebas (solo en DEBUG)
+            if (BuildConfig.DEBUG) {
+                Text(
+                    text = "🧪 Herramientas de Prueba",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Solo visible en modo DEBUG. Prueba las notificaciones push.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                TestNotificationHelper.showImmediateTestNotification(context)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Filled.Notifications, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Notificación Inmediata")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                TestNotificationHelper.scheduleTestNotification10Seconds(context)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Filled.AccessTime, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Notificación en 10 seg")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                TestNotificationHelper.scheduleTestNotification1Minute(context)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Filled.Schedule, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Notificación en 1 min")
+                        }
+
+                        var showStatus by remember { mutableStateOf(false) }
+
+                        TextButton(
+                            onClick = {
+                                val status = TestNotificationHelper.checkNotificationStatus(context)
+                                android.util.Log.d("TestNotification", status)
+                                Toast.makeText(context, "Estado en Logcat", Toast.LENGTH_SHORT).show()
+                                showStatus = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Filled.Info, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Ver Estado del Sistema")
+                        }
+
+                        if (showStatus) {
+                            Text(
+                                text = TestNotificationHelper.checkNotificationStatus(context),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // ESTADO ACTUAL
 
             // ESTADO ACTUAL
             Card(
@@ -448,6 +552,8 @@ fun FrequencyOption(
     }
 }
 
+
+
 /**
  * ✅ NUEVO: Dialog de selección de hora
  */
@@ -467,6 +573,7 @@ fun TimePickerDialog(
         initialMinute = initialMinute,
         is24Hour = false
     )
+
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -514,4 +621,5 @@ fun TimePickerDialog(
             }
         }
     )
+
 }

@@ -304,14 +304,12 @@ class NotificationWorker(
             return
         }
 
-        // ✅ Usar ID diferente para recordatorios
         val notificationId = if (isReminder) {
             NOTIFICATION_ID_BASE + type.ordinal + 100
         } else {
             NOTIFICATION_ID_BASE + type.ordinal
         }
 
-        // Intent para abrir la app
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("questionnaire_type", type.name)
@@ -325,6 +323,19 @@ class NotificationWorker(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val dismissIntent = Intent(context, NotificationDismissReceiver::class.java).apply {
+            action = NotificationDismissReceiver.ACTION_NOTIFICATION_DISMISSED
+            putExtra(NotificationDismissReceiver.EXTRA_QUESTIONNAIRE_TYPE, type.name)
+            putExtra(NotificationDismissReceiver.EXTRA_NOTIFICATION_ID, notificationId.toString())
+        }
+
+        val dismissPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 10000,
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notificationBuilder = NotificationCompat.Builder(context, LocalNotificationScheduler.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -333,18 +344,27 @@ class NotificationWorker(
             .setPriority(if (isReminder) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setDeleteIntent(dismissPendingIntent)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        // ✅ Solo vibrar en notificación principal
         if (!isReminder) {
-            notificationBuilder.setVibrate(longArrayOf(0, 500, 200, 500))
+            notificationBuilder
+                .setVibrate(longArrayOf(0, 500, 200, 500))
+                .setLights(0xFF00FF00.toInt(), 1000, 3000)
         }
 
         try {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(notificationId, notificationBuilder.build())
 
-            android.util.Log.d(TAG, "✅ Push notification mostrada (ID: $notificationId)")
+            android.util.Log.d(TAG, """
+                ✅ Push notification mostrada
+                - ID: $notificationId
+                - Tipo: $type
+                - Es recordatorio: $isReminder
+                - Título: $title
+            """.trimIndent())
         } catch (e: SecurityException) {
             android.util.Log.e(TAG, "❌ Permiso de notificaciones denegado", e)
             throw e

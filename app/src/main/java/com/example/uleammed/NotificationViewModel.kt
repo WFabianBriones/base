@@ -35,13 +35,11 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     val error: StateFlow<String?> = _error.asStateFlow()
 
     init {
+        android.util.Log.d("NotificationViewModel", "🚀 ViewModel inicializado")
         loadNotifications()
         checkForNewNotifications()
     }
 
-    /**
-     * Cargar notificaciones del usuario actual
-     */
     fun loadNotifications() {
         viewModelScope.launch {
             try {
@@ -52,8 +50,12 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                         .sortedByDescending { it.createdAt }
                 }
 
+                val unread = withContext(Dispatchers.IO) {
+                    notificationManager.getUnreadCount()
+                }
+
                 _notifications.value = notifications
-                _unreadCount.value = notificationManager.getUnreadCount()
+                _unreadCount.value = unread
 
                 val userId = auth.currentUser?.uid
                 if (userId != null) {
@@ -63,32 +65,42 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     _scheduleConfig.value = config
                 }
 
+                android.util.Log.d("NotificationViewModel", """
+                    ✅ Notificaciones cargadas
+                    - Total: ${notifications.size}
+                    - No leídas: $unread
+                """.trimIndent())
+
                 _error.value = null
             } catch (e: Exception) {
                 _error.value = "Error al cargar notificaciones: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error loading notifications", e)
+                android.util.Log.e("NotificationViewModel", "❌ Error loading notifications", e)
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    /**
-     * Verificar y generar nuevas notificaciones
-     */
     fun checkForNewNotifications() {
         viewModelScope.launch {
             try {
-                val userId = auth.currentUser?.uid ?: return@launch
+                val userId = auth.currentUser?.uid
+                if (userId == null) {
+                    android.util.Log.w("NotificationViewModel", "⚠️ Usuario no autenticado")
+                    return@launch
+                }
+
+                android.util.Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones para userId: $userId")
 
                 withContext(Dispatchers.IO) {
                     notificationManager.checkAndGenerateNotifications(userId)
                 }
 
+                // ✅ CRÍTICO: Recargar después de generar
                 loadNotifications()
             } catch (e: Exception) {
                 _error.value = "Error al verificar notificaciones: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error checking notifications", e)
+                android.util.Log.e("NotificationViewModel", "❌ Error checking notifications", e)
             }
         }
     }

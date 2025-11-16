@@ -25,10 +25,30 @@ class QuestionnaireNotificationManager(private val context: Context) {
     }
 
     fun getNotifications(): List<QuestionnaireNotification> {
-        val json = prefs.getString(KEY_NOTIFICATIONS, null) ?: return emptyList()
+        val json = prefs.getString(KEY_NOTIFICATIONS, null)
+
+        android.util.Log.d(TAG, """
+        📂 Leyendo notificaciones de SharedPreferences
+        - JSON existe: ${json != null}
+        - Tamaño JSON: ${json?.length ?: 0} caracteres
+    """.trimIndent())
+
+        if (json == null) {
+            android.util.Log.w(TAG, "⚠️ No hay notificaciones guardadas en SharedPreferences")
+            return emptyList()
+        }
+
         return try {
             val type = object : TypeToken<List<QuestionnaireNotification>>() {}.type
-            gson.fromJson(json, type)
+            val notifications = gson.fromJson<List<QuestionnaireNotification>>(json, type)
+
+            android.util.Log.d(TAG, """
+            ✅ Notificaciones parseadas
+            - Total: ${notifications.size}
+            - No leídas: ${notifications.count { !it.isRead }}
+        """.trimIndent())
+
+            notifications
         } catch (e: Exception) {
             logError("getNotifications", e)
             emptyList()
@@ -38,11 +58,19 @@ class QuestionnaireNotificationManager(private val context: Context) {
     private fun saveNotifications(notifications: List<QuestionnaireNotification>) {
         try {
             val json = gson.toJson(notifications)
-            prefs.edit().putString(KEY_NOTIFICATIONS, json).apply()
-            logDebug("saveNotifications", mapOf(
-                "count" to notifications.size,
-                "unread" to notifications.count { !it.isRead }
-            ))
+            val success = prefs.edit().putString(KEY_NOTIFICATIONS, json).commit() // ✅ Usar commit() en vez de apply()
+
+            android.util.Log.d(TAG, """
+            💾 Guardando notificaciones
+            - Total: ${notifications.size}
+            - No leídas: ${notifications.count { !it.isRead }}
+            - Guardado exitoso: $success
+            - Tamaño JSON: ${json.length} caracteres
+        """.trimIndent())
+
+            if (!success) {
+                android.util.Log.e(TAG, "❌ ERROR: No se pudo guardar en SharedPreferences")
+            }
         } catch (e: Exception) {
             logError("saveNotifications", e)
         }
@@ -180,13 +208,12 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 logWarning("markQuestionnaireCompleted", "Fecha de vencimiento en el pasado ignorada")
             }
 
-            // ✅ NUEVO: Generar notificaciones para los demás cuestionarios si es primera vez
             checkAndGenerateNotifications(userId)
         }
     }
 
     /**
-     * ✅ MEJORADO: Nueva lógica para mostrar todos los cuestionarios pendientes
+     * ✅ CORREGIDO: Generar TODOS los 8 cuestionarios cuando completa el inicial
      */
     fun checkAndGenerateNotifications(userId: String) {
         synchronized(lock) {
@@ -197,14 +224,15 @@ class QuestionnaireNotificationManager(private val context: Context) {
 
             logDebug("checkAndGenerateNotifications", mapOf(
                 "userId" to userId,
-                "existingNotifications" to currentNotifications.size
+                "existingNotifications" to currentNotifications.size,
+                "completedCount" to config.lastCompletedDates.size
             ))
 
-            // ✅ NUEVO: Verificar si el usuario ya completó al menos 1 cuestionario
             val hasCompletedAny = config.lastCompletedDates.isNotEmpty()
 
             QuestionnaireType.values().forEach { type ->
                 if (!config.enabledQuestionnaires.contains(type.name)) {
+                    logDebug("skipDisabled", mapOf("type" to type.name))
                     return@forEach
                 }
 
@@ -212,65 +240,70 @@ class QuestionnaireNotificationManager(private val context: Context) {
                     it.questionnaireType == type && !it.isCompleted
                 }
 
-                if (existingNotification == null) {
-                    val lastCompleted = config.lastCompletedDates[type.name] ?: 0L
+                if (existingNotification != null) {
+                    logDebug("skipExisting", mapOf(
+                        "type" to type.name,
+                        "existingId" to existingNotification.id
+                    ))
+                    return@forEach
+                }
 
-                    // ✅ CAMBIO CRÍTICO: Nueva lógica
-                    val shouldShow = if (lastCompleted > 0L) {
+                val lastCompleted = config.lastCompletedDates[type.name] ?: 0L
+
+                val shouldShow = if (lastCompleted > 0L) {
+                    val nextDueDate = calculateNextDueDate(
+                        lastCompleted,
+                        config.periodDays,
+                        config.preferredHour,
+                        config.preferredMinute
+                    )
+                    now >= nextDueDate
+                } else {
+                    hasCompletedAny
+                }
+
+                if (shouldShow) {
+                    val nextDueDate = if (lastCompleted > 0L) {
+                        calculateNextDueDate(
+                            lastCompleted,
+                            config.periodDays,
+                            config.preferredHour,
+                            config.preferredMinute
+                        )
+                    } else {
+                        now
+                    }
+
+                    val notification = createNotification(
+                        type = type,
+                        periodDays = config.periodDays,
+                        dueDate = nextDueDate,
+                        isFirstTime = lastCompleted == 0L
+                    )
+                    currentNotifications.add(notification)
+                    generatedCount++
+
+                    logDebug("✅ notificationGenerated", mapOf(
+                        "type" to type.name,
+                        "dueDate" to formatDate(nextDueDate),
+                        "isFirstTime" to (lastCompleted == 0L),
+                        "isAvailableNow" to (nextDueDate <= now),
+                        "reason" to if (lastCompleted == 0L) "Primera vez - disponible ahora" else "Período vencido"
+                    ))
+                } else {
+                    if (lastCompleted > 0L) {
                         val nextDueDate = calculateNextDueDate(
                             lastCompleted,
                             config.periodDays,
                             config.preferredHour,
                             config.preferredMinute
                         )
-                        now >= nextDueDate
-                    } else {
-                        // ✅ NUEVO: Mostrar si ya completó ALGÚN otro cuestionario
-                        hasCompletedAny
-                    }
-
-                    if (shouldShow) {
-                        val nextDueDate = if (lastCompleted > 0L) {
-                            calculateNextDueDate(
-                                lastCompleted,
-                                config.periodDays,
-                                config.preferredHour,
-                                config.preferredMinute
-                            )
-                        } else {
-                            now // ✅ Primera vez = ahora
-                        }
-
-                        val notification = createNotification(
-                            type = type,
-                            periodDays = config.periodDays,
-                            dueDate = nextDueDate,
-                            isFirstTime = lastCompleted == 0L
-                        )
-                        currentNotifications.add(notification)
-                        generatedCount++
-
-                        logDebug("generatedNotification", mapOf(
+                        val daysRemaining = TimeUnit.MILLISECONDS.toDays(nextDueDate - now)
+                        logDebug("notificationNotDue", mapOf(
                             "type" to type.name,
-                            "dueDate" to formatDate(nextDueDate),
-                            "isFirstTime" to (lastCompleted == 0L),
-                            "reason" to if (lastCompleted == 0L) "Pendiente inicial" else "Período vencido"
+                            "daysRemaining" to daysRemaining,
+                            "nextDueDate" to formatDate(nextDueDate)
                         ))
-                    } else {
-                        if (lastCompleted > 0L) {
-                            val nextDueDate = calculateNextDueDate(
-                                lastCompleted,
-                                config.periodDays,
-                                config.preferredHour,
-                                config.preferredMinute
-                            )
-                            val daysRemaining = TimeUnit.MILLISECONDS.toDays(nextDueDate - now)
-                            logDebug("notificationNotDue", mapOf(
-                                "type" to type.name,
-                                "daysRemaining" to daysRemaining,
-                                "nextDueDate" to formatDate(nextDueDate)
-                            ))
-                        }
                     }
                 }
             }
@@ -278,9 +311,10 @@ class QuestionnaireNotificationManager(private val context: Context) {
             prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
             saveNotifications(currentNotifications)
 
-            logDebug("checkComplete", mapOf(
+            logDebug("✅ checkComplete", mapOf(
                 "generatedCount" to generatedCount,
                 "totalNotifications" to currentNotifications.size,
+                "unreadCount" to currentNotifications.count { !it.isRead },
                 "hasCompletedAny" to hasCompletedAny
             ))
         }
@@ -303,9 +337,6 @@ class QuestionnaireNotificationManager(private val context: Context) {
         return calendar.timeInMillis
     }
 
-    /**
-     * ✅ MEJORADO: Mensajes diferentes para primera vez vs periódico
-     */
     private fun createNotification(
         type: QuestionnaireType,
         periodDays: Int,

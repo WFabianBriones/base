@@ -13,16 +13,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,7 +71,6 @@ class MainActivity : ComponentActivity() {
      */
     private fun syncNotificationsOnResume() {
         try {
-            // Solo funciona en Android M (API 23) o superior
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
                 android.util.Log.d("MainActivity", "⚠️ API < 23, sincronización no disponible")
                 return
@@ -78,15 +78,13 @@ class MainActivity : ComponentActivity() {
 
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val activeNotifications = notificationManager.activeNotifications
-
-            // IDs de notificaciones activas en la barra del sistema
             val activeIds = activeNotifications.map { it.id }.toSet()
 
             android.util.Log.d("MainActivity", """
-                🔄 Sincronizando notificaciones
-                - Activas en sistema: ${activeIds.size}
-                - IDs: $activeIds
-            """.trimIndent())
+            🔄 Sincronizando notificaciones
+            - Activas en sistema: ${activeIds.size}
+            - IDs: $activeIds
+        """.trimIndent())
 
             val appNotificationManager = QuestionnaireNotificationManager(this)
             val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
@@ -95,20 +93,25 @@ class MainActivity : ComponentActivity() {
                 val inAppNotifications = appNotificationManager.getNotifications()
                     .filter { !it.isRead && !it.isCompleted }
 
-                // Verificar cuáles notificaciones in-app no tienen push notification activa
+                // ✅ CORREGIDO: Solo marcar como leídas si NO están en la barra de notificaciones
                 inAppNotifications.forEach { notification ->
                     val notificationId = 1000 + notification.questionnaireType.ordinal
 
+                    // ✅ CRÍTICO: Solo marcar como leída si la push notification fue descartada
                     if (!activeIds.contains(notificationId)) {
-                        // La push notification fue descartada pero la in-app sigue activa
                         android.util.Log.d("MainActivity", """
-                            ⚠️ Notificación descartada detectada
-                            - Tipo: ${notification.questionnaireType}
-                            - ID esperado: $notificationId
-                            - Marcando como leída en app
-                        """.trimIndent())
+                        ⚠️ Notificación push descartada, marcando in-app como leída
+                        - Tipo: ${notification.questionnaireType}
+                        - ID: $notificationId
+                    """.trimIndent())
 
                         appNotificationManager.markAsRead(notification.id)
+                    } else {
+                        android.util.Log.d("MainActivity", """
+                        ✅ Notificación push activa, manteniendo in-app sin leer
+                        - Tipo: ${notification.questionnaireType}
+                        - ID: $notificationId
+                    """.trimIndent())
                     }
                 }
 
@@ -134,7 +137,10 @@ fun UleamApp(
     val notificationViewModel: NotificationViewModel = viewModel()
     val context = LocalContext.current
 
-    // Solicitar permiso de notificaciones al inicio
+    // ✅ CORREGIDO: Agregar collectAsState
+    val authState by authViewModel.authState.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
+
     var permissionGranted by remember { mutableStateOf(context.hasNotificationPermission()) }
 
     if (!permissionGranted) {
@@ -145,14 +151,27 @@ fun UleamApp(
         )
     }
 
-    // Verificar notificaciones cuando la app inicia
-    LaunchedEffect(Unit) {
-        notificationViewModel.checkForNewNotifications()
+    // ✅ CORREGIDO: Determinar startDestination
+    val startDestination = remember(currentUser) {
+        if (currentUser != null) {
+            if (currentUser?.hasCompletedQuestionnaire == false) {
+                Screen.Questionnaire.route
+            } else {
+                Screen.Home.route
+            }
+        } else {
+            Screen.Login.route
+        }
     }
 
-    // ✅ Navegar al cuestionario si se abrió desde notificación
-    LaunchedEffect(openFromNotification, questionnaireType) {
-        if (openFromNotification && questionnaireType != null) {
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
+            notificationViewModel.checkForNewNotifications()
+        }
+    }
+
+    LaunchedEffect(openFromNotification, questionnaireType, currentUser) {
+        if (openFromNotification && questionnaireType != null && currentUser != null) {
             try {
                 val type = QuestionnaireType.valueOf(questionnaireType)
                 val route = when (type) {
@@ -178,7 +197,7 @@ fun UleamApp(
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = startDestination
     ) {
         composable(Screen.Login.route) {
             LoginScreen(
