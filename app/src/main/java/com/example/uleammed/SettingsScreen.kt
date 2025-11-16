@@ -25,32 +25,38 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scheduleConfig by viewModel.scheduleConfig.collectAsState()
+
     var selectedFrequency by remember {
         mutableStateOf(
-            when (scheduleConfig?.periodDays) {
-                7 -> QuestionnaireFrequency.WEEKLY
-                15 -> QuestionnaireFrequency.BIWEEKLY
-                30 -> QuestionnaireFrequency.MONTHLY
-                else -> QuestionnaireFrequency.WEEKLY
-            }
+            QuestionnaireFrequency.fromDays(scheduleConfig?.periodDays ?: 7)
         )
     }
-    var showConfirmDialog by remember { mutableStateOf(false) }
+
+    var selectedHour by remember {
+        mutableIntStateOf(scheduleConfig?.preferredHour ?: 9)
+    }
+
+    var selectedMinute by remember {
+        mutableIntStateOf(scheduleConfig?.preferredMinute ?: 0)
+    }
+
+    var showFrequencyDialog by remember { mutableStateOf(false) }
+    var showTimeDialog by remember { mutableStateOf(false) }
     var pendingFrequency by remember { mutableStateOf<QuestionnaireFrequency?>(null) }
     var showPermissionHandler by remember { mutableStateOf(false) }
+    var showRemindersInApp by remember {
+        mutableStateOf(scheduleConfig?.showRemindersInApp ?: true)
+    }
 
     LaunchedEffect(scheduleConfig) {
         scheduleConfig?.let { config ->
-            selectedFrequency = when (config.periodDays) {
-                7 -> QuestionnaireFrequency.WEEKLY
-                15 -> QuestionnaireFrequency.BIWEEKLY
-                30 -> QuestionnaireFrequency.MONTHLY
-                else -> QuestionnaireFrequency.WEEKLY
-            }
+            selectedFrequency = QuestionnaireFrequency.fromDays(config.periodDays)
+            selectedHour = config.preferredHour
+            selectedMinute = config.preferredMinute
+            showRemindersInApp = config.showRemindersInApp
         }
     }
 
-    // ✅ NUEVO: Handler de permisos
     if (showPermissionHandler) {
         NotificationPermissionHandler(
             onPermissionGranted = {
@@ -59,10 +65,10 @@ fun SettingsScreen(
         )
     }
 
-    if (showConfirmDialog && pendingFrequency != null) {
+    if (showFrequencyDialog && pendingFrequency != null) {
         AlertDialog(
             onDismissRequest = {
-                showConfirmDialog = false
+                showFrequencyDialog = false
                 pendingFrequency = null
             },
             icon = { Icon(Icons.Filled.Schedule, contentDescription = null) },
@@ -75,7 +81,7 @@ fun SettingsScreen(
                     onClick = {
                         viewModel.updatePeriodDays(pendingFrequency!!.days)
                         selectedFrequency = pendingFrequency!!
-                        showConfirmDialog = false
+                        showFrequencyDialog = false
                         pendingFrequency = null
                     }
                 ) {
@@ -85,12 +91,29 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        showConfirmDialog = false
+                        showFrequencyDialog = false
                         pendingFrequency = null
                     }
                 ) {
                     Text("Cancelar")
                 }
+            }
+        )
+    }
+
+    // ✅ NUEVO: Dialog de selección de hora
+    if (showTimeDialog) {
+        TimePickerDialog(
+            initialHour = selectedHour,
+            initialMinute = selectedMinute,
+            onConfirm = { hour, minute ->
+                selectedHour = hour
+                selectedMinute = minute
+                viewModel.updatePreferredTime(hour, minute)
+                showTimeDialog = false
+            },
+            onDismiss = {
+                showTimeDialog = false
             }
         )
     }
@@ -119,7 +142,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
-            // ✅ NUEVO: Estado de permisos
+            // PERMISOS
             Text(
                 text = "Permisos",
                 style = MaterialTheme.typography.titleLarge,
@@ -145,7 +168,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Sección de Notificaciones
+            // CONFIGURACIÓN DE NOTIFICACIONES
             Text(
                 text = "Notificaciones de Cuestionarios",
                 style = MaterialTheme.typography.titleLarge,
@@ -156,13 +179,14 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Configura cada cuánto tiempo deseas recibir recordatorios para completar los cuestionarios de salud.",
+                text = "Personaliza cuándo y cómo recibir recordatorios.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Periodicidad
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -190,7 +214,7 @@ fun SettingsScreen(
                                 onSelect = {
                                     if (selectedFrequency != frequency) {
                                         pendingFrequency = frequency
-                                        showConfirmDialog = true
+                                        showFrequencyDialog = true
                                     }
                                 }
                             )
@@ -202,9 +226,99 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ✅ NUEVO: Selector de hora preferida
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { showTimeDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AccessTime,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column {
+                            Text(
+                                text = "Hora preferida",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = PreferredTimeConfig(selectedHour, selectedMinute).formatReadable(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ✅ NUEVO: Mostrar recordatorios en app
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Notifications,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Column {
+                            Text(
+                                text = "Recordatorios previos",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Mostrar en Avisos 1 día antes",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = showRemindersInApp,
+                        onCheckedChange = {
+                            showRemindersInApp = it
+                            viewModel.updateRemindersInApp(it)
+                        }
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Información adicional
+            // INFO CARD
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -231,7 +345,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Completar los cuestionarios regularmente nos ayuda a monitorear tu salud laboral y detectar problemas tempranamente. Los recordatorios aparecerán en tu sección de Avisos.",
+                            text = "Completar los cuestionarios regularmente nos ayuda a monitorear tu salud laboral y detectar problemas tempranamente.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -241,7 +355,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Estado actual
+            // ESTADO ACTUAL
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -257,40 +371,35 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Periodicidad:",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = selectedFrequency.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Cuestionarios activos:",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = "${scheduleConfig?.enabledQuestionnaires?.size ?: 8}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+
+                    ConfigItem("Periodicidad", selectedFrequency.displayName)
+                    ConfigItem("Hora preferida", PreferredTimeConfig(selectedHour, selectedMinute).formatReadable())
+                    ConfigItem("Recordatorios previos", if (showRemindersInApp) "Habilitados" else "Deshabilitados")
+                    ConfigItem("Cuestionarios activos", "${scheduleConfig?.enabledQuestionnaires?.size ?: 8}")
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ConfigItem(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "$label:",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
@@ -323,11 +432,7 @@ fun FrequencyOption(
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
             )
             Text(
-                text = when (frequency) {
-                    QuestionnaireFrequency.WEEKLY -> "Recibirás recordatorios cada semana"
-                    QuestionnaireFrequency.BIWEEKLY -> "Recibirás recordatorios cada 15 días"
-                    QuestionnaireFrequency.MONTHLY -> "Recibirás recordatorios cada mes"
-                },
+                text = frequency.description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -341,4 +446,72 @@ fun FrequencyOption(
             )
         }
     }
+}
+
+/**
+ * ✅ NUEVO: Dialog de selección de hora
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onConfirm: (Int, Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedHour by remember { mutableIntStateOf(initialHour) }
+    var selectedMinute by remember { mutableIntStateOf(initialMinute) }
+
+    val timePickerState = rememberTimePickerState(
+        initialHour = initialHour,
+        initialMinute = initialMinute,
+        is24Hour = false
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AccessTime,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text("Seleccionar hora")
+            }
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                TimePicker(
+                    state = timePickerState,
+                    modifier = Modifier.padding(16.dp)
+                )
+                Text(
+                    text = "Los cuestionarios se programarán para esta hora",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(timePickerState.hour, timePickerState.minute)
+                }
+            ) {
+                Text("Confirmar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }

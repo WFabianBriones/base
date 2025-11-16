@@ -1,5 +1,8 @@
 package com.example.uleammed
 
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -26,11 +29,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // ✅ Inicializar canal de notificaciones
+        // Inicializar canal de notificaciones
         LocalNotificationScheduler.createNotificationChannel(this)
 
-        // ✅ NUEVO: Iniciar verificación periódica automática
+        // Iniciar verificación periódica automática
         LocalNotificationScheduler.schedulePeriodicCheck(this)
+
+        // ✅ NUEVO: Sincronizar notificaciones al abrir la app
+        syncNotificationsOnResume()
 
         setContent {
             UleamAppTheme {
@@ -46,6 +52,76 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /**
+     * ✅ NUEVO: Se llama cada vez que la app vuelve al foreground
+     */
+    override fun onResume() {
+        super.onResume()
+        syncNotificationsOnResume()
+    }
+
+    /**
+     * ✅ NUEVO: Sincronizar notificaciones in-app con las push del sistema
+     *
+     * Esta función detecta cuando el usuario ha descartado notificaciones push
+     * manualmente desde la barra de notificaciones, y marca las notificaciones
+     * in-app correspondientes como leídas para mantener el badge actualizado.
+     */
+    private fun syncNotificationsOnResume() {
+        try {
+            // Solo funciona en Android M (API 23) o superior
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                android.util.Log.d("MainActivity", "⚠️ API < 23, sincronización no disponible")
+                return
+            }
+
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val activeNotifications = notificationManager.activeNotifications
+
+            // IDs de notificaciones activas en la barra del sistema
+            val activeIds = activeNotifications.map { it.id }.toSet()
+
+            android.util.Log.d("MainActivity", """
+                🔄 Sincronizando notificaciones
+                - Activas en sistema: ${activeIds.size}
+                - IDs: $activeIds
+            """.trimIndent())
+
+            val appNotificationManager = QuestionnaireNotificationManager(this)
+            val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+
+            if (userId != null) {
+                val inAppNotifications = appNotificationManager.getNotifications()
+                    .filter { !it.isRead && !it.isCompleted }
+
+                // Verificar cuáles notificaciones in-app no tienen push notification activa
+                inAppNotifications.forEach { notification ->
+                    val notificationId = 1000 + notification.questionnaireType.ordinal
+
+                    if (!activeIds.contains(notificationId)) {
+                        // La push notification fue descartada pero la in-app sigue activa
+                        android.util.Log.d("MainActivity", """
+                            ⚠️ Notificación descartada detectada
+                            - Tipo: ${notification.questionnaireType}
+                            - ID esperado: $notificationId
+                            - Marcando como leída en app
+                        """.trimIndent())
+
+                        appNotificationManager.markAsRead(notification.id)
+                    }
+                }
+
+                android.util.Log.d("MainActivity", "✅ Sincronización completada")
+            } else {
+                android.util.Log.w("MainActivity", "⚠️ Usuario no autenticado, no se puede sincronizar")
+            }
+        } catch (e: SecurityException) {
+            android.util.Log.e("MainActivity", "❌ Permiso denegado para acceder a notificaciones", e)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Error sincronizando notificaciones", e)
+        }
+    }
 }
 
 @Composable
@@ -58,7 +134,7 @@ fun UleamApp(
     val notificationViewModel: NotificationViewModel = viewModel()
     val context = LocalContext.current
 
-    // ✅ NUEVO: Solicitar permiso de notificaciones al inicio
+    // Solicitar permiso de notificaciones al inicio
     var permissionGranted by remember { mutableStateOf(context.hasNotificationPermission()) }
 
     if (!permissionGranted) {
@@ -90,13 +166,12 @@ fun UleamApp(
                     QuestionnaireType.BALANCE_VIDA_TRABAJO -> Screen.BalanceVidaTrabajoQuestionnaire.route
                 }
 
-                // Primero ir a Home, luego al cuestionario
                 navController.navigate(Screen.Home.route) {
                     popUpTo(Screen.Login.route) { inclusive = true }
                 }
                 navController.navigate(route)
             } catch (e: Exception) {
-                // Ignorar si el tipo no es válido
+                android.util.Log.e("UleamApp", "❌ Tipo de cuestionario inválido: $questionnaireType", e)
             }
         }
     }
@@ -105,7 +180,6 @@ fun UleamApp(
         navController = navController,
         startDestination = Screen.Login.route
     ) {
-        // Pantalla de Login
         composable(Screen.Login.route) {
             LoginScreen(
                 onNavigateToRegister = {
@@ -129,7 +203,6 @@ fun UleamApp(
             )
         }
 
-        // Pantalla de Registro
         composable(Screen.Register.route) {
             RegisterScreen(
                 onNavigateToLogin = {
@@ -144,7 +217,6 @@ fun UleamApp(
             )
         }
 
-        // Pantalla de Cuestionario (solo primera vez)
         composable(Screen.Questionnaire.route) {
             QuestionnaireScreen(
                 onComplete = {
@@ -156,7 +228,6 @@ fun UleamApp(
             )
         }
 
-        // Pantalla Home (con Bottom Navigation)
         composable(Screen.Home.route) {
             HomeScreen(
                 onLogout = {
@@ -179,7 +250,6 @@ fun UleamApp(
             )
         }
 
-        // Pantalla de Configuración
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onBack = {

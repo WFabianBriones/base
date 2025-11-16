@@ -29,7 +29,18 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // ✅ Habilitar BuildConfig para logs
+            buildConfigField("boolean", "DEBUG", "true")
+        }
     }
+
+    // ✅ NUEVO: Habilitar BuildConfig
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -37,15 +48,20 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
-    buildFeatures {
-        compose = true
-    }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    // ✅ NUEVO: Configuración de tests
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
         }
     }
 }
@@ -84,14 +100,38 @@ dependencies {
     // Gson para serialización
     implementation("com.google.code.gson:gson:2.10.1")
 
-    // ✅ NUEVO: WorkManager para notificaciones programadas
+    // WorkManager para notificaciones programadas
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
-    // Testing
+    // ============ TESTING ============
+
+    // JUnit 4 para tests unitarios
     testImplementation("junit:junit:4.13.2")
+
+    // ✅ NUEVO: Mockito para mocking
+    testImplementation("org.mockito:mockito-core:5.7.0")
+    testImplementation("org.mockito:mockito-inline:5.2.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
+
+    // ✅ NUEVO: Kotlin Coroutines Test
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
+    // ✅ NUEVO: Robolectric para tests de Android
+    testImplementation("org.robolectric:robolectric:4.11.1")
+
+    // ✅ NUEVO: AndroidX Test para SharedPreferences mock
+    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("androidx.test.ext:junit:1.1.5")
+
+    // ✅ NUEVO: WorkManager testing
+    testImplementation("androidx.work:work-testing:2.9.0")
+
+    // Android Instrumented Tests
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+
+    // Debug
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
