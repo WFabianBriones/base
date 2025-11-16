@@ -46,6 +46,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
             ✅ Notificaciones parseadas
             - Total: ${notifications.size}
             - No leídas: ${notifications.count { !it.isRead }}
+            - Pendientes (no completadas): ${notifications.count { !it.isCompleted }}
         """.trimIndent())
 
             notifications
@@ -58,14 +59,14 @@ class QuestionnaireNotificationManager(private val context: Context) {
     private fun saveNotifications(notifications: List<QuestionnaireNotification>) {
         try {
             val json = gson.toJson(notifications)
-            val success = prefs.edit().putString(KEY_NOTIFICATIONS, json).commit() // ✅ Usar commit() en vez de apply()
+            val success = prefs.edit().putString(KEY_NOTIFICATIONS, json).commit()
 
             android.util.Log.d(TAG, """
             💾 Guardando notificaciones
             - Total: ${notifications.size}
             - No leídas: ${notifications.count { !it.isRead }}
+            - Pendientes: ${notifications.count { !it.isCompleted }}
             - Guardado exitoso: $success
-            - Tamaño JSON: ${json.length} caracteres
         """.trimIndent())
 
             if (!success) {
@@ -161,9 +162,15 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val updatedConfig = config.copy(lastCompletedDates = updatedDates)
             saveScheduleConfig(updatedConfig)
 
+            // ✅ CRÍTICO: Marcar como completada en lugar de eliminar
             val notifications = getNotifications().toMutableList()
-            val removedCount = notifications.count { it.questionnaireType == questionnaireType }
-            notifications.removeAll { it.questionnaireType == questionnaireType }
+            var markedCount = 0
+            notifications.forEachIndexed { index, notification ->
+                if (notification.questionnaireType == questionnaireType && !notification.isCompleted) {
+                    notifications[index] = notification.copy(isCompleted = true)
+                    markedCount++
+                }
+            }
             saveNotifications(notifications)
 
             val nextDueDate = calculateNextDueDate(now, config.periodDays, config.preferredHour, config.preferredMinute)
@@ -173,7 +180,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 "completedAt" to formatDate(now),
                 "nextDueDate" to formatDate(nextDueDate),
                 "daysUntilNext" to TimeUnit.MILLISECONDS.toDays(nextDueDate - now),
-                "removedNotifications" to removedCount
+                "markedCompletedCount" to markedCount
             ))
 
             if (config.periodDays > 1) {
@@ -212,9 +219,6 @@ class QuestionnaireNotificationManager(private val context: Context) {
         }
     }
 
-    /**
-     * ✅ CORREGIDO: Generar TODOS los 8 cuestionarios cuando completa el inicial
-     */
     fun checkAndGenerateNotifications(userId: String) {
         synchronized(lock) {
             val config = getScheduleConfig(userId)
@@ -236,6 +240,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                     return@forEach
                 }
 
+                // ✅ CORREGIDO: Buscar notificaciones NO completadas
                 val existingNotification = currentNotifications.find {
                     it.questionnaireType == type && !it.isCompleted
                 }
@@ -315,6 +320,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 "generatedCount" to generatedCount,
                 "totalNotifications" to currentNotifications.size,
                 "unreadCount" to currentNotifications.count { !it.isRead },
+                "pendingCount" to currentNotifications.count { !it.isCompleted },
                 "hasCompletedAny" to hasCompletedAny
             ))
         }
@@ -411,8 +417,24 @@ class QuestionnaireNotificationManager(private val context: Context) {
         }
     }
 
+    // ✅ CAMBIO CRÍTICO: Badge muestra pendientes en lugar de no leídas
+    // Esta función se llama cada vez que se abre la app o se navega a la pestaña de notificaciones
     fun getUnreadCount(): Int {
-        return getNotifications().count { !it.isRead && !it.isCompleted }
+        val notifications = getNotifications() // Lee de SharedPreferences (persistente)
+        val count = notifications.count { !it.isCompleted }
+
+        android.util.Log.d(TAG, """
+            📊 Badge Count (PERSISTENTE)
+            - Total pendientes: $count
+            - Fuente: SharedPreferences (sobrevive al cierre de app)
+            - Lógica: Cuenta notificaciones NO completadas
+            - Detalle:
+              * Total notificaciones: ${notifications.size}
+              * Completadas: ${notifications.count { it.isCompleted }}
+              * Pendientes: $count
+        """.trimIndent())
+
+        return count
     }
 
     fun cleanupOldNotifications() {
@@ -429,10 +451,10 @@ class QuestionnaireNotificationManager(private val context: Context) {
     fun clearReadNotifications() {
         synchronized(lock) {
             val notifications = getNotifications()
-            notifications.filter { it.isRead }.forEach {
+            notifications.filter { it.isRead && it.isCompleted }.forEach {
                 LocalNotificationScheduler.cancelNotification(it.questionnaireType)
             }
-            val filtered = notifications.filter { !it.isRead }
+            val filtered = notifications.filter { !(it.isRead && it.isCompleted) }
             saveNotifications(filtered)
         }
     }
