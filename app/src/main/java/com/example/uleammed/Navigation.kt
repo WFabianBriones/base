@@ -14,9 +14,14 @@ sealed class Screen(val route: String) {
     object Explore : Screen("explore")
     object Notifications : Screen("notifications")
     object Resources : Screen("resources")
-    object Settings : Screen("settings") // NUEVA RUTA
+    object Settings : Screen("settings")
 
-    // Cuestionarios específicos
+    // ✅ NUEVA RUTA - Añade esta línea
+    object ResourceDetail : Screen("resource_detail/{resourceId}") {
+        fun createRoute(resourceId: String) = "resource_detail/$resourceId"
+    }
+
+    // Cuestionarios específicos (ya existentes)
     object ErgonomiaQuestionnaire : Screen("ergonomia_questionnaire")
     object EstresSaludMentalQuestionnaire : Screen("estres_questionnaire")
     object SintomasMuscularesQuestionnaire : Screen("sintomas_musculares_questionnaire")

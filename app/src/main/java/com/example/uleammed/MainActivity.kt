@@ -24,6 +24,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -265,6 +267,12 @@ fun UleamApp(
                     navController.navigate(Screen.Settings.route) {
                         launchSingleTop = true
                     }
+                },
+                // ✅ NUEVO: Añadir navegación a detalle de recurso
+                onNavigateToResourceDetail = { resourceId ->
+                    navController.navigate(Screen.ResourceDetail.createRoute(resourceId)) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -413,5 +421,22 @@ fun UleamApp(
                 }
             )
         }
+
+        composable(
+            route = Screen.ResourceDetail.route,
+            arguments = listOf(
+                navArgument("resourceId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val resourceId = backStackEntry.arguments?.getString("resourceId") ?: ""
+
+            com.example.uleammed.resources.ResourceDetailScreen(
+                resourceId = resourceId,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
     }
+
 }

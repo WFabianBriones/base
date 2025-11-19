@@ -332,113 +332,88 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuestionnaireCard(
-    questionnaire: QuestionnaireInfo,
-    onClick: () -> Unit
+fun HomeScreen(
+    onLogout: () -> Unit,
+    onNavigateToQuestionnaire: (String) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToResourceDetail: (String) -> Unit,  // ✅ NUEVO parámetro
+    authViewModel: AuthViewModel = viewModel(),
+    notificationViewModel: NotificationViewModel = viewModel()
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = questionnaire.icon,
-                contentDescription = null,
-                modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+    val navController = rememberNavController()
+    val currentUser by authViewModel.currentUser.collectAsState()
+    val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
-            Spacer(modifier = Modifier.width(16.dp))
+    LaunchedEffect(Unit) {
+        android.util.Log.d("HomeScreen", "🔄 Recargando notificaciones...")
+        notificationViewModel.loadNotifications()
+        notificationViewModel.checkForNewNotifications()
+    }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = questionnaire.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = questionnaire.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row {
-                    Icon(
-                        imageVector = Icons.Filled.AccessTime,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
+            android.util.Log.d("HomeScreen", "👤 Usuario detectado, verificando notificaciones...")
+            notificationViewModel.checkForNewNotifications()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
                     Text(
-                        text = "${questionnaire.estimatedTime} • ${questionnaire.totalQuestions} preguntas",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "ULEAM Salud",
+                        fontWeight = FontWeight.Bold
                     )
-                }
-            }
-
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                )
             )
+        },
+        bottomBar = {
+            BottomNavigationBar(
+                navController = navController,
+                unreadCount = unreadCount
+            )
+        }
+    ) { paddingValues ->
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Home.route,
+            modifier = Modifier.padding(paddingValues)
+        ) {
+            composable(Screen.Home.route) {
+                HomeContent(userName = currentUser?.displayName ?: "Usuario")
+            }
+            composable(Screen.Explore.route) {
+                ExploreContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
+            }
+            composable(Screen.Notifications.route) {
+                NotificationsContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
+            }
+            composable(Screen.Resources.route) {
+                ResourcesContent(
+                    onNavigateToResourceDetail = onNavigateToResourceDetail  // ✅ Pasar navegación
+                )
+            }
+            composable(Screen.Profile.route) {
+                ProfileContent(
+                    user = currentUser,
+                    onLogout = onLogout,
+                    onNavigateToSettings = onNavigateToSettings
+                )
+            }
         }
     }
 }
 
 @Composable
-fun ResourcesContent() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp)
-    ) {
-        Text(
-            text = "Recursos de Salud",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.LibraryBooks,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Próximamente",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Aquí encontrarás artículos, guías y recursos sobre salud laboral",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
+fun ResourcesContent(
+    onNavigateToResourceDetail: (String) -> Unit  // ✅ NUEVO parámetro
+) {
+    com.example.uleammed.resources.ResourcesContentNew(
+        onResourceClick = onNavigateToResourceDetail  // ✅ Pasar navegación
+    )
 }
