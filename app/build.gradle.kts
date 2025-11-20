@@ -30,12 +30,10 @@ android {
             )
         }
         debug {
-            // ✅ Habilitar BuildConfig para logs
             buildConfigField("boolean", "DEBUG", "true")
         }
     }
 
-    // ✅ NUEVO: Habilitar BuildConfig
     buildFeatures {
         compose = true
         buildConfig = true
@@ -45,19 +43,30 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/license.txt"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/notice.txt"
+            excludes += "META-INF/ASL2.0"
+            excludes += "META-INF/*.kotlin_module"
         }
     }
 
-    // ✅ NUEVO: Configuración de tests
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -103,35 +112,30 @@ dependencies {
     // WorkManager para notificaciones programadas
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
+    // ============ KOTLINDL - DEEP LEARNING ============
+    // OPCIÓN A: Dependencias completas (MÁS RECOMENDADO)
+    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-api:0.5.2")
+    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-onnx:0.5.2")
+    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-tensorflow:0.5.2")
+
+    // Multik para operaciones matemáticas
+    implementation("org.jetbrains.kotlinx:multik-core:0.2.2")
+    implementation("org.jetbrains.kotlinx:multik-default:0.2.2")
+
     // ============ TESTING ============
-
-    // JUnit 4 para tests unitarios
     testImplementation("junit:junit:4.13.2")
-
-    // ✅ NUEVO: Mockito para mocking
     testImplementation("org.mockito:mockito-core:5.7.0")
     testImplementation("org.mockito:mockito-inline:5.2.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
-
-    // ✅ NUEVO: Kotlin Coroutines Test
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-
-    // ✅ NUEVO: Robolectric para tests de Android
     testImplementation("org.robolectric:robolectric:4.11.1")
-
-    // ✅ NUEVO: AndroidX Test para SharedPreferences mock
     testImplementation("androidx.test:core:1.5.0")
     testImplementation("androidx.test.ext:junit:1.1.5")
-
-    // ✅ NUEVO: WorkManager testing
     testImplementation("androidx.work:work-testing:2.9.0")
 
-    // Android Instrumented Tests
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-
-    // Debug
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

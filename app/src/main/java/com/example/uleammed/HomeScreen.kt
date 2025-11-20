@@ -18,12 +18,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 
+/**
+ * ✅ Función principal HomeScreen (ÚNICA)
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToQuestionnaire: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToResourceDetail: (String) -> Unit,  // ✅ Parámetro necesario
     authViewModel: AuthViewModel = viewModel(),
     notificationViewModel: NotificationViewModel = viewModel()
 ) {
@@ -31,15 +35,12 @@ fun HomeScreen(
     val currentUser by authViewModel.currentUser.collectAsState()
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
-    // ✅ CRÍTICO: Forzar recarga de notificaciones cada vez que se abre Home
     LaunchedEffect(Unit) {
         android.util.Log.d("HomeScreen", "🔄 Recargando notificaciones...")
         notificationViewModel.loadNotifications()
         notificationViewModel.checkForNewNotifications()
-        android.util.Log.d("HomeScreen", "📊 Notificaciones cargadas: $unreadCount no leídas")
     }
 
-    // ✅ NUEVO: Recargar cuando currentUser cambia
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
             android.util.Log.d("HomeScreen", "👤 Usuario detectado, verificando notificaciones...")
@@ -84,7 +85,9 @@ fun HomeScreen(
                 NotificationsContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
             }
             composable(Screen.Resources.route) {
-                ResourcesContent()
+                ResourcesContent(
+                    onNavigateToResourceDetail = onNavigateToResourceDetail
+                )
             }
             composable(Screen.Profile.route) {
                 ProfileContent(
@@ -97,6 +100,9 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Bottom Navigation Bar
+ */
 @Composable
 fun BottomNavigationBar(
     navController: NavHostController,
@@ -159,6 +165,9 @@ fun BottomNavigationBar(
     }
 }
 
+/**
+ * Contenido de la pestaña Home
+ */
 @Composable
 fun HomeContent(userName: String) {
     Column(
@@ -166,7 +175,6 @@ fun HomeContent(userName: String) {
             .fillMaxSize()
             .padding(24.dp)
     ) {
-        // Header de bienvenida
         Text(
             text = "Hola, $userName",
             style = MaterialTheme.typography.headlineMedium,
@@ -183,7 +191,6 @@ fun HomeContent(userName: String) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Placeholder para dashboard futuro
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -219,6 +226,9 @@ fun HomeContent(userName: String) {
     }
 }
 
+/**
+ * Contenido de la pestaña Explorar
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
@@ -330,90 +340,108 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
     }
 }
 
+/**
+ * ✅ NUEVO: Card de cuestionario individual
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    onLogout: () -> Unit,
-    onNavigateToQuestionnaire: (String) -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onNavigateToResourceDetail: (String) -> Unit,  // ✅ NUEVO parámetro
-    authViewModel: AuthViewModel = viewModel(),
-    notificationViewModel: NotificationViewModel = viewModel()
+fun QuestionnaireCard(
+    questionnaire: QuestionnaireInfo,
+    onClick: () -> Unit
 ) {
-    val navController = rememberNavController()
-    val currentUser by authViewModel.currentUser.collectAsState()
-    val unreadCount by notificationViewModel.unreadCount.collectAsState()
-
-    LaunchedEffect(Unit) {
-        android.util.Log.d("HomeScreen", "🔄 Recargando notificaciones...")
-        notificationViewModel.loadNotifications()
-        notificationViewModel.checkForNewNotifications()
-    }
-
-    LaunchedEffect(currentUser) {
-        if (currentUser != null) {
-            android.util.Log.d("HomeScreen", "👤 Usuario detectado, verificando notificaciones...")
-            notificationViewModel.checkForNewNotifications()
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "ULEAM Salud",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        },
-        bottomBar = {
-            BottomNavigationBar(
-                navController = navController,
-                unreadCount = unreadCount
-            )
-        }
-    ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Home.route,
-            modifier = Modifier.padding(paddingValues)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            composable(Screen.Home.route) {
-                HomeContent(userName = currentUser?.displayName ?: "Usuario")
-            }
-            composable(Screen.Explore.route) {
-                ExploreContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
-            }
-            composable(Screen.Notifications.route) {
-                NotificationsContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
-            }
-            composable(Screen.Resources.route) {
-                ResourcesContent(
-                    onNavigateToResourceDetail = onNavigateToResourceDetail  // ✅ Pasar navegación
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = questionnaire.icon,
+                    contentDescription = null,
+                    modifier = Modifier.padding(12.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-            composable(Screen.Profile.route) {
-                ProfileContent(
-                    user = currentUser,
-                    onLogout = onLogout,
-                    onNavigateToSettings = onNavigateToSettings
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = questionnaire.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
+                Text(
+                    text = questionnaire.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AccessTime,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = questionnaire.estimatedTime,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Assignment,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${questionnaire.totalQuestions} preguntas",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
+
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
+/**
+ * Contenido de la pestaña Recursos
+ */
 @Composable
 fun ResourcesContent(
-    onNavigateToResourceDetail: (String) -> Unit  // ✅ NUEVO parámetro
+    onNavigateToResourceDetail: (String) -> Unit
 ) {
     com.example.uleammed.resources.ResourcesContentNew(
-        onResourceClick = onNavigateToResourceDetail  // ✅ Pasar navegación
+        onResourceClick = onNavigateToResourceDetail
     )
 }
