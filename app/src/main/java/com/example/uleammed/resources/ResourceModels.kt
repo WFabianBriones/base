@@ -3,7 +3,7 @@ package com.example.uleammed.resources
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.questionnaires.QuestionnaireType
 
 /**
  * Tipos de recursos disponibles

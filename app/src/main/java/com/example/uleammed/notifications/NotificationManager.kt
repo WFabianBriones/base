@@ -6,8 +6,8 @@ import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import com.example.uleammed.BuildConfig
-import com.example.uleammed.QuestionnaireInfo
-import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.questionnaires.QuestionnaireInfo
+import com.example.uleammed.questionnaires.QuestionnaireType
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.text.SimpleDateFormat

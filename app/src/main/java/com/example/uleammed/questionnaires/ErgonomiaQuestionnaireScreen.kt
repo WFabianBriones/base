@@ -1,4 +1,4 @@
-package com.example.uleammed
+package com.example.uleammed.questionnaires
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.example.uleammed.AuthRepository
 
 // ViewModel
 class ErgonomiaViewModel : ViewModel() {

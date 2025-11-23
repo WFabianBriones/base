@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.questionnaires.QuestionnaireType
 import com.google.firebase.auth.FirebaseAuth
 
 /**

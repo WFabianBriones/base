@@ -11,7 +11,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.*
 import com.example.uleammed.MainActivity
-import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.questionnaires.QuestionnaireType
 import com.example.uleammed.R
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat

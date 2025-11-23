@@ -19,6 +19,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.NotificationsContent
+import com.example.uleammed.questionnaires.QuestionnaireInfo
+import com.example.uleammed.questionnaires.QuestionnaireType
 
 /**
  * ✅ Función principal HomeScreen (ÚNICA)

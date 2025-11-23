@@ -1,6 +1,6 @@
 package com.example.uleammed.notifications
 
-import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.questionnaires.QuestionnaireType
 import java.util.Calendar
 import java.util.UUID
 import java.util.concurrent.TimeUnit

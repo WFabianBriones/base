@@ -1,4 +1,4 @@
-package com.example.uleammed
+package com.example.uleammed.questionnaires
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -9,11 +9,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.uleammed.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,30 +21,34 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 // ViewModel
-class BalanceVidaTrabajoViewModel : ViewModel() {
+class ActividadFisicaViewModel : ViewModel() {
     private val repository = AuthRepository()
 
     private val _state = MutableStateFlow<QuestionnaireState>(QuestionnaireState.Idle)
     val state: StateFlow<QuestionnaireState> = _state.asStateFlow()
 
-    var equilibrioTrabajoVida by mutableStateOf("")
-    var tiempoLibreCalidad by mutableStateOf("")
-    var actividadesRecreativas by mutableStateOf("")
-    var trabajoAfectaRelaciones by mutableStateOf("")
-    var tiempoFamiliaAmigos by mutableStateOf("")
-    var puedeDesconectarseDiasLibres by mutableStateOf("")
-    var revisaCorreosVacaciones by mutableStateOf("")
-    var ultimasVacaciones by mutableStateOf("")
+    var frecuenciaEjercicio by mutableStateOf("")
+    var duracionEjercicio by mutableStateOf("")
+    var tipoActividadPrincipal by mutableStateOf("")
+    var realizaEstiramientos by mutableStateOf("")
+    var frecuenciaComidasDia by mutableStateOf("")
+    var saltaDesayuno by mutableStateOf("")
+    var comeEnEscritorio by mutableStateOf("")
+    var consumoAguaDiario by mutableStateOf("")
+    var consumoCafeTe by mutableStateOf("")
+    var consumeBebidasEnergizantes by mutableStateOf("")
 
     fun isFormValid(): Boolean {
-        return equilibrioTrabajoVida.isNotEmpty() &&
-                tiempoLibreCalidad.isNotEmpty() &&
-                actividadesRecreativas.isNotEmpty() &&
-                trabajoAfectaRelaciones.isNotEmpty() &&
-                tiempoFamiliaAmigos.isNotEmpty() &&
-                puedeDesconectarseDiasLibres.isNotEmpty() &&
-                revisaCorreosVacaciones.isNotEmpty() &&
-                ultimasVacaciones.isNotEmpty()
+        return frecuenciaEjercicio.isNotEmpty() &&
+                duracionEjercicio.isNotEmpty() &&
+                tipoActividadPrincipal.isNotEmpty() &&
+                realizaEstiramientos.isNotEmpty() &&
+                frecuenciaComidasDia.isNotEmpty() &&
+                saltaDesayuno.isNotEmpty() &&
+                comeEnEscritorio.isNotEmpty() &&
+                consumoAguaDiario.isNotEmpty() &&
+                consumoCafeTe.isNotEmpty() &&
+                consumeBebidasEnergizantes.isNotEmpty()
     }
 
     fun submitQuestionnaire() {
@@ -62,19 +66,21 @@ class BalanceVidaTrabajoViewModel : ViewModel() {
 
             _state.value = QuestionnaireState.Loading
 
-            val questionnaire = BalanceVidaTrabajoQuestionnaire(
+            val questionnaire = ActividadFisicaQuestionnaire(
                 userId = userId,
-                equilibrioTrabajoVida = equilibrioTrabajoVida,
-                tiempoLibreCalidad = tiempoLibreCalidad,
-                actividadesRecreativas = actividadesRecreativas,
-                trabajoAfectaRelaciones = trabajoAfectaRelaciones,
-                tiempoFamiliaAmigos = tiempoFamiliaAmigos,
-                puedeDesconectarseDiasLibres = puedeDesconectarseDiasLibres,
-                revisaCorreosVacaciones = revisaCorreosVacaciones,
-                ultimasVacaciones = ultimasVacaciones
+                frecuenciaEjercicio = frecuenciaEjercicio,
+                duracionEjercicio = duracionEjercicio,
+                tipoActividadPrincipal = tipoActividadPrincipal,
+                realizaEstiramientos = realizaEstiramientos,
+                frecuenciaComidasDia = frecuenciaComidasDia,
+                saltaDesayuno = saltaDesayuno,
+                comeEnEscritorio = comeEnEscritorio,
+                consumoAguaDiario = consumoAguaDiario,
+                consumoCafeTe = consumoCafeTe,
+                consumeBebidasEnergizantes = consumeBebidasEnergizantes
             )
 
-            val result = repository.saveBalanceVidaTrabajoQuestionnaire(questionnaire)
+            val result = repository.saveActividadFisicaQuestionnaire(questionnaire)
             result.onSuccess {
                 _state.value = QuestionnaireState.Success
             }.onFailure { exception ->
@@ -91,10 +97,10 @@ class BalanceVidaTrabajoViewModel : ViewModel() {
 // Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BalanceVidaTrabajoQuestionnaireScreen(
+fun ActividadFisicaQuestionnaireScreen(
     onComplete: () -> Unit,
     onBack: () -> Unit,
-    viewModel: BalanceVidaTrabajoViewModel = viewModel()
+    viewModel: ActividadFisicaViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
     var showErrorDialog by remember { mutableStateOf(false) }
@@ -131,7 +137,7 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Balance Vida-Trabajo") },
+                title = { Text("Actividad Física y Nutrición") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -169,7 +175,7 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Evalúa el equilibrio entre tu vida personal y profesional. 8 preguntas, 3-4 minutos.",
+                        text = "Evalúa tus hábitos de ejercicio, alimentación y consumo de sustancias. 10 preguntas, 4-5 minutos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -178,130 +184,145 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // EQUILIBRIO PERSONAL
-            SectionHeader("Equilibrio Personal")
+            // EJERCICIO REGULAR
+            SectionHeader("Ejercicio Regular")
 
-            // 133. Equilibrio vida-trabajo
-            QuestionTitle("133. ¿Sientes que tienes un buen equilibrio entre trabajo y vida personal?")
+            // 109. Frecuencia de ejercicio
+            QuestionTitle("109. Frecuencia de ejercicio/actividad física moderada-intensa")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, excelente balance",
-                    "Sí, buen balance",
-                    "Parcialmente equilibrado",
-                    "Más trabajo que vida personal",
-                    "El trabajo domina completamente mi vida"
+                    "Ninguna (sedentario)",
+                    "1 vez por semana",
+                    "2-3 veces por semana",
+                    "4-5 veces por semana",
+                    "Diariamente"
                 ),
-                selectedOption = viewModel.equilibrioTrabajoVida,
-                onOptionSelected = { viewModel.equilibrioTrabajoVida = it }
+                selectedOption = viewModel.frecuenciaEjercicio,
+                onOptionSelected = { viewModel.frecuenciaEjercicio = it }
             )
 
-            // 134. Tiempo libre
-            QuestionTitle("134. Tiempo libre de calidad por semana (sin pensar en trabajo)")
+            // 110. Duración
+            QuestionTitle("110. Duración típica del ejercicio")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Más de 20 horas",
-                    "15-20 horas",
-                    "10-15 horas",
-                    "5-10 horas",
-                    "Menos de 5 horas"
+                    "No hago ejercicio",
+                    "Menos de 20 minutos",
+                    "20-30 minutos",
+                    "30-60 minutos",
+                    "Más de 60 minutos"
                 ),
-                selectedOption = viewModel.tiempoLibreCalidad,
-                onOptionSelected = { viewModel.tiempoLibreCalidad = it }
+                selectedOption = viewModel.duracionEjercicio,
+                onOptionSelected = { viewModel.duracionEjercicio = it }
             )
 
-            // 135. Actividades recreativas
-            QuestionTitle("135. ¿Realizas actividades recreativas/hobbies regularmente?")
+            // 111. Tipo de actividad
+            QuestionTitle("111. Tipo de actividad física principal")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, varias veces por semana",
-                    "Sí, una vez por semana",
-                    "Ocasionalmente (1-2 veces al mes)",
-                    "Rara vez",
-                    "Nunca, no tengo tiempo"
+                    "Caminar",
+                    "Correr/Trotar",
+                    "Gimnasio/Pesas",
+                    "Deportes",
+                    "Yoga/Pilates",
+                    "Natación/Ciclismo",
+                    "Ninguna"
                 ),
-                selectedOption = viewModel.actividadesRecreativas,
-                onOptionSelected = { viewModel.actividadesRecreativas = it }
+                selectedOption = viewModel.tipoActividadPrincipal,
+                onOptionSelected = { viewModel.tipoActividadPrincipal = it }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // RELACIONES PERSONALES
-            SectionHeader("Relaciones Personales")
-
-            // 136. Afecta relaciones
-            QuestionTitle("136. ¿Tu trabajo afecta negativamente tus relaciones personales/familiares?")
+            // 112. Estiramientos
+            QuestionTitle("112. ¿Realizas estiramientos regularmente?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "No, para nada",
-                    "Un poco",
-                    "Moderadamente",
-                    "Bastante",
-                    "Severamente"
-                ),
-                selectedOption = viewModel.trabajoAfectaRelaciones,
-                onOptionSelected = { viewModel.trabajoAfectaRelaciones = it }
-            )
-
-            // 137. Tiempo con familia/amigos
-            QuestionTitle("137. Tiempo de calidad con familia/amigos por semana")
-            SingleChoiceQuestion(
-                options = listOf(
-                    "Más de 10 horas",
-                    "5-10 horas",
-                    "2-5 horas",
-                    "Menos de 2 horas",
-                    "Casi ninguno"
-                ),
-                selectedOption = viewModel.tiempoFamiliaAmigos,
-                onOptionSelected = { viewModel.tiempoFamiliaAmigos = it }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // DESCONEXIÓN LABORAL
-            SectionHeader("Desconexión Laboral")
-
-            // 138. Desconectar días libres
-            QuestionTitle("138. ¿Puedes desconectarte completamente del trabajo en tus días libres?")
-            SingleChoiceQuestion(
-                options = listOf(
-                    "Sí, completamente",
-                    "Mayormente sí",
-                    "Con dificultad",
-                    "Rara vez",
-                    "Nunca puedo desconectar"
-                ),
-                selectedOption = viewModel.puedeDesconectarseDiasLibres,
-                onOptionSelected = { viewModel.puedeDesconectarseDiasLibres = it }
-            )
-
-            // 139. Correos en vacaciones
-            QuestionTitle("139. ¿Revisas correos/mensajes de trabajo en vacaciones?")
-            SingleChoiceQuestion(
-                options = listOf(
-                    "No tomo vacaciones",
-                    "Nunca",
-                    "Rara vez",
+                    "Sí, diariamente",
+                    "Sí, 3-4 veces por semana",
                     "Ocasionalmente",
-                    "Frecuentemente",
-                    "Constantemente"
+                    "Rara vez",
+                    "Nunca"
                 ),
-                selectedOption = viewModel.revisaCorreosVacaciones,
-                onOptionSelected = { viewModel.revisaCorreosVacaciones = it }
+                selectedOption = viewModel.realizaEstiramientos,
+                onOptionSelected = { viewModel.realizaEstiramientos = it }
             )
 
-            // 140. Últimas vacaciones
-            QuestionTitle("140. Última vez que tomaste vacaciones completas (sin pensar en trabajo)")
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // HÁBITOS ALIMENTICIOS
+            SectionHeader("Hábitos Alimenticios Laborales")
+
+            // 113. Frecuencia de comidas
+            QuestionTitle("113. Frecuencia de comidas al día")
             SingleChoiceQuestion(
                 options = listOf(
-                    "En los últimos 6 meses",
-                    "Hace 6-12 meses",
-                    "Hace 1-2 años",
-                    "Hace más de 2 años",
-                    "Nunca/No recuerdo"
+                    "1-2 comidas",
+                    "3 comidas",
+                    "4-5 comidas (incluye snacks)",
+                    "Irregular/Sin horario"
                 ),
-                selectedOption = viewModel.ultimasVacaciones,
-                onOptionSelected = { viewModel.ultimasVacaciones = it }
+                selectedOption = viewModel.frecuenciaComidasDia,
+                onOptionSelected = { viewModel.frecuenciaComidasDia = it }
+            )
+
+            // 114. Desayuno
+            QuestionTitle("114. ¿Saltas el desayuno?")
+            SingleChoiceQuestion(
+                options = listOf("Nunca", "Ocasionalmente", "Frecuentemente", "Siempre"),
+                selectedOption = viewModel.saltaDesayuno,
+                onOptionSelected = { viewModel.saltaDesayuno = it }
+            )
+
+            // 115. Come en escritorio
+            QuestionTitle("115. ¿Comes en tu escritorio mientras trabajas?")
+            SingleChoiceQuestion(
+                options = listOf("Siempre", "Frecuentemente", "A veces", "Rara vez", "Nunca"),
+                selectedOption = viewModel.comeEnEscritorio,
+                onOptionSelected = { viewModel.comeEnEscritorio = it }
+            )
+
+            // 116. Consumo de agua
+            QuestionTitle("116. Consumo de agua diario")
+            SingleChoiceQuestion(
+                options = listOf(
+                    "Menos de 1 litro",
+                    "1-1.5 litros",
+                    "1.5-2 litros",
+                    "Más de 2 litros"
+                ),
+                selectedOption = viewModel.consumoAguaDiario,
+                onOptionSelected = { viewModel.consumoAguaDiario = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // SUSTANCIAS ESTIMULANTES
+            SectionHeader("Sustancias Estimulantes")
+
+            // 117. Consumo de café/té
+            QuestionTitle("117. Consumo de café/té")
+            SingleChoiceQuestion(
+                options = listOf(
+                    "No consumo",
+                    "1 taza al día",
+                    "2-3 tazas al día",
+                    "4-5 tazas al día",
+                    "Más de 5 tazas al día"
+                ),
+                selectedOption = viewModel.consumoCafeTe,
+                onOptionSelected = { viewModel.consumoCafeTe = it }
+            )
+
+            // 118. Bebidas energizantes
+            QuestionTitle("118. ¿Consumes bebidas energizantes?")
+            SingleChoiceQuestion(
+                options = listOf(
+                    "No",
+                    "Ocasionalmente (1-2 por mes)",
+                    "Regularmente (1-2 por semana)",
+                    "Frecuentemente (3+ por semana)",
+                    "Diariamente"
+                ),
+                selectedOption = viewModel.consumeBebidasEnergizantes,
+                onOptionSelected = { viewModel.consumeBebidasEnergizantes = it }
             )
 
             Spacer(modifier = Modifier.height(32.dp))

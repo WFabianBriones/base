@@ -9,7 +9,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.example.uleammed.MainActivity
-import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.questionnaires.QuestionnaireType
 import com.example.uleammed.R
 import java.text.SimpleDateFormat
 import java.util.Date

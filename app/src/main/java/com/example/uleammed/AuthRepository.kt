@@ -1,5 +1,13 @@
 package com.example.uleammed
 
+import com.example.uleammed.questionnaires.ActividadFisicaQuestionnaire
+import com.example.uleammed.questionnaires.BalanceVidaTrabajoQuestionnaire
+import com.example.uleammed.questionnaires.CargaTrabajoQuestionnaire
+import com.example.uleammed.questionnaires.ErgonomiaQuestionnaire
+import com.example.uleammed.questionnaires.EstresSaludMentalQuestionnaire
+import com.example.uleammed.questionnaires.HabitosSuenoQuestionnaire
+import com.example.uleammed.questionnaires.SintomasMuscularesQuestionnaire
+import com.example.uleammed.questionnaires.SintomasVisualesQuestionnaire
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider

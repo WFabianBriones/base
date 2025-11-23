@@ -3,7 +3,7 @@ package com.example.uleammed.notifications
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.questionnaires.QuestionnaireType
 import com.google.gson.Gson
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs

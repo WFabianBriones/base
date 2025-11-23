@@ -1,4 +1,6 @@
-package com.example.uleammed
+package com.example.uleammed.questionnaires
+
+import androidx.compose.ui.graphics.vector.ImageVector
 
 // Tipo de cuestionario
 enum class QuestionnaireType {
@@ -17,7 +19,7 @@ data class QuestionnaireInfo(
     val type: QuestionnaireType,
     val title: String,
     val description: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val icon: ImageVector,
     val estimatedTime: String,
     val totalQuestions: Int
 )

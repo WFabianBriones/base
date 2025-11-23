@@ -31,6 +31,16 @@ import com.example.uleammed.notifications.NotificationPermissionHandler
 import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.QuestionnaireNotificationManager
 import com.example.uleammed.notifications.hasNotificationPermission
+import com.example.uleammed.questionnaires.ActividadFisicaQuestionnaireScreen
+import com.example.uleammed.questionnaires.BalanceVidaTrabajoQuestionnaireScreen
+import com.example.uleammed.questionnaires.CargaTrabajoQuestionnaireScreen
+import com.example.uleammed.questionnaires.ErgonomiaQuestionnaireScreen
+import com.example.uleammed.questionnaires.EstresSaludMentalQuestionnaireScreen
+import com.example.uleammed.questionnaires.HabitosSuenoQuestionnaireScreen
+import com.example.uleammed.questionnaires.QuestionnaireType
+import com.example.uleammed.questionnaires.SintomasMuscularesQuestionnaireScreen
+import com.example.uleammed.questionnaires.SintomasVisualesQuestionnaireScreen
+import com.example.uleammed.questionnaires.QuestionnaireScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
