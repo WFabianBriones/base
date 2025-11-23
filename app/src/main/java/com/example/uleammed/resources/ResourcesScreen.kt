@@ -19,7 +19,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResourcesContentNew(
-    onResourceClick: (String) -> Unit = {},  // ✅ NUEVO parámetro
+    onResourceClick: (String) -> Unit = {},  // Para artículos
+    onExerciseClick: (String) -> Unit = {}, // ✅ NUEVO: Para ejercicios
     viewModel: ResourceViewModel = viewModel()
 ) {
     val filteredResources by viewModel.filteredResources.collectAsState()
@@ -101,14 +102,14 @@ fun ResourcesContentNew(
             0 -> ArticlesTab(
                 resources = filteredResources,
                 state = state,
-                onResourceClick = { /* TODO: Navegar a detalle */ },
+                onResourceClick = onResourceClick, // Navega a ArticleViewer
                 onFavoriteClick = { resourceId ->
                     viewModel.toggleFavorite(resourceId)
                 }
             )
             1 -> ExercisesTab(
                 exercises = exercises,
-                onStartExercise = { /* TODO: Iniciar ejercicio */ }
+                onStartExercise = onExerciseClick // ✅ Navega a ExerciseGuided
             )
             2 -> FAQsTab(
                 faqs = faqs,
@@ -134,7 +135,7 @@ fun ResourcesContentNew(
 fun ArticlesTab(
     resources: List<ResourceItem>,
     state: ResourceState,
-    onResourceClick: (String) -> Unit,
+    onResourceClick: (String) -> Unit, // ✅ Este callback ahora navega
     onFavoriteClick: (String) -> Unit
 ) {
     when (state) {
@@ -172,7 +173,7 @@ fun ArticlesTab(
                     items(resources, key = { it.id }) { resource ->
                         ResourceCard(
                             resource = resource,
-                            onResourceClick = { onResourceClick(resource.id) },
+                            onResourceClick = { onResourceClick(resource.id) }, // ✅ Ahora funciona
                             onFavoriteClick = { onFavoriteClick(resource.id) }
                         )
                     }
@@ -218,7 +219,7 @@ fun ArticlesTab(
 @Composable
 fun ExercisesTab(
     exercises: List<ExerciseResource>,
-    onStartExercise: (String) -> Unit
+    onStartExercise: (String) -> Unit // ✅ Este callback ahora navega
 ) {
     if (exercises.isEmpty()) {
         EmptyResourcesState(
@@ -258,7 +259,7 @@ fun ExercisesTab(
             items(exercises, key = { it.id }) { exercise ->
                 ExerciseCard(
                     exercise = exercise,
-                    onStartExercise = { onStartExercise(exercise.id) }
+                    onStartExercise = { onStartExercise(exercise.id) } // ✅ Ahora funciona
                 )
             }
         }

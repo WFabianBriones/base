@@ -16,12 +16,22 @@ sealed class Screen(val route: String) {
     object Resources : Screen("resources")
     object Settings : Screen("settings")
 
-    // ✅ NUEVA RUTA - Añade esta línea
+    // ✅ RECURSOS - Rutas actualizadas
     object ResourceDetail : Screen("resource_detail/{resourceId}") {
         fun createRoute(resourceId: String) = "resource_detail/$resourceId"
     }
 
-    // Cuestionarios específicos (ya existentes)
+    // ✅ NUEVO: Visor de artículos
+    object ArticleViewer : Screen("article_viewer/{resourceId}") {
+        fun createRoute(resourceId: String) = "article_viewer/$resourceId"
+    }
+
+    // ✅ NUEVO: Ejercicio guiado
+    object ExerciseGuided : Screen("exercise_guided/{exerciseId}") {
+        fun createRoute(exerciseId: String) = "exercise_guided/$exerciseId"
+    }
+
+    // Cuestionarios específicos
     object ErgonomiaQuestionnaire : Screen("ergonomia_questionnaire")
     object EstresSaludMentalQuestionnaire : Screen("estres_questionnaire")
     object SintomasMuscularesQuestionnaire : Screen("sintomas_musculares_questionnaire")

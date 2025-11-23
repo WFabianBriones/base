@@ -85,8 +85,19 @@ fun HomeScreen(
                 NotificationsContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
             }
             composable(Screen.Resources.route) {
-                ResourcesContent(
-                    onNavigateToResourceDetail = onNavigateToResourceDetail
+                com.example.uleammed.resources.ResourcesContentNew(
+                    onResourceClick = { resourceId ->
+                        // Navegar a visor de artículos
+                        navController.navigate(Screen.ArticleViewer.createRoute(resourceId)) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onExerciseClick = { exerciseId ->
+                        // ✅ NUEVO: Navegar a ejercicio guiado
+                        navController.navigate(Screen.ExerciseGuided.createRoute(exerciseId)) {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
             composable(Screen.Profile.route) {

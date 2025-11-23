@@ -422,6 +422,8 @@ fun UleamApp(
             )
         }
 
+
+
         composable(
             route = Screen.ResourceDetail.route,
             arguments = listOf(
@@ -434,6 +436,50 @@ fun UleamApp(
                 resourceId = resourceId,
                 onBack = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        // En MainActivity.kt, dentro del NavHost, añade estas rutas:
+
+// ✅ NUEVO: Ruta de visor de artículos
+        composable(
+            route = Screen.ArticleViewer.route,
+            arguments = listOf(
+                navArgument("resourceId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val resourceId = backStackEntry.arguments?.getString("resourceId") ?: ""
+
+            com.example.uleammed.resources.ArticleViewerScreen(
+                resourceId = resourceId,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+// ✅ NUEVO: Ruta de ejercicio guiado
+        composable(
+            route = Screen.ExerciseGuided.route,
+            arguments = listOf(
+                navArgument("exerciseId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val exerciseId = backStackEntry.arguments?.getString("exerciseId") ?: ""
+
+            com.example.uleammed.resources.ExerciseGuidedScreen(
+                exerciseId = exerciseId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onComplete = {
+                    // Registrar completación si quieres trackear progreso
+                    Toast.makeText(
+                        context,
+                        "✅ Ejercicio completado",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             )
         }
