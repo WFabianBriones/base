@@ -1,11 +1,19 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.example.uleammed.BuildConfig
+import com.example.uleammed.QuestionnaireInfo
+import com.example.uleammed.QuestionnaireType
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class QuestionnaireNotificationManager(private val context: Context) {
@@ -27,14 +35,14 @@ class QuestionnaireNotificationManager(private val context: Context) {
     fun getNotifications(): List<QuestionnaireNotification> {
         val json = prefs.getString(KEY_NOTIFICATIONS, null)
 
-        android.util.Log.d(TAG, """
+        Log.d(TAG, """
         📂 Leyendo notificaciones de SharedPreferences
         - JSON existe: ${json != null}
         - Tamaño JSON: ${json?.length ?: 0} caracteres
     """.trimIndent())
 
         if (json == null) {
-            android.util.Log.w(TAG, "⚠️ No hay notificaciones guardadas en SharedPreferences")
+            Log.w(TAG, "⚠️ No hay notificaciones guardadas en SharedPreferences")
             return emptyList()
         }
 
@@ -42,7 +50,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val type = object : TypeToken<List<QuestionnaireNotification>>() {}.type
             val notifications = gson.fromJson<List<QuestionnaireNotification>>(json, type)
 
-            android.util.Log.d(TAG, """
+            Log.d(TAG, """
             ✅ Notificaciones parseadas
             - Total: ${notifications.size}
             - No leídas: ${notifications.count { !it.isRead }}
@@ -61,7 +69,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val json = gson.toJson(notifications)
             val success = prefs.edit().putString(KEY_NOTIFICATIONS, json).commit()
 
-            android.util.Log.d(TAG, """
+            Log.d(TAG, """
             💾 Guardando notificaciones
             - Total: ${notifications.size}
             - No leídas: ${notifications.count { !it.isRead }}
@@ -70,7 +78,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
         """.trimIndent())
 
             if (!success) {
-                android.util.Log.e(TAG, "❌ ERROR: No se pudo guardar en SharedPreferences")
+                Log.e(TAG, "❌ ERROR: No se pudo guardar en SharedPreferences")
             }
         } catch (e: Exception) {
             logError("saveNotifications", e)
@@ -332,13 +340,13 @@ class QuestionnaireNotificationManager(private val context: Context) {
         preferredHour: Int,
         preferredMinute: Int
     ): Long {
-        val calendar = java.util.Calendar.getInstance().apply {
+        val calendar = Calendar.getInstance().apply {
             timeInMillis = lastCompleted
-            add(java.util.Calendar.DAY_OF_MONTH, periodDays)
-            set(java.util.Calendar.HOUR_OF_DAY, preferredHour)
-            set(java.util.Calendar.MINUTE, preferredMinute)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_MONTH, periodDays)
+            set(Calendar.HOUR_OF_DAY, preferredHour)
+            set(Calendar.MINUTE, preferredMinute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }
         return calendar.timeInMillis
     }
@@ -423,7 +431,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
         val notifications = getNotifications() // Lee de SharedPreferences (persistente)
         val count = notifications.count { !it.isCompleted }
 
-        android.util.Log.d(TAG, """
+        Log.d(TAG, """
             📊 Badge Count (PERSISTENTE)
             - Total pendientes: $count
             - Fuente: SharedPreferences (sobrevive al cierre de app)
@@ -478,19 +486,75 @@ class QuestionnaireNotificationManager(private val context: Context) {
     }
 
     private fun getQuestionnaireInfo(type: QuestionnaireType): QuestionnaireInfo = when (type) {
-        QuestionnaireType.ERGONOMIA -> QuestionnaireInfo(type, "Ergonomía y Ambiente de Trabajo", "Evalúa tu espacio de trabajo", Icons.Filled.Computer, "8-10 min", 22)
-        QuestionnaireType.SINTOMAS_MUSCULARES -> QuestionnaireInfo(type, "Síntomas Músculo-Esqueléticos", "Identifica dolores y molestias", Icons.Filled.MonitorHeart, "6-8 min", 18)
-        QuestionnaireType.SINTOMAS_VISUALES -> QuestionnaireInfo(type, "Síntomas Visuales", "Evalúa fatiga ocular", Icons.Filled.RemoveRedEye, "4-5 min", 14)
-        QuestionnaireType.CARGA_TRABAJO -> QuestionnaireInfo(type, "Carga de Trabajo", "Analiza demanda laboral", Icons.Filled.Work, "5-7 min", 15)
-        QuestionnaireType.ESTRES_SALUD_MENTAL -> QuestionnaireInfo(type, "Estrés y Salud Mental", "Identifica niveles de estrés", Icons.Filled.Psychology, "7-9 min", 19)
-        QuestionnaireType.HABITOS_SUENO -> QuestionnaireInfo(type, "Hábitos de Sueño", "Evalúa calidad de descanso", Icons.Filled.NightlightRound, "3-4 min", 9)
-        QuestionnaireType.ACTIVIDAD_FISICA -> QuestionnaireInfo(type, "Actividad Física y Nutrición", "Analiza hábitos de ejercicio", Icons.Filled.SportsGymnastics, "4-5 min", 10)
-        QuestionnaireType.BALANCE_VIDA_TRABAJO -> QuestionnaireInfo(type, "Balance Vida-Trabajo", "Evalúa equilibrio personal", Icons.Filled.Scale, "3-4 min", 8)
+        QuestionnaireType.ERGONOMIA -> QuestionnaireInfo(
+            type,
+            "Ergonomía y Ambiente de Trabajo",
+            "Evalúa tu espacio de trabajo",
+            Icons.Filled.Computer,
+            "8-10 min",
+            22
+        )
+        QuestionnaireType.SINTOMAS_MUSCULARES -> QuestionnaireInfo(
+            type,
+            "Síntomas Músculo-Esqueléticos",
+            "Identifica dolores y molestias",
+            Icons.Filled.MonitorHeart,
+            "6-8 min",
+            18
+        )
+        QuestionnaireType.SINTOMAS_VISUALES -> QuestionnaireInfo(
+            type,
+            "Síntomas Visuales",
+            "Evalúa fatiga ocular",
+            Icons.Filled.RemoveRedEye,
+            "4-5 min",
+            14
+        )
+        QuestionnaireType.CARGA_TRABAJO -> QuestionnaireInfo(
+            type,
+            "Carga de Trabajo",
+            "Analiza demanda laboral",
+            Icons.Filled.Work,
+            "5-7 min",
+            15
+        )
+        QuestionnaireType.ESTRES_SALUD_MENTAL -> QuestionnaireInfo(
+            type,
+            "Estrés y Salud Mental",
+            "Identifica niveles de estrés",
+            Icons.Filled.Psychology,
+            "7-9 min",
+            19
+        )
+        QuestionnaireType.HABITOS_SUENO -> QuestionnaireInfo(
+            type,
+            "Hábitos de Sueño",
+            "Evalúa calidad de descanso",
+            Icons.Filled.NightlightRound,
+            "3-4 min",
+            9
+        )
+        QuestionnaireType.ACTIVIDAD_FISICA -> QuestionnaireInfo(
+            type,
+            "Actividad Física y Nutrición",
+            "Analiza hábitos de ejercicio",
+            Icons.Filled.SportsGymnastics,
+            "4-5 min",
+            10
+        )
+        QuestionnaireType.BALANCE_VIDA_TRABAJO -> QuestionnaireInfo(
+            type,
+            "Balance Vida-Trabajo",
+            "Evalúa equilibrio personal",
+            Icons.Filled.Scale,
+            "3-4 min",
+            8
+        )
     }
 
     private fun logDebug(event: String, data: Map<String, Any>) {
         if (BuildConfig.DEBUG) {
-            android.util.Log.d(TAG, """
+            Log.d(TAG, """
                 ┌────────────────────────────────
                 │ Event: $event
                 ${data.entries.joinToString("\n") { "│   ${it.key}: ${it.value}" }}
@@ -500,15 +564,15 @@ class QuestionnaireNotificationManager(private val context: Context) {
     }
 
     private fun logWarning(event: String, message: String) {
-        android.util.Log.w(TAG, "⚠️ $event: $message")
+        Log.w(TAG, "⚠️ $event: $message")
     }
 
     private fun logError(event: String, exception: Exception) {
-        android.util.Log.e(TAG, "❌ $event", exception)
+        Log.e(TAG, "❌ $event", exception)
     }
 
     private fun formatDate(timestamp: Long): String {
-        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-        return sdf.format(java.util.Date(timestamp))
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        return sdf.format(Date(timestamp))
     }
 }

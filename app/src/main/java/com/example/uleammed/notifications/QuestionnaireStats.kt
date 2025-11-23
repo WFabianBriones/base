@@ -1,10 +1,12 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import com.example.uleammed.QuestionnaireType
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 
 /**
  * Modelo de estadísticas de cuestionarios
@@ -142,11 +144,11 @@ class QuestionnaireStatsManager(context: Context) {
 
         saveStats(newStats)
 
-        android.util.Log.d("QuestionnaireStats", """
+        Log.d("QuestionnaireStats", """
             ============ ESTADÍSTICA REGISTRADA ============
             Tipo: $questionnaireType
             A tiempo: $wasOnTime
-            Días de ${if (daysEarly >= 0) "anticipación" else "retraso"}: ${kotlin.math.abs(daysEarly)}
+            Días de ${if (daysEarly >= 0) "anticipación" else "retraso"}: ${abs(daysEarly)}
             Racha actual: $currentStreak
             Mejor racha: ${bestStreaks[questionnaireType.name]}
             ============================================

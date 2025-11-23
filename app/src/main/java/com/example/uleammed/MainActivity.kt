@@ -26,6 +26,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.example.uleammed.notifications.LocalNotificationScheduler
+import com.example.uleammed.notifications.NotificationPermissionHandler
+import com.example.uleammed.notifications.NotificationViewModel
+import com.example.uleammed.notifications.QuestionnaireNotificationManager
+import com.example.uleammed.notifications.hasNotificationPermission
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

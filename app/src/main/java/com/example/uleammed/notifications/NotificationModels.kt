@@ -1,6 +1,9 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
+import com.example.uleammed.QuestionnaireType
+import java.util.Calendar
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
  * Modelo de notificación de cuestionario
@@ -34,7 +37,7 @@ data class QuestionnaireNotification(
      */
     fun daysUntilDue(): Long {
         val diff = dueDate - System.currentTimeMillis()
-        return java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diff)
+        return TimeUnit.MILLISECONDS.toDays(diff)
     }
 }
 
@@ -71,13 +74,13 @@ data class QuestionnaireScheduleConfig(
      * Calcula la próxima fecha de vencimiento desde una fecha base
      */
     private fun calculateNextDueDate(fromDate: Long): Long {
-        val calendar = java.util.Calendar.getInstance().apply {
+        val calendar = Calendar.getInstance().apply {
             timeInMillis = fromDate
-            add(java.util.Calendar.DAY_OF_MONTH, periodDays)
-            set(java.util.Calendar.HOUR_OF_DAY, preferredHour)
-            set(java.util.Calendar.MINUTE, preferredMinute)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
+            add(Calendar.DAY_OF_MONTH, periodDays)
+            set(Calendar.HOUR_OF_DAY, preferredHour)
+            set(Calendar.MINUTE, preferredMinute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }
         return calendar.timeInMillis
     }

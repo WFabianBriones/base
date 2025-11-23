@@ -1,7 +1,19 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import com.example.uleammed.MainActivity
+import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.R
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 object TestNotificationHelper {
@@ -25,7 +37,7 @@ object TestNotificationHelper {
             Toast.LENGTH_LONG
         ).show()
 
-        android.util.Log.d("TestNotification", """
+        Log.d("TestNotification", """
             ✅ Notificación de prueba programada
             - Ahora: ${formatDate(now)}
             - Programada para: ${formatDate(testDate)}
@@ -52,7 +64,7 @@ object TestNotificationHelper {
             Toast.LENGTH_LONG
         ).show()
 
-        android.util.Log.d("TestNotification", """
+        Log.d("TestNotification", """
             ✅ Notificación de prueba programada
             - Ahora: ${formatDate(now)}
             - Programada para: ${formatDate(testDate)}
@@ -62,28 +74,28 @@ object TestNotificationHelper {
 
     fun showImmediateTestNotification(context: Context) {
         try {
-            val notificationManager = android.app.NotificationManager::class.java.cast(
+            val notificationManager = NotificationManager::class.java.cast(
                 context.getSystemService(Context.NOTIFICATION_SERVICE)
             )
 
-            val intent = android.content.Intent(context, MainActivity::class.java).apply {
-                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 putExtra("questionnaire_type", QuestionnaireType.ERGONOMIA.name)
                 putExtra("open_from_notification", true)
             }
 
-            val pendingIntent = android.app.PendingIntent.getActivity(
+            val pendingIntent = PendingIntent.getActivity(
                 context,
                 9999,
                 intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            val notification = androidx.core.app.NotificationCompat.Builder(context, LocalNotificationScheduler.CHANNEL_ID)
+            val notification = NotificationCompat.Builder(context, LocalNotificationScheduler.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("🧪 TEST INMEDIATO: Notificación")
                 .setContentText("Esta notificación se muestra inmediatamente para probar permisos")
-                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent)
                 .setVibrate(longArrayOf(0, 500, 200, 500))
@@ -98,21 +110,21 @@ object TestNotificationHelper {
                 Toast.LENGTH_LONG
             ).show()
 
-            android.util.Log.d("TestNotification", "✅ Notificación inmediata mostrada con ID 9999")
+            Log.d("TestNotification", "✅ Notificación inmediata mostrada con ID 9999")
         } catch (e: SecurityException) {
             Toast.makeText(
                 context,
                 "❌ ERROR: Permiso de notificaciones denegado",
                 Toast.LENGTH_LONG
             ).show()
-            android.util.Log.e("TestNotification", "❌ Permiso denegado", e)
+            Log.e("TestNotification", "❌ Permiso denegado", e)
         } catch (e: Exception) {
             Toast.makeText(
                 context,
                 "❌ ERROR: ${e.message}",
                 Toast.LENGTH_LONG
             ).show()
-            android.util.Log.e("TestNotification", "❌ Error mostrando notificación", e)
+            Log.e("TestNotification", "❌ Error mostrando notificación", e)
         }
     }
 
@@ -125,14 +137,14 @@ object TestNotificationHelper {
             Toast.LENGTH_SHORT
         ).show()
 
-        android.util.Log.d("TestNotification", "✅ Notificaciones de prueba canceladas")
+        Log.d("TestNotification", "✅ Notificaciones de prueba canceladas")
     }
 
     fun checkNotificationStatus(context: Context): String {
         val hasPermission = context.hasNotificationPermission()
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
 
-        val channelExists = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val channelExists = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             notificationManager?.getNotificationChannel(LocalNotificationScheduler.CHANNEL_ID) != null
         } else {
             true
@@ -142,26 +154,26 @@ object TestNotificationHelper {
             ============ ESTADO DE NOTIFICACIONES ============
             Permiso concedido: $hasPermission
             Canal creado: $channelExists
-            SDK Version: ${android.os.Build.VERSION.SDK_INT}
-            Device: ${android.os.Build.MODEL}
+            SDK Version: ${Build.VERSION.SDK_INT}
+            Device: ${Build.MODEL}
             Emulator: ${isEmulator()}
             ================================================
         """.trimIndent()
     }
 
     private fun isEmulator(): Boolean {
-        return (android.os.Build.FINGERPRINT.startsWith("generic")
-                || android.os.Build.FINGERPRINT.startsWith("unknown")
-                || android.os.Build.MODEL.contains("google_sdk")
-                || android.os.Build.MODEL.contains("Emulator")
-                || android.os.Build.MODEL.contains("Android SDK built for x86")
-                || android.os.Build.MANUFACTURER.contains("Genymotion")
-                || (android.os.Build.BRAND.startsWith("generic") && android.os.Build.DEVICE.startsWith("generic"))
-                || "google_sdk" == android.os.Build.PRODUCT)
+        return (Build.FINGERPRINT.startsWith("generic")
+                || Build.FINGERPRINT.startsWith("unknown")
+                || Build.MODEL.contains("google_sdk")
+                || Build.MODEL.contains("Emulator")
+                || Build.MODEL.contains("Android SDK built for x86")
+                || Build.MANUFACTURER.contains("Genymotion")
+                || (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+                || "google_sdk" == Build.PRODUCT)
     }
 
     private fun formatDate(timestamp: Long): String {
-        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", java.util.Locale.getDefault())
-        return sdf.format(java.util.Date(timestamp))
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        return sdf.format(Date(timestamp))
     }
 }

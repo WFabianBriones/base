@@ -1,8 +1,10 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
+import com.example.uleammed.QuestionnaireType
 import com.google.firebase.auth.FirebaseAuth
 
 /**
@@ -26,7 +28,7 @@ class NotificationDismissReceiver : BroadcastReceiver() {
             val questionnaireTypeString = intent.getStringExtra(EXTRA_QUESTIONNAIRE_TYPE)
             val notificationId = intent.getStringExtra(EXTRA_NOTIFICATION_ID)
 
-            android.util.Log.d(TAG, """
+            Log.d(TAG, """
                 ============ NOTIFICACIÓN DESCARTADA ============
                 Tipo: $questionnaireTypeString
                 ID: $notificationId
@@ -45,22 +47,22 @@ class NotificationDismissReceiver : BroadcastReceiver() {
                         // Marcar la notificación in-app como leída (no eliminar)
                         notificationManager.markAsReadByType(userId, questionnaireType)
 
-                        android.util.Log.d(TAG, """
+                        Log.d(TAG, """
                             ✅ Sincronización exitosa
                             - Tipo: $questionnaireType
                             - Notificación in-app marcada como leída
                             - Badge actualizado
                         """.trimIndent())
                     } else {
-                        android.util.Log.w(TAG, "⚠️ Usuario no autenticado, no se puede sincronizar")
+                        Log.w(TAG, "⚠️ Usuario no autenticado, no se puede sincronizar")
                     }
                 } catch (e: IllegalArgumentException) {
-                    android.util.Log.e(TAG, "❌ Tipo de cuestionario inválido: $questionnaireTypeString", e)
+                    Log.e(TAG, "❌ Tipo de cuestionario inválido: $questionnaireTypeString", e)
                 } catch (e: Exception) {
-                    android.util.Log.e(TAG, "❌ Error procesando dismissal", e)
+                    Log.e(TAG, "❌ Error procesando dismissal", e)
                 }
             } else {
-                android.util.Log.w(TAG, "⚠️ Tipo de cuestionario null en intent")
+                Log.w(TAG, "⚠️ Tipo de cuestionario null en intent")
             }
         }
     }

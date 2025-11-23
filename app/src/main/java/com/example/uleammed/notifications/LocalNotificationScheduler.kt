@@ -1,13 +1,22 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.*
+import com.example.uleammed.MainActivity
+import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.R
+import com.google.firebase.auth.FirebaseAuth
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,9 +48,9 @@ object LocalNotificationScheduler {
                 val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.createNotificationChannel(channel)
 
-                android.util.Log.d(TAG, "✅ Canal de notificaciones creado exitosamente")
+                Log.d(TAG, "✅ Canal de notificaciones creado exitosamente")
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "❌ Error creando canal de notificaciones", e)
+                Log.e(TAG, "❌ Error creando canal de notificaciones", e)
             }
         }
     }
@@ -69,7 +78,7 @@ object LocalNotificationScheduler {
 
         // ✅ Validación estricta: solo programar si la fecha es futura
         if (delay <= 0) {
-            android.util.Log.w(TAG, """
+            Log.w(TAG, """
                 ⚠️ Intento de programar notificación en el pasado ignorado
                 - Tipo: $questionnaireType
                 - Fecha solicitada: ${formatDate(dueDate)}
@@ -82,7 +91,7 @@ object LocalNotificationScheduler {
         // ✅ Validación: delay no debe ser mayor a 1 año
         val maxDelay = TimeUnit.DAYS.toMillis(365)
         if (delay > maxDelay) {
-            android.util.Log.w(TAG, """
+            Log.w(TAG, """
                 ⚠️ Delay excede el máximo permitido (1 año)
                 - Tipo: $questionnaireType
                 - Delay solicitado: ${TimeUnit.MILLISECONDS.toDays(delay)} días
@@ -129,7 +138,7 @@ object LocalNotificationScheduler {
                 notificationWork
             )
 
-            android.util.Log.d(TAG, """
+            Log.d(TAG, """
                 ✅ Notificación programada exitosamente
                 - Tipo: ${if (isReminder) "Recordatorio" else "Principal"}
                 - Cuestionario: $questionnaireType
@@ -138,7 +147,7 @@ object LocalNotificationScheduler {
                 - In-App: $createInAppNotification
             """.trimIndent())
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error programando notificación para $questionnaireType", e)
+            Log.e(TAG, "❌ Error programando notificación para $questionnaireType", e)
         }
     }
 
@@ -153,9 +162,9 @@ object LocalNotificationScheduler {
             WorkManager.getInstance().cancelAllWorkByTag(workTag)
             WorkManager.getInstance().cancelAllWorkByTag(reminderTag)
 
-            android.util.Log.d(TAG, "✅ Notificaciones canceladas para $questionnaireType")
+            Log.d(TAG, "✅ Notificaciones canceladas para $questionnaireType")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error cancelando notificaciones para $questionnaireType", e)
+            Log.e(TAG, "❌ Error cancelando notificaciones para $questionnaireType", e)
         }
     }
 
@@ -167,9 +176,9 @@ object LocalNotificationScheduler {
             QuestionnaireType.values().forEach { type ->
                 cancelNotification(type)
             }
-            android.util.Log.d(TAG, "✅ Todas las notificaciones canceladas")
+            Log.d(TAG, "✅ Todas las notificaciones canceladas")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error cancelando todas las notificaciones", e)
+            Log.e(TAG, "❌ Error cancelando todas las notificaciones", e)
         }
     }
 
@@ -197,9 +206,9 @@ object LocalNotificationScheduler {
                 checkRequest
             )
 
-            android.util.Log.d(TAG, "✅ Verificación periódica programada (cada 24 horas)")
+            Log.d(TAG, "✅ Verificación periódica programada (cada 24 horas)")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error programando verificación periódica", e)
+            Log.e(TAG, "❌ Error programando verificación periódica", e)
         }
     }
 
@@ -209,17 +218,17 @@ object LocalNotificationScheduler {
     fun cancelPeriodicCheck(context: Context) {
         try {
             WorkManager.getInstance(context).cancelUniqueWork("daily_notification_check")
-            android.util.Log.d(TAG, "✅ Verificación periódica cancelada")
+            Log.d(TAG, "✅ Verificación periódica cancelada")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error cancelando verificación periódica", e)
+            Log.e(TAG, "❌ Error cancelando verificación periódica", e)
         }
     }
 
     // ============ UTILIDADES ============
 
     private fun formatDate(timestamp: Long): String {
-        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-        return sdf.format(java.util.Date(timestamp))
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        return sdf.format(Date(timestamp))
     }
 
     private fun formatDelay(delayMs: Long): String {
@@ -258,7 +267,7 @@ class NotificationWorker(
             val createInAppNotification = inputData.getBoolean("createInAppNotification", true)
             val scheduledFor = inputData.getLong("scheduledFor", 0L)
 
-            android.util.Log.d(TAG, """
+            Log.d(TAG, """
                 ▶️ Ejecutando notificación
                 - Tipo: $type
                 - Es recordatorio: $isReminder
@@ -274,23 +283,23 @@ class NotificationWorker(
                 createInAppNotification(type)
             }
 
-            android.util.Log.d(TAG, "✅ Notificación ejecutada exitosamente: $type")
+            Log.d(TAG, "✅ Notificación ejecutada exitosamente: $type")
             Result.success()
 
         } catch (e: SecurityException) {
-            android.util.Log.e(TAG, "❌ Permiso de notificaciones denegado", e)
+            Log.e(TAG, "❌ Permiso de notificaciones denegado", e)
             Result.failure()
         } catch (e: IllegalArgumentException) {
-            android.util.Log.e(TAG, "❌ Argumento inválido en notificación", e)
+            Log.e(TAG, "❌ Argumento inválido en notificación", e)
             Result.failure()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error inesperado en notificación", e)
+            Log.e(TAG, "❌ Error inesperado en notificación", e)
             // ✅ Reintentar en caso de error temporal
             if (runAttemptCount < 3) {
-                android.util.Log.d(TAG, "🔄 Reintentando... (intento ${runAttemptCount + 1}/3)")
+                Log.d(TAG, "🔄 Reintentando... (intento ${runAttemptCount + 1}/3)")
                 Result.retry()
             } else {
-                android.util.Log.e(TAG, "❌ Máximo de reintentos alcanzado")
+                Log.e(TAG, "❌ Máximo de reintentos alcanzado")
                 Result.failure()
             }
         }
@@ -300,7 +309,7 @@ class NotificationWorker(
         val type = try {
             QuestionnaireType.valueOf(typeString)
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Tipo de cuestionario inválido: $typeString", e)
+            Log.e(TAG, "❌ Tipo de cuestionario inválido: $typeString", e)
             return
         }
 
@@ -358,7 +367,7 @@ class NotificationWorker(
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.notify(notificationId, notificationBuilder.build())
 
-            android.util.Log.d(TAG, """
+            Log.d(TAG, """
                 ✅ Push notification mostrada
                 - ID: $notificationId
                 - Tipo: $type
@@ -366,7 +375,7 @@ class NotificationWorker(
                 - Título: $title
             """.trimIndent())
         } catch (e: SecurityException) {
-            android.util.Log.e(TAG, "❌ Permiso de notificaciones denegado", e)
+            Log.e(TAG, "❌ Permiso de notificaciones denegado", e)
             throw e
         }
     }
@@ -375,24 +384,24 @@ class NotificationWorker(
         try {
             val questionnaireType = QuestionnaireType.valueOf(typeString)
             val notificationManager = QuestionnaireNotificationManager(context)
-            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            val auth = FirebaseAuth.getInstance()
             val userId = auth.currentUser?.uid
 
             if (userId != null) {
                 notificationManager.checkAndGenerateNotifications(userId)
-                android.util.Log.d(TAG, "✅ Notificación in-app creada para $typeString")
+                Log.d(TAG, "✅ Notificación in-app creada para $typeString")
             } else {
-                android.util.Log.w(TAG, "⚠️ Usuario no autenticado, no se puede crear notificación in-app")
+                Log.w(TAG, "⚠️ Usuario no autenticado, no se puede crear notificación in-app")
             }
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error creando notificación in-app", e)
+            Log.e(TAG, "❌ Error creando notificación in-app", e)
         }
     }
 
     private fun formatDate(timestamp: Long): String {
         if (timestamp == 0L) return "N/A"
-        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-        return sdf.format(java.util.Date(timestamp))
+        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        return sdf.format(Date(timestamp))
     }
 }
 
@@ -410,30 +419,30 @@ class NotificationCheckWorker(
 
     override fun doWork(): Result {
         return try {
-            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            val auth = FirebaseAuth.getInstance()
             val userId = auth.currentUser?.uid
 
             if (userId != null) {
-                android.util.Log.d(TAG, "🔍 Iniciando verificación periódica")
+                Log.d(TAG, "🔍 Iniciando verificación periódica")
 
                 val manager = QuestionnaireNotificationManager(applicationContext)
                 manager.checkAndGenerateNotifications(userId)
 
-                android.util.Log.d(TAG, "✅ Verificación completada exitosamente")
+                Log.d(TAG, "✅ Verificación completada exitosamente")
                 Result.success()
             } else {
-                android.util.Log.w(TAG, "⚠️ Usuario no autenticado")
+                Log.w(TAG, "⚠️ Usuario no autenticado")
                 Result.failure()
             }
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error en verificación periódica", e)
+            Log.e(TAG, "❌ Error en verificación periódica", e)
 
             // ✅ Reintentar hasta 3 veces
             if (runAttemptCount < 3) {
-                android.util.Log.d(TAG, "🔄 Reintentando verificación... (intento ${runAttemptCount + 1}/3)")
+                Log.d(TAG, "🔄 Reintentando verificación... (intento ${runAttemptCount + 1}/3)")
                 Result.retry()
             } else {
-                android.util.Log.e(TAG, "❌ Máximo de reintentos alcanzado en verificación")
+                Log.e(TAG, "❌ Máximo de reintentos alcanzado en verificación")
                 Result.failure()
             }
         }
@@ -443,7 +452,7 @@ class NotificationCheckWorker(
 /**
  * Receiver para reiniciar notificaciones después de reiniciar el dispositivo
  */
-class BootReceiver : android.content.BroadcastReceiver() {
+class BootReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BootReceiver"
@@ -452,21 +461,21 @@ class BootReceiver : android.content.BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             try {
-                android.util.Log.d(TAG, "📱 Dispositivo reiniciado, reprogramando notificaciones")
+                Log.d(TAG, "📱 Dispositivo reiniciado, reprogramando notificaciones")
 
                 val notificationManager = QuestionnaireNotificationManager(context)
-                val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                val userId = FirebaseAuth.getInstance().currentUser?.uid
 
                 if (userId != null) {
                     notificationManager.checkAndGenerateNotifications(userId)
                     LocalNotificationScheduler.schedulePeriodicCheck(context)
 
-                    android.util.Log.d(TAG, "✅ Notificaciones reprogramadas exitosamente")
+                    Log.d(TAG, "✅ Notificaciones reprogramadas exitosamente")
                 } else {
-                    android.util.Log.w(TAG, "⚠️ Usuario no autenticado tras reinicio")
+                    Log.w(TAG, "⚠️ Usuario no autenticado tras reinicio")
                 }
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "❌ Error reprogramando notificaciones tras reinicio", e)
+                Log.e(TAG, "❌ Error reprogramando notificaciones tras reinicio", e)
             }
         }
     }

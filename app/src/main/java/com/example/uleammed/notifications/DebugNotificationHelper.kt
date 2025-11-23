@@ -1,13 +1,18 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
+import com.google.firebase.auth.FirebaseAuth
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object DebugNotificationHelper {
 
     fun diagnoseNotifications(context: Context) {
         val manager = QuestionnaireNotificationManager(context)
-        val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+        val userId = FirebaseAuth.getInstance().currentUser?.uid
 
         val report = buildString {
             appendLine("============ DIAGNÓSTICO DE NOTIFICACIONES ============")
@@ -55,8 +60,8 @@ object DebugNotificationHelper {
                 if (config.lastCompletedDates.isNotEmpty()) {
                     appendLine("✅ COMPLETADOS:")
                     config.lastCompletedDates.forEach { (type, timestamp) ->
-                        val date = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault())
-                            .format(java.util.Date(timestamp))
+                        val date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                            .format(Date(timestamp))
                         appendLine("  - $type: $date")
                     }
                 }
@@ -65,7 +70,7 @@ object DebugNotificationHelper {
             appendLine("====================================================")
         }
 
-        android.util.Log.d("DebugNotifications", report)
+        Log.d("DebugNotifications", report)
         Toast.makeText(context, "Diagnóstico en Logcat", Toast.LENGTH_SHORT).show()
     }
 }

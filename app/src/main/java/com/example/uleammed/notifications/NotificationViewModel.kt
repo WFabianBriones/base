@@ -1,14 +1,16 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.uleammed.QuestionnaireType
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
@@ -35,7 +37,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     val error: StateFlow<String?> = _error.asStateFlow()
 
     init {
-        android.util.Log.d("NotificationViewModel", "🚀 ViewModel inicializado")
+        Log.d("NotificationViewModel", "🚀 ViewModel inicializado")
         loadNotifications()
         checkForNewNotifications()
     }
@@ -65,7 +67,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     _scheduleConfig.value = config
                 }
 
-                android.util.Log.d("NotificationViewModel", """
+                Log.d("NotificationViewModel", """
                     ✅ Notificaciones cargadas
                     - Total: ${notifications.size}
                     - No leídas: $unread
@@ -74,7 +76,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 _error.value = null
             } catch (e: Exception) {
                 _error.value = "Error al cargar notificaciones: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "❌ Error loading notifications", e)
+                Log.e("NotificationViewModel", "❌ Error loading notifications", e)
             } finally {
                 _isLoading.value = false
             }
@@ -86,11 +88,11 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val userId = auth.currentUser?.uid
                 if (userId == null) {
-                    android.util.Log.w("NotificationViewModel", "⚠️ Usuario no autenticado")
+                    Log.w("NotificationViewModel", "⚠️ Usuario no autenticado")
                     return@launch
                 }
 
-                android.util.Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones para userId: $userId")
+                Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones para userId: $userId")
 
                 withContext(Dispatchers.IO) {
                     notificationManager.checkAndGenerateNotifications(userId)
@@ -100,7 +102,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 loadNotifications()
             } catch (e: Exception) {
                 _error.value = "Error al verificar notificaciones: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "❌ Error checking notifications", e)
+                Log.e("NotificationViewModel", "❌ Error checking notifications", e)
             }
         }
     }
@@ -117,7 +119,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 loadNotifications()
             } catch (e: Exception) {
                 _error.value = "Error al marcar como leída: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error marking as read", e)
+                Log.e("NotificationViewModel", "Error marking as read", e)
             }
         }
     }
@@ -134,7 +136,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 loadNotifications()
             } catch (e: Exception) {
                 _error.value = "Error al eliminar notificación: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error deleting notification", e)
+                Log.e("NotificationViewModel", "Error deleting notification", e)
             }
         }
     }
@@ -153,10 +155,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
                 loadNotifications()
 
-                android.util.Log.d("NotificationViewModel", "Período actualizado a $days días")
+                Log.d("NotificationViewModel", "Período actualizado a $days días")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar período: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error updating period", e)
+                Log.e("NotificationViewModel", "Error updating period", e)
             }
         }
     }
@@ -179,10 +181,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 loadNotifications()
 
                 val config = PreferredTimeConfig(hour, minute)
-                android.util.Log.d("NotificationViewModel", "Hora preferida actualizada a ${config.formatReadable()}")
+                Log.d("NotificationViewModel", "Hora preferida actualizada a ${config.formatReadable()}")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar hora: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error updating preferred time", e)
+                Log.e("NotificationViewModel", "Error updating preferred time", e)
             }
         }
     }
@@ -204,10 +206,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
                 _scheduleConfig.value = updatedConfig
 
-                android.util.Log.d("NotificationViewModel", "Recordatorios in-app: ${if (show) "habilitados" else "deshabilitados"}")
+                Log.d("NotificationViewModel", "Recordatorios in-app: ${if (show) "habilitados" else "deshabilitados"}")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar configuración: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error updating reminders config", e)
+                Log.e("NotificationViewModel", "Error updating reminders config", e)
             }
         }
     }
@@ -226,10 +228,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
                 loadNotifications()
 
-                android.util.Log.d("NotificationViewModel", "Cuestionario $questionnaireType completado")
+                Log.d("NotificationViewModel", "Cuestionario $questionnaireType completado")
             } catch (e: Exception) {
                 _error.value = "Error al marcar cuestionario: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error marking questionnaire completed", e)
+                Log.e("NotificationViewModel", "Error marking questionnaire completed", e)
             }
         }
     }
@@ -245,10 +247,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 }
                 loadNotifications()
 
-                android.util.Log.d("NotificationViewModel", "Notificaciones antiguas eliminadas")
+                Log.d("NotificationViewModel", "Notificaciones antiguas eliminadas")
             } catch (e: Exception) {
                 _error.value = "Error al limpiar notificaciones: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error cleaning up notifications", e)
+                Log.e("NotificationViewModel", "Error cleaning up notifications", e)
             }
         }
     }
@@ -264,10 +266,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 }
                 loadNotifications()
 
-                android.util.Log.d("NotificationViewModel", "Notificaciones leídas eliminadas")
+                Log.d("NotificationViewModel", "Notificaciones leídas eliminadas")
             } catch (e: Exception) {
                 _error.value = "Error al limpiar notificaciones leídas: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error clearing read notifications", e)
+                Log.e("NotificationViewModel", "Error clearing read notifications", e)
             }
         }
     }
@@ -283,10 +285,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 }
                 loadNotifications()
 
-                android.util.Log.d("NotificationViewModel", "Todas las notificaciones eliminadas")
+                Log.d("NotificationViewModel", "Todas las notificaciones eliminadas")
             } catch (e: Exception) {
                 _error.value = "Error al limpiar todas las notificaciones: ${e.message}"
-                android.util.Log.e("NotificationViewModel", "Error clearing all notifications", e)
+                Log.e("NotificationViewModel", "Error clearing all notifications", e)
             }
         }
     }
@@ -300,7 +302,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             notificationManager.getStatsManager()
                 .getQuestionnaireSummary(userId, questionnaireType, notificationManager)
         } catch (e: Exception) {
-            android.util.Log.e("NotificationViewModel", "Error getting stats summary", e)
+            Log.e("NotificationViewModel", "Error getting stats summary", e)
             null
         }
     }
@@ -313,7 +315,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             val userId = auth.currentUser?.uid ?: return null
             notificationManager.getStatsManager().getGlobalSummary(userId)
         } catch (e: Exception) {
-            android.util.Log.e("NotificationViewModel", "Error getting global summary", e)
+            Log.e("NotificationViewModel", "Error getting global summary", e)
             null
         }
     }
@@ -334,6 +336,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         super.onCleared()
-        android.util.Log.d("NotificationViewModel", "ViewModel cleared")
+        Log.d("NotificationViewModel", "ViewModel cleared")
     }
 }

@@ -1,4 +1,4 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import android.Manifest
 import android.app.Activity
@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -165,7 +166,7 @@ fun NotificationPermissionDialog(
 
 @Composable
 private fun PermissionBenefitItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     text: String
 ) {
     Row(

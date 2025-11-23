@@ -1,4 +1,4 @@
-package com.example.uleammed
+package com.example.uleammed.notifications
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,10 +9,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.uleammed.QuestionnaireType
+import com.example.uleammed.Screen
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -372,7 +375,7 @@ fun NotificationCard(
     }
 }
 
-private fun getIconForQuestionnaireType(type: QuestionnaireType): androidx.compose.ui.graphics.vector.ImageVector {
+private fun getIconForQuestionnaireType(type: QuestionnaireType): ImageVector {
     return when (type) {
         QuestionnaireType.ERGONOMIA -> Icons.Filled.Computer
         QuestionnaireType.SINTOMAS_MUSCULARES -> Icons.Filled.MonitorHeart
