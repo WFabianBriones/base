@@ -64,6 +64,24 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".notifications.NotificationDismissReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.uleammed.NOTIFICATION_DISMISSED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".notifications.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Google Services -->
         <meta-data
             android:name="com.google.android.gms.version"
