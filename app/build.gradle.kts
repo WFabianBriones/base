@@ -114,13 +114,13 @@ dependencies {
 
     // ============ KOTLINDL - DEEP LEARNING ============
     // OPCIÓN A: Dependencias completas (MÁS RECOMENDADO)
-    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-api:0.5.2")
-    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-onnx:0.5.2")
-    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-tensorflow:0.5.2")
+    //implementation("org.jetbrains.kotlinx:kotlin-deeplearning-api:0.5.2")
+    //implementation("org.jetbrains.kotlinx:kotlin-deeplearning-onnx:0.5.2")
+    //implementation("org.jetbrains.kotlinx:kotlin-deeplearning-tensorflow:0.5.2")
 
     // Multik para operaciones matemáticas
-    implementation("org.jetbrains.kotlinx:multik-core:0.2.2")
-    implementation("org.jetbrains.kotlinx:multik-default:0.2.2")
+    //implementation("org.jetbrains.kotlinx:multik-core:0.2.2")
+    //implementation("org.jetbrains.kotlinx:multik-default:0.2.2")
 
     // ============ TESTING ============
     testImplementation("junit:junit:4.13.2")
