@@ -1,5 +1,6 @@
-package com.example.uleammed
+package com.example.uleammed.perfil
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +18,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.uleammed.BuildConfig
 import com.example.uleammed.notifications.DebugNotificationHelper
 import com.example.uleammed.notifications.NotificationPermissionHandler
 import com.example.uleammed.notifications.NotificationPermissionStatus
@@ -440,7 +442,7 @@ fun SettingsScreen(
                         TextButton(
                             onClick = {
                                 val status = TestNotificationHelper.checkNotificationStatus(context)
-                                android.util.Log.d("TestNotification", status)
+                                Log.d("TestNotification", status)
                                 Toast.makeText(context, "Estado en Logcat", Toast.LENGTH_SHORT).show()
                                 showStatus = true
                             },

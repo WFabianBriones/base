@@ -31,6 +31,7 @@ import com.example.uleammed.notifications.NotificationPermissionHandler
 import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.QuestionnaireNotificationManager
 import com.example.uleammed.notifications.hasNotificationPermission
+import com.example.uleammed.perfil.SettingsScreen
 import com.example.uleammed.questionnaires.ActividadFisicaQuestionnaireScreen
 import com.example.uleammed.questionnaires.BalanceVidaTrabajoQuestionnaireScreen
 import com.example.uleammed.questionnaires.CargaTrabajoQuestionnaireScreen
@@ -468,6 +469,37 @@ fun UleamApp(
 
             com.example.uleammed.resources.ArticleViewerScreen(
                 resourceId = resourceId,
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Screen.EditProfile.route) {
+            com.example.uleammed.perfil.EditProfileScreen(
+                onBack = {
+                    navController.popBackStack()
+                },
+                onSaveSuccess = {
+                    // Recargar usuario después de guardar
+                    authViewModel.checkCurrentUser()
+                    navController.popBackStack()
+                }
+            )
+        }
+
+// Ver Cuestionario
+        composable(Screen.ViewQuestionnaire.route) {
+            com.example.uleammed.perfil.ViewQuestionnaireScreen(
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+// Ayuda y Soporte
+        composable(Screen.HelpSupport.route) {
+            com.example.uleammed.perfil.HelpSupportScreen(
                 onBack = {
                     navController.popBackStack()
                 }

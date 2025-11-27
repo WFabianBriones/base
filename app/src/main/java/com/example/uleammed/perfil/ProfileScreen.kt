@@ -1,4 +1,4 @@
-package com.example.uleammed
+package com.example.uleammed.perfil
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,12 +11,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.uleammed.User
 
 @Composable
 fun ProfileContent(
     user: User?,
     onLogout: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToEditProfile: () -> Unit,        // ✅ NUEVO
+    onNavigateToViewQuestionnaire: () -> Unit,  // ✅ NUEVO
+    onNavigateToHelp: () -> Unit                // ✅ NUEVO
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -154,7 +158,7 @@ fun ProfileContent(
                 ProfileOption(
                     icon = Icons.Filled.Edit,
                     title = "Editar Perfil",
-                    onClick = { /* TODO: Implementar edición */ }
+                    onClick = onNavigateToEditProfile  // ✅ AHORA FUNCIONA
                 )
 
                 HorizontalDivider()
@@ -162,7 +166,7 @@ fun ProfileContent(
                 ProfileOption(
                     icon = Icons.Filled.Assignment,
                     title = "Ver Cuestionario",
-                    onClick = { /* TODO: Ver cuestionario */ }
+                    onClick = onNavigateToViewQuestionnaire  // ✅ AHORA FUNCIONA
                 )
 
                 HorizontalDivider()
@@ -178,7 +182,7 @@ fun ProfileContent(
                 ProfileOption(
                     icon = Icons.Filled.Help,
                     title = "Ayuda y Soporte",
-                    onClick = { /* TODO: Ayuda */ }
+                    onClick = onNavigateToHelp  // ✅ AHORA FUNCIONA
                 )
             }
         }

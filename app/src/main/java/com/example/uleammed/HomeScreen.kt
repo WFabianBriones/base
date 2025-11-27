@@ -19,6 +19,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.NotificationsContent
+import com.example.uleammed.perfil.ProfileContent
 import com.example.uleammed.questionnaires.QuestionnaireInfo
 import com.example.uleammed.questionnaires.QuestionnaireType
 
@@ -105,10 +106,25 @@ fun HomeScreen(
                 )
             }
             composable(Screen.Profile.route) {
-                ProfileContent(
+                com.example.uleammed.perfil.ProfileContent(
                     user = currentUser,
                     onLogout = onLogout,
-                    onNavigateToSettings = onNavigateToSettings
+                    onNavigateToSettings = onNavigateToSettings,
+                    onNavigateToEditProfile = {
+                        navController.navigate(Screen.EditProfile.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onNavigateToViewQuestionnaire = {
+                        navController.navigate(Screen.ViewQuestionnaire.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onNavigateToHelp = {
+                        navController.navigate(Screen.HelpSupport.route) {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
         }
