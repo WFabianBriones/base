@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.uleammed.AuthRepository
+import com.example.uleammed.auth.AuthRepository
 import com.example.uleammed.HealthQuestionnaire
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch

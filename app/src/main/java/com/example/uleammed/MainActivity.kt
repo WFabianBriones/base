@@ -26,6 +26,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.example.uleammed.auth.AuthViewModel
+import com.example.uleammed.auth.LoginScreen
+import com.example.uleammed.auth.RegisterScreen
 import com.example.uleammed.notifications.LocalNotificationScheduler
 import com.example.uleammed.notifications.NotificationPermissionHandler
 import com.example.uleammed.notifications.NotificationViewModel

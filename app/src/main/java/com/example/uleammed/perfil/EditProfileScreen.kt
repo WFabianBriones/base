@@ -14,8 +14,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.uleammed.AuthViewModel
+import com.example.uleammed.auth.AuthViewModel
 import com.example.uleammed.User
+import com.example.uleammed.auth.AuthRepository
 import kotlinx.coroutines.launch
 
 /**
@@ -223,7 +224,7 @@ fun EditProfileScreen(
                     scope.launch {
                         try {
                             val userId = currentUser?.uid ?: throw Exception("Usuario no autenticado")
-                            val repository = com.example.uleammed.AuthRepository()
+                            val repository = AuthRepository()
 
                             val updates = mapOf(
                                 "displayName" to displayName

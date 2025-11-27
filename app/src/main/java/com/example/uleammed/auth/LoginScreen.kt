@@ -1,5 +1,6 @@
-package com.example.uleammed
+package com.example.uleammed.auth
 
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,14 +18,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.uleammed.AuthState
+import com.example.uleammed.auth.AuthViewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.uleammed.auth.ForgotPasswordDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +44,7 @@ fun LoginScreen(
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var isGoogleSignInLoading by remember { mutableStateOf(false) }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
 
     val authState by viewModel.authState.collectAsState()
     val context = LocalContext.current
@@ -70,6 +76,11 @@ fun LoginScreen(
                     Text("Entendido")
                 }
             }
+        )
+    }
+    if (showForgotPasswordDialog) {
+        ForgotPasswordDialog(
+            onDismiss = { showForgotPasswordDialog = false }
         )
     }
 
@@ -153,6 +164,21 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = authState !is AuthState.Loading && !isGoogleSignInLoading
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = { showForgotPasswordDialog = true },
+                        enabled = authState !is AuthState.Loading && !isGoogleSignInLoading
+                    ) {
+                        Text(
+                            text = "¿Olvidaste tu contraseña?",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -252,7 +278,7 @@ fun LoginScreen(
     }
 }
 
-private suspend fun handleGoogleSignIn(context: android.content.Context, viewModel: AuthViewModel) {
+private suspend fun handleGoogleSignIn(context: Context, viewModel: AuthViewModel) {
     withContext(Dispatchers.IO) {
         try {
             val credentialManager = CredentialManager.create(context)
@@ -269,7 +295,7 @@ private suspend fun handleGoogleSignIn(context: android.content.Context, viewMod
             val result = credentialManager.getCredential(context, request)
             val credential = result.credential
 
-            if (credential is androidx.credentials.CustomCredential &&
+            if (credential is CustomCredential &&
                 credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
 

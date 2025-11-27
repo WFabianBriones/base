@@ -1,4 +1,4 @@
-package com.example.uleammed
+package com.example.uleammed.auth
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,11 +17,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.LibraryBooks
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.Help
-import androidx.compose.material.icons.filled.Send
+import com.example.uleammed.AuthState
+import com.example.uleammed.auth.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,6 +183,10 @@ fun RegisterScreen(
                     )
                 }
             )
+
+            if (password.isNotEmpty()) {
+                PasswordStrengthIndicator(password = password)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 

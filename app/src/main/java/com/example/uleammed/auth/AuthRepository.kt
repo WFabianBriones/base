@@ -1,5 +1,7 @@
-package com.example.uleammed
+package com.example.uleammed.auth
 
+import com.example.uleammed.HealthQuestionnaire
+import com.example.uleammed.User
 import com.example.uleammed.questionnaires.ActividadFisicaQuestionnaire
 import com.example.uleammed.questionnaires.BalanceVidaTrabajoQuestionnaire
 import com.example.uleammed.questionnaires.CargaTrabajoQuestionnaire

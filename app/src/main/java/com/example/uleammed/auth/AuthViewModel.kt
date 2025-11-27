@@ -1,7 +1,12 @@
-package com.example.uleammed
+package com.example.uleammed.auth
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.uleammed.auth.AuthRepository
+import com.example.uleammed.AuthState
+import com.example.uleammed.User
+import com.example.uleammed.ValidationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,7 +54,8 @@ class AuthViewModel : ViewModel() {
             val validation = validateRegistration(email, password, confirmPassword, displayName)
             if (!validation.isValid) {
                 withContext(Dispatchers.Main) {
-                    _authState.value = AuthState.Error(validation.errorMessage ?: "Error de validación")
+                    _authState.value =
+                        AuthState.Error(validation.errorMessage ?: "Error de validación")
                 }
                 return@launch
             }
@@ -167,14 +173,20 @@ class AuthViewModel : ViewModel() {
     ): ValidationResult {
         return when {
             displayName.isBlank() -> ValidationResult(false, "Por favor ingresa tu nombre")
-            displayName.length < 2 -> ValidationResult(false, "El nombre debe tener al menos 2 caracteres")
+            displayName.length < 2 -> ValidationResult(
+                false,
+                "El nombre debe tener al menos 2 caracteres"
+            )
             email.isBlank() -> ValidationResult(false, "Por favor ingresa tu correo")
-            !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
+            !Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
                 ValidationResult(false, "Correo electrónico inválido")
             !email.endsWith("@uleam.edu.ec") && !email.endsWith("@gmail.com") ->
                 ValidationResult(false, "Usa un correo @uleam.edu.ec o @gmail.com")
             password.isBlank() -> ValidationResult(false, "Por favor ingresa tu contraseña")
-            password.length < 6 -> ValidationResult(false, "La contraseña debe tener al menos 6 caracteres")
+            password.length < 6 -> ValidationResult(
+                false,
+                "La contraseña debe tener al menos 6 caracteres"
+            )
             password.length > 50 -> ValidationResult(false, "La contraseña es demasiado larga")
             password != confirmPassword -> ValidationResult(false, "Las contraseñas no coinciden")
             else -> ValidationResult(true)
