@@ -22,7 +22,7 @@ class AuthViewModel : ViewModel() {
         checkCurrentUser()
     }
 
-    private fun checkCurrentUser() {
+    fun checkCurrentUser() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val firebaseUser = repository.currentUser
