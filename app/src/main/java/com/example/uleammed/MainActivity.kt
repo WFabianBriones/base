@@ -45,6 +45,7 @@ import com.example.uleammed.questionnaires.QuestionnaireType
 import com.example.uleammed.questionnaires.SintomasMuscularesQuestionnaireScreen
 import com.example.uleammed.questionnaires.SintomasVisualesQuestionnaireScreen
 import com.example.uleammed.questionnaires.QuestionnaireScreen
+import com.example.uleammed.ui.UleamAppTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +68,10 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     UleamApp(
-                        openFromNotification = intent.getBooleanExtra("open_from_notification", false),
+                        openFromNotification = intent.getBooleanExtra(
+                            "open_from_notification",
+                            false
+                        ),
                         questionnaireType = intent.getStringExtra("questionnaire_type")
                     )
                 }

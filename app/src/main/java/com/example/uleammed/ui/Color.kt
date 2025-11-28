@@ -1,4 +1,4 @@
-package com.example.uleammed
+package com.example.uleammed.ui
 
 import androidx.compose.ui.graphics.Color
 
