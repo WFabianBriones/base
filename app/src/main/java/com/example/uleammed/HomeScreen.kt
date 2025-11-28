@@ -25,7 +25,7 @@ import com.example.uleammed.questionnaires.QuestionnaireInfo
 import com.example.uleammed.questionnaires.QuestionnaireType
 
 /**
- * ✅ Función principal HomeScreen (ÚNICA)
+ * ✅ Función principal HomeScreen con mainNavController
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,11 +33,12 @@ fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToQuestionnaire: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToResourceDetail: (String) -> Unit,  // ✅ Parámetro necesario
+    onNavigateToResourceDetail: (String) -> Unit,
+    mainNavController: NavHostController,  // ✅ NUEVO: NavController principal de MainActivity
     authViewModel: AuthViewModel = viewModel(),
     notificationViewModel: NotificationViewModel = viewModel()
 ) {
-    val navController = rememberNavController()
+    val navController = rememberNavController()  // Este es solo para bottom nav interno
     val currentUser by authViewModel.currentUser.collectAsState()
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
@@ -93,14 +94,14 @@ fun HomeScreen(
             composable(Screen.Resources.route) {
                 com.example.uleammed.resources.ResourcesContentNew(
                     onResourceClick = { resourceId ->
-                        // Navegar a visor de artículos
-                        navController.navigate(Screen.ArticleViewer.createRoute(resourceId)) {
+                        // ✅ Usar mainNavController para navegar a rutas de MainActivity
+                        mainNavController.navigate(Screen.ArticleViewer.createRoute(resourceId)) {
                             launchSingleTop = true
                         }
                     },
                     onExerciseClick = { exerciseId ->
-                        // ✅ NUEVO: Navegar a ejercicio guiado
-                        navController.navigate(Screen.ExerciseGuided.createRoute(exerciseId)) {
+                        // ✅ Usar mainNavController para navegar a rutas de MainActivity
+                        mainNavController.navigate(Screen.ExerciseGuided.createRoute(exerciseId)) {
                             launchSingleTop = true
                         }
                     }
@@ -111,18 +112,19 @@ fun HomeScreen(
                     user = currentUser,
                     onLogout = onLogout,
                     onNavigateToSettings = onNavigateToSettings,
+                    // ✅ CORREGIDO: Usar mainNavController para navegación a pantallas de MainActivity
                     onNavigateToEditProfile = {
-                        navController.navigate(Screen.EditProfile.route) {
+                        mainNavController.navigate(Screen.EditProfile.route) {
                             launchSingleTop = true
                         }
                     },
                     onNavigateToViewQuestionnaire = {
-                        navController.navigate(Screen.ViewQuestionnaire.route) {
+                        mainNavController.navigate(Screen.ViewQuestionnaire.route) {
                             launchSingleTop = true
                         }
                     },
                     onNavigateToHelp = {
-                        navController.navigate(Screen.HelpSupport.route) {
+                        mainNavController.navigate(Screen.HelpSupport.route) {
                             launchSingleTop = true
                         }
                     }
@@ -373,7 +375,7 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
 }
 
 /**
- * ✅ NUEVO: Card de cuestionario individual
+ * Card de cuestionario individual
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
         // Iniciar verificación periódica automática
         LocalNotificationScheduler.schedulePeriodicCheck(this)
 
-        // ✅ NUEVO: Sincronizar notificaciones al abrir la app
+        // Sincronizar notificaciones al abrir la app
         syncNotificationsOnResume()
 
         setContent {
@@ -79,21 +79,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * ✅ NUEVO: Se llama cada vez que la app vuelve al foreground
-     */
     override fun onResume() {
         super.onResume()
         syncNotificationsOnResume()
     }
 
-    /**
-     * ✅ NUEVO: Sincronizar notificaciones in-app con las push del sistema
-     *
-     * Esta función detecta cuando el usuario ha descartado notificaciones push
-     * manualmente desde la barra de notificaciones, y marca las notificaciones
-     * in-app correspondientes como leídas para mantener el badge actualizado.
-     */
     private fun syncNotificationsOnResume() {
         try {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
@@ -118,11 +108,9 @@ class MainActivity : ComponentActivity() {
                 val inAppNotifications = appNotificationManager.getNotifications()
                     .filter { !it.isRead && !it.isCompleted }
 
-                // ✅ CORREGIDO: Solo marcar como leídas si NO están en la barra de notificaciones
                 inAppNotifications.forEach { notification ->
                     val notificationId = 1000 + notification.questionnaireType.ordinal
 
-                    // ✅ CRÍTICO: Solo marcar como leída si la push notification fue descartada
                     if (!activeIds.contains(notificationId)) {
                         android.util.Log.d("MainActivity", """
                         ⚠️ Notificación push descartada, marcando in-app como leída
@@ -162,7 +150,6 @@ fun UleamApp(
     val notificationViewModel: NotificationViewModel = viewModel()
     val context = LocalContext.current
 
-    // ✅ CORREGIDO: Agregar collectAsState
     val authState by authViewModel.authState.collectAsState()
     val currentUser by authViewModel.currentUser.collectAsState()
 
@@ -176,7 +163,6 @@ fun UleamApp(
         )
     }
 
-    // ✅ CORREGIDO: Determinar startDestination
     val startDestination = remember(currentUser) {
         if (currentUser != null) {
             if (currentUser?.hasCompletedQuestionnaire == false) {
@@ -272,6 +258,7 @@ fun UleamApp(
             )
         }
 
+        // ✅ CORREGIDO: Pasar mainNavController a HomeScreen
         composable(Screen.Home.route) {
             HomeScreen(
                 onLogout = {
@@ -291,12 +278,12 @@ fun UleamApp(
                         launchSingleTop = true
                     }
                 },
-                // ✅ NUEVO: Añadir navegación a detalle de recurso
                 onNavigateToResourceDetail = { resourceId ->
                     navController.navigate(Screen.ResourceDetail.createRoute(resourceId)) {
                         launchSingleTop = true
                     }
-                }
+                },
+                mainNavController = navController  // ✅ NUEVO: Pasar navController principal
             )
         }
 
@@ -445,8 +432,6 @@ fun UleamApp(
             )
         }
 
-
-
         composable(
             route = Screen.ResourceDetail.route,
             arguments = listOf(
@@ -463,9 +448,6 @@ fun UleamApp(
             )
         }
 
-        // En MainActivity.kt, dentro del NavHost, añade estas rutas:
-
-// ✅ NUEVO: Ruta de visor de artículos
         composable(
             route = Screen.ArticleViewer.route,
             arguments = listOf(
@@ -488,14 +470,12 @@ fun UleamApp(
                     navController.popBackStack()
                 },
                 onSaveSuccess = {
-                    // Recargar usuario después de guardar
                     authViewModel.checkCurrentUser()
                     navController.popBackStack()
                 }
             )
         }
 
-// Ver Cuestionario
         composable(Screen.ViewQuestionnaire.route) {
             com.example.uleammed.perfil.ViewQuestionnaireScreen(
                 onBack = {
@@ -504,7 +484,6 @@ fun UleamApp(
             )
         }
 
-// Ayuda y Soporte
         composable(Screen.HelpSupport.route) {
             com.example.uleammed.perfil.HelpSupportScreen(
                 onBack = {
@@ -513,7 +492,6 @@ fun UleamApp(
             )
         }
 
-// ✅ NUEVO: Ruta de ejercicio guiado
         composable(
             route = Screen.ExerciseGuided.route,
             arguments = listOf(
@@ -528,7 +506,6 @@ fun UleamApp(
                     navController.popBackStack()
                 },
                 onComplete = {
-                    // Registrar completación si quieres trackear progreso
                     Toast.makeText(
                         context,
                         "✅ Ejercicio completado",
@@ -538,5 +515,4 @@ fun UleamApp(
             )
         }
     }
-
 }
