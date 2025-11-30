@@ -20,7 +20,6 @@ import androidx.navigation.compose.rememberNavController
 import com.example.uleammed.auth.AuthViewModel
 import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.NotificationsContent
-import com.example.uleammed.perfil.ProfileContent
 import com.example.uleammed.questionnaires.QuestionnaireInfo
 import com.example.uleammed.questionnaires.QuestionnaireType
 
@@ -34,11 +33,11 @@ fun HomeScreen(
     onNavigateToQuestionnaire: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToResourceDetail: (String) -> Unit,
-    mainNavController: NavHostController,  // ✅ NUEVO: NavController principal de MainActivity
+    mainNavController: NavHostController,
     authViewModel: AuthViewModel = viewModel(),
     notificationViewModel: NotificationViewModel = viewModel()
 ) {
-    val navController = rememberNavController()  // Este es solo para bottom nav interno
+    val navController = rememberNavController()
     val currentUser by authViewModel.currentUser.collectAsState()
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
@@ -94,13 +93,11 @@ fun HomeScreen(
             composable(Screen.Resources.route) {
                 com.example.uleammed.resources.ResourcesContentNew(
                     onResourceClick = { resourceId ->
-                        // ✅ Usar mainNavController para navegar a rutas de MainActivity
                         mainNavController.navigate(Screen.ArticleViewer.createRoute(resourceId)) {
                             launchSingleTop = true
                         }
                     },
                     onExerciseClick = { exerciseId ->
-                        // ✅ Usar mainNavController para navegar a rutas de MainActivity
                         mainNavController.navigate(Screen.ExerciseGuided.createRoute(exerciseId)) {
                             launchSingleTop = true
                         }
@@ -112,7 +109,6 @@ fun HomeScreen(
                     user = currentUser,
                     onLogout = onLogout,
                     onNavigateToSettings = onNavigateToSettings,
-                    // ✅ CORREGIDO: Usar mainNavController para navegación a pantallas de MainActivity
                     onNavigateToEditProfile = {
                         mainNavController.navigate(Screen.EditProfile.route) {
                             launchSingleTop = true
@@ -200,63 +196,53 @@ fun BottomNavigationBar(
 }
 
 /**
- * Contenido de la pestaña Home
+ * ✅ ACTUALIZADO: Contenido de la pestaña Home con Dashboard
  */
 @Composable
 fun HomeContent(userName: String) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 16.dp)
     ) {
-        Text(
-            text = "Hola, $userName",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Text(
-            text = "Bienvenido a tu panel de salud",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
+        // Header de bienvenida
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
             )
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Dashboard,
+                    imageVector = Icons.Filled.FavoriteBorder, // Puedes usar otro ícono si prefieres
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Dashboard en construcción",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Aquí verás estadísticas, gráficos y resúmenes de tu salud laboral",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column {
+                    Text(
+                        text = "Hola, $userName",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Así está tu salud laboral",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
+
+        // ✅ Dashboard con scores
+        com.example.uleammed.scoring.HealthDashboard()
     }
 }
 
