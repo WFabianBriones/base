@@ -1,5 +1,6 @@
 package com.example.uleammed
 
+import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
@@ -35,16 +36,8 @@ import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.QuestionnaireNotificationManager
 import com.example.uleammed.notifications.hasNotificationPermission
 import com.example.uleammed.perfil.SettingsScreen
-import com.example.uleammed.questionnaires.ActividadFisicaQuestionnaireScreen
-import com.example.uleammed.questionnaires.BalanceVidaTrabajoQuestionnaireScreen
-import com.example.uleammed.questionnaires.CargaTrabajoQuestionnaireScreen
-import com.example.uleammed.questionnaires.ErgonomiaQuestionnaireScreen
-import com.example.uleammed.questionnaires.EstresSaludMentalQuestionnaireScreen
-import com.example.uleammed.questionnaires.HabitosSuenoQuestionnaireScreen
-import com.example.uleammed.questionnaires.QuestionnaireType
-import com.example.uleammed.questionnaires.SintomasMuscularesQuestionnaireScreen
-import com.example.uleammed.questionnaires.SintomasVisualesQuestionnaireScreen
-import com.example.uleammed.questionnaires.QuestionnaireScreen
+import com.example.uleammed.questionnaires.*
+import com.example.uleammed.scoring.ScoringViewModel
 import com.example.uleammed.ui.UleamAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -250,6 +243,19 @@ fun UleamApp(
         composable(Screen.Questionnaire.route) {
             QuestionnaireScreen(
                 onComplete = {
+                    // ✅ NUEVO: Calcular scores después del cuestionario inicial
+                    val scoringViewModel: ScoringViewModel = viewModel(
+                        factory = androidx.lifecycle.viewmodel.compose.viewModel<ScoringViewModel>().javaClass.let {
+                            object : androidx.lifecycle.ViewModelProvider.Factory {
+                                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                                    @Suppress("UNCHECKED_CAST")
+                                    return ScoringViewModel(context.applicationContext as Application) as T
+                                }
+                            }
+                        }
+                    )
+                    scoringViewModel.recalculateScores()
+
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Questionnaire.route) { inclusive = true }
                         launchSingleTop = true
@@ -258,7 +264,6 @@ fun UleamApp(
             )
         }
 
-        // ✅ CORREGIDO: Pasar mainNavController a HomeScreen
         composable(Screen.Home.route) {
             HomeScreen(
                 onLogout = {
@@ -283,7 +288,7 @@ fun UleamApp(
                         launchSingleTop = true
                     }
                 },
-                mainNavController = navController  // ✅ NUEVO: Pasar navController principal
+                mainNavController = navController
             )
         }
 
@@ -295,14 +300,28 @@ fun UleamApp(
             )
         }
 
-        // Cuestionarios específicos
+        // ===== CUESTIONARIOS ESPECÍFICOS =====
+
         composable(Screen.ErgonomiaQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             ErgonomiaQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ERGONOMIA)
+
+                    // ✅ RECALCULAR SCORES AUTOMÁTICAMENTE
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Ergonomía completado",
+                        "✅ Cuestionario de Ergonomía completado. Actualizando tu análisis...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -314,12 +333,23 @@ fun UleamApp(
         }
 
         composable(Screen.EstresSaludMentalQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             EstresSaludMentalQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ESTRES_SALUD_MENTAL)
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Estrés y Salud Mental completado",
+                        "✅ Cuestionario de Estrés y Salud Mental completado. Actualizando análisis...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -331,12 +361,23 @@ fun UleamApp(
         }
 
         composable(Screen.SintomasMuscularesQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             SintomasMuscularesQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_MUSCULARES)
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Síntomas Músculo-Esqueléticos completado",
+                        "✅ Cuestionario de Síntomas Músculo-Esqueléticos completado. Actualizando...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -348,12 +389,23 @@ fun UleamApp(
         }
 
         composable(Screen.CargaTrabajoQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             CargaTrabajoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.CARGA_TRABAJO)
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Carga de Trabajo completado",
+                        "✅ Cuestionario de Carga de Trabajo completado. Actualizando análisis...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -365,12 +417,23 @@ fun UleamApp(
         }
 
         composable(Screen.SintomasVisualesQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             SintomasVisualesQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_VISUALES)
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Síntomas Visuales completado",
+                        "✅ Cuestionario de Síntomas Visuales completado. Actualizando análisis...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -382,12 +445,23 @@ fun UleamApp(
         }
 
         composable(Screen.ActividadFisicaQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             ActividadFisicaQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ACTIVIDAD_FISICA)
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Actividad Física completado",
+                        "✅ Cuestionario de Actividad Física completado. Actualizando análisis...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -399,12 +473,23 @@ fun UleamApp(
         }
 
         composable(Screen.HabitosSuenoQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             HabitosSuenoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.HABITOS_SUENO)
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Hábitos de Sueño completado",
+                        "✅ Cuestionario de Hábitos de Sueño completado. Actualizando análisis...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -416,12 +501,23 @@ fun UleamApp(
         }
 
         composable(Screen.BalanceVidaTrabajoQuestionnaire.route) {
+            val scoringViewModel: ScoringViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return ScoringViewModel(context.applicationContext as Application) as T
+                    }
+                }
+            )
+
             BalanceVidaTrabajoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.BALANCE_VIDA_TRABAJO)
+                    scoringViewModel.recalculateScores()
+
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Balance Vida-Trabajo completado",
+                        "✅ Cuestionario de Balance Vida-Trabajo completado. Actualizando análisis...",
                         Toast.LENGTH_LONG
                     ).show()
                     navController.popBackStack()
@@ -431,6 +527,8 @@ fun UleamApp(
                 }
             )
         }
+
+        // ===== OTRAS PANTALLAS =====
 
         composable(
             route = Screen.ResourceDetail.route,

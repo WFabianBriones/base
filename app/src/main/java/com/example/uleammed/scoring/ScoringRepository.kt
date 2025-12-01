@@ -30,14 +30,21 @@ class ScoringRepository(private val context: Context) {
     /**
      * Calcula scores de todas las encuestas completadas
      */
+    // En ScoringRepository.kt, método calculateAllScores():
+
     suspend fun calculateAllScores(): Result<HealthScore> = withContext(Dispatchers.IO) {
         return@withContext try {
             val userId = auth.currentUser?.uid ?: return@withContext Result.failure(
                 IllegalStateException("Usuario no autenticado")
             )
 
-            // Obtener todas las encuestas desde Firestore
             val db = firestore.collection("users").document(userId)
+
+            // ✅ AÑADIR: Obtener cuestionario inicial de salud
+            val saludGeneralDoc = firestore.collection("questionnaires")
+                .document(userId)
+                .get()
+                .await()
 
             val ergonomiaDoc = db.collection("questionnaires").document("ergonomia").get().await()
             val muscularesDoc = db.collection("questionnaires").document("sintomas_musculares").get().await()
@@ -48,118 +55,45 @@ class ScoringRepository(private val context: Context) {
             val actividadDoc = db.collection("questionnaires").document("actividad_fisica").get().await()
             val balanceDoc = db.collection("questionnaires").document("balance_vida_trabajo").get().await()
 
-            // Calcular scores individuales
             val scores = mutableMapOf<String, Pair<Int, RiskLevel>>()
 
-            var ergonomiaScore = 0
-            var ergonomiaRisk = RiskLevel.BAJO
-            if (ergonomiaDoc.exists()) {
-                val q = ergonomiaDoc.toObject(ErgonomiaQuestionnaire::class.java)
+            // ✅ CALCULAR: Salud General
+            var saludGeneralScore = 0
+            var saludGeneralRisk = RiskLevel.BAJO
+            if (saludGeneralDoc.exists()) {
+                val q = saludGeneralDoc.toObject(com.example.uleammed.HealthQuestionnaire::class.java)
                 if (q != null) {
-                    val result = ScoreCalculator.calculateErgonomiaScore(q)
-                    ergonomiaScore = result.first
-                    ergonomiaRisk = result.second
-                    scores["ergonomia"] = result
+                    val result = ScoreCalculator.calculateHealthQuestionnaireScore(q)
+                    saludGeneralScore = result.first
+                    saludGeneralRisk = result.second
+                    scores["salud_general"] = result
                 }
             }
 
-            var sintomasMuscularesScore = 0
-            var sintomasMuscularesRisk = RiskLevel.BAJO
-            if (muscularesDoc.exists()) {
-                val q = muscularesDoc.toObject(SintomasMuscularesQuestionnaire::class.java)
-                if (q != null) {
-                    val result = ScoreCalculator.calculateSintomasMuscularesScore(q)
-                    sintomasMuscularesScore = result.first
-                    sintomasMuscularesRisk = result.second
-                    scores["sintomas_musculares"] = result
-                }
-            }
+            // ... resto del código existente para las otras 8 áreas ...
 
-            var sintomasVisualesScore = 0
-            var sintomasVisualesRisk = RiskLevel.BAJO
-            if (visualesDoc.exists()) {
-                val q = visualesDoc.toObject(SintomasVisualesQuestionnaire::class.java)
-                if (q != null) {
-                    val result = ScoreCalculator.calculateSintomasVisualesScore(q)
-                    sintomasVisualesScore = result.first
-                    sintomasVisualesRisk = result.second
-                    scores["sintomas_visuales"] = result
-                }
-            }
+            // ✅ ACTUALIZAR pesos para 9 áreas
+            val weights = mapOf(
+                "salud_general" to 0.10,    // ✅ NUEVO
+                "estres" to 0.18,
+                "sintomas_musculares" to 0.16,
+                "carga_trabajo" to 0.14,
+                "sueno" to 0.11,
+                "balance" to 0.11,
+                "ergonomia" to 0.09,
+                "sintomas_visuales" to 0.07,
+                "actividad_fisica" to 0.04
+            )
 
-            var cargaTrabajoScore = 0
-            var cargaTrabajoRisk = RiskLevel.BAJO
-            if (cargaDoc.exists()) {
-                val q = cargaDoc.toObject(CargaTrabajoQuestionnaire::class.java)
-                if (q != null) {
-                    val result = ScoreCalculator.calculateCargaTrabajoScore(q)
-                    cargaTrabajoScore = result.first
-                    cargaTrabajoRisk = result.second
-                    scores["carga_trabajo"] = result
-                }
-            }
-
-            var estresSaludMentalScore = 0
-            var estresSaludMentalRisk = RiskLevel.BAJO
-            if (estresDoc.exists()) {
-                val q = estresDoc.toObject(EstresSaludMentalQuestionnaire::class.java)
-                if (q != null) {
-                    val result = ScoreCalculator.calculateEstresSaludMentalScore(q)
-                    estresSaludMentalScore = result.first
-                    estresSaludMentalRisk = result.second
-                    scores["estres"] = result
-                }
-            }
-
-            var habitosSuenoScore = 0
-            var habitosSuenoRisk = RiskLevel.BAJO
-            if (suenoDoc.exists()) {
-                val q = suenoDoc.toObject(HabitosSuenoQuestionnaire::class.java)
-                if (q != null) {
-                    val result = ScoreCalculator.calculateHabitosSuenoScore(q)
-                    habitosSuenoScore = result.first
-                    habitosSuenoRisk = result.second
-                    scores["sueno"] = result
-                }
-            }
-
-            var actividadFisicaScore = 0
-            var actividadFisicaRisk = RiskLevel.BAJO
-            if (actividadDoc.exists()) {
-                val q = actividadDoc.toObject(ActividadFisicaQuestionnaire::class.java)
-                if (q != null) {
-                    val result = ScoreCalculator.calculateActividadFisicaScore(q)
-                    actividadFisicaScore = result.first
-                    actividadFisicaRisk = result.second
-                    scores["actividad_fisica"] = result
-                }
-            }
-
-            var balanceVidaTrabajoScore = 0
-            var balanceVidaTrabajoRisk = RiskLevel.BAJO
-            if (balanceDoc.exists()) {
-                val q = balanceDoc.toObject(BalanceVidaTrabajoQuestionnaire::class.java)
-                if (q != null) {
-                    val result = ScoreCalculator.calculateBalanceVidaTrabajoScore(q)
-                    balanceVidaTrabajoScore = result.first
-                    balanceVidaTrabajoRisk = result.second
-                    scores["balance"] = result
-                }
-            }
-
-            // Calcular score global
             val (overallScore, overallRisk) = ScoreCalculator.calculateOverallScore(scores)
-
-            // Identificar áreas de mayor preocupación
             val topConcerns = identifyTopConcerns(scores)
-
-            // Generar recomendaciones
             val recommendations = generateRecommendations(scores)
 
-            // Crear objeto HealthScore
             val healthScore = HealthScore(
                 userId = userId,
                 timestamp = System.currentTimeMillis(),
+                saludGeneralScore = saludGeneralScore,         // ✅ NUEVO
+                saludGeneralRisk = saludGeneralRisk,           // ✅ NUEVO
                 ergonomiaScore = ergonomiaScore,
                 sintomasMuscularesScore = sintomasMuscularesScore,
                 sintomasVisualesScore = sintomasVisualesScore,
@@ -182,18 +116,8 @@ class ScoringRepository(private val context: Context) {
                 recommendations = recommendations
             )
 
-            // Guardar en Firestore
             saveToFirestore(healthScore)
-
-            // Guardar en local (caché)
             saveToLocal(healthScore)
-
-            android.util.Log.d(TAG, """
-                ✅ Scores calculados exitosamente
-                - Score global: $overallScore
-                - Riesgo: ${overallRisk.displayName}
-                - Áreas críticas: ${topConcerns.size}
-            """.trimIndent())
 
             Result.success(healthScore)
 

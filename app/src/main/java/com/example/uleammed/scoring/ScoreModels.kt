@@ -20,9 +20,15 @@ enum class RiskLevel(val value: Int, val displayName: String, val color: Long) {
 }
 
 // ==================== RESULTADO GENERAL ====================
+// En ScoreModels.kt, ACTUALIZAR HealthScore:
+
 data class HealthScore(
     val userId: String = "",
     val timestamp: Long = System.currentTimeMillis(),
+
+    // ✅ AÑADIR: Score del cuestionario inicial
+    val saludGeneralScore: Int = 0,
+    val saludGeneralRisk: RiskLevel = RiskLevel.BAJO,
 
     // Scores individuales (0-100)
     val ergonomiaScore: Int = 0,
@@ -580,5 +586,73 @@ object ScoreCalculator {
         val finalRisk = if (highestRisk.value > calculatedRisk.value) highestRisk else calculatedRisk
 
         return Pair(overallScore, finalRisk)
+    }
+
+    fun calculateHealthQuestionnaireScore(q: HealthQuestionnaire): Pair<Int, RiskLevel> {
+        var score = 0
+
+        // IMC (0-15 puntos)
+        when (q.bmiCategory) {
+            "Obesidad (30+)" -> score += 15
+            "Sobrepeso (25-29.9)" -> score += 10
+            "Bajo peso (<18.5)" -> score += 8
+        }
+
+        // Hábitos (0-20 puntos)
+        when (q.smokingStatus) {
+            "Sí, regularmente (más de 10 cigarrillos/día)" -> score += 15
+            "Sí, regularmente (menos de 10 cigarrillos/día)" -> score += 10
+            "Sí, ocasionalmente" -> score += 5
+        }
+
+        when (q.alcoholConsumption) {
+            "Frecuente (3+ veces/semana)" -> score += 5
+        }
+
+        // Condiciones médicas (0-25 puntos)
+        val seriousConditions = listOf("Diabetes", "Hipertensión", "Problemas cardíacos",
+            "Ansiedad/Depresión", "Hernia discal")
+        val userConditions = q.preexistingConditions.filter { it in seriousConditions }
+        score += userConditions.size * 5 // 5 puntos por condición seria
+
+        // Medicamentos (0-10 puntos)
+        if (q.medications.size > 2 && !q.medications.contains("Ninguno")) {
+            score += 10
+        }
+
+        // Cirugías recientes (0-5 puntos)
+        if (q.recentSurgeries) score += 5
+
+        // Estado general (0-15 puntos)
+        when (q.energyLevel) {
+            "Muy bajo (constantemente cansado)" -> score += 10
+            "Bajo (frecuentemente cansado)" -> score += 7
+        }
+
+        when (q.generalHealthStatus) {
+            "Malo" -> score += 10
+            "Regular" -> score += 5
+        }
+
+        // COVID largo (0-10 puntos)
+        if (q.hadCovid.contains("secuelas persistentes")) {
+            score += 10
+        }
+
+        // Indicadores de salud (0-10 puntos)
+        if (q.bloodPressure.contains("Hipertensión")) score += 5
+        if (q.cholesterolLevel.contains("Alto")) score += 3
+        if (q.bloodGlucose.contains("Diabetes")) score += 5
+
+        score = score.coerceIn(0, 100)
+
+        val risk = when {
+            score < 20 -> RiskLevel.BAJO
+            score < 40 -> RiskLevel.MODERADO
+            score < 60 -> RiskLevel.ALTO
+            else -> RiskLevel.MUY_ALTO
+        }
+
+        return Pair(score, risk)
     }
 }

@@ -99,6 +99,7 @@ class AuthRepository {
 
     suspend fun saveQuestionnaire(questionnaire: HealthQuestionnaire): Result<Unit> {
         return try {
+            // ✅ Guardar en ruta correcta para scoring
             firestore.collection("questionnaires")
                 .document(questionnaire.userId)
                 .set(questionnaire)
@@ -174,115 +175,141 @@ class AuthRepository {
         }
     }
 
-    // Guardar cuestionarios específicos
+    // ===== CUESTIONARIOS ESPECÍFICOS =====
+    // ✅ ESTRUCTURA CORREGIDA: users/{userId}/questionnaires/{tipo}
+
     suspend fun saveErgonomiaQuestionnaire(questionnaire: ErgonomiaQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("ergonomia_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("ergonomia")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Ergonomía guardado en: users/${questionnaire.userId}/questionnaires/ergonomia")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando ergonomía", e)
             Result.failure(e)
         }
     }
 
     suspend fun saveSintomasMuscularesQuestionnaire(questionnaire: SintomasMuscularesQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("sintomas_musculares_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("sintomas_musculares")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Síntomas musculares guardado")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando síntomas musculares", e)
             Result.failure(e)
         }
     }
 
     suspend fun saveSintomasVisualesQuestionnaire(questionnaire: SintomasVisualesQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("sintomas_visuales_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("sintomas_visuales")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Síntomas visuales guardado")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando síntomas visuales", e)
             Result.failure(e)
         }
     }
 
     suspend fun saveCargaTrabajoQuestionnaire(questionnaire: CargaTrabajoQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("carga_trabajo_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("carga_trabajo")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Carga de trabajo guardado")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando carga trabajo", e)
             Result.failure(e)
         }
     }
 
     suspend fun saveEstresSaludMentalQuestionnaire(questionnaire: EstresSaludMentalQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("estres_salud_mental_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("estres_salud_mental")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Estrés y salud mental guardado")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando estrés", e)
             Result.failure(e)
         }
     }
 
     suspend fun saveHabitosSuenoQuestionnaire(questionnaire: HabitosSuenoQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("habitos_sueno_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("habitos_sueno")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Hábitos de sueño guardado")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando hábitos sueño", e)
             Result.failure(e)
         }
     }
 
     suspend fun saveActividadFisicaQuestionnaire(questionnaire: ActividadFisicaQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("actividad_fisica_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("actividad_fisica")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Actividad física guardado")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando actividad física", e)
             Result.failure(e)
         }
     }
 
     suspend fun saveBalanceVidaTrabajoQuestionnaire(questionnaire: BalanceVidaTrabajoQuestionnaire): Result<Unit> {
         return try {
-            firestore.collection("balance_vida_trabajo_questionnaires")
+            firestore.collection("users")
                 .document(questionnaire.userId)
-                .collection("responses")
-                .document(questionnaire.responseId)
+                .collection("questionnaires")
+                .document("balance_vida_trabajo")
                 .set(questionnaire)
                 .await()
+
+            android.util.Log.d("AuthRepository", "✅ Balance vida-trabajo guardado")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando balance", e)
             Result.failure(e)
         }
     }
