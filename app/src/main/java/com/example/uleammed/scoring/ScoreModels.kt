@@ -15,10 +15,30 @@ enum class RiskLevel(val value: Int, val displayName: String, val color: Long) {
     MUY_ALTO(4, "Muy Alto", 0xFFF44336)
 }
 
+// ✅ NUEVO: Resultado de validación de scores
+data class ValidationResult(
+    val isValid: Boolean,
+    val errors: List<String> = emptyList()
+)
+
 // ==================== RESULTADO GENERAL ====================
 data class HealthScore(
     val userId: String = "",
     val timestamp: Long = System.currentTimeMillis(),
+
+    // ✅ AÑADIDO: Para migrar cálculos futuros y tracking de última actualización
+    val version: Int = 1,
+    val lastUpdated: Map<String, Long> = mapOf(
+        "salud_general" to 0L,
+        "ergonomia" to 0L,
+        "sintomas_musculares" to 0L,
+        "sintomas_visuales" to 0L,
+        "carga_trabajo" to 0L,
+        "estres" to 0L,
+        "sueno" to 0L,
+        "actividad_fisica" to 0L,
+        "balance" to 0L
+    ),
 
     // ✅ NUEVO: Salud General (cuestionario inicial)
     val saludGeneralScore: Int = 0,

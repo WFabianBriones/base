@@ -22,6 +22,9 @@ import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.NotificationsContent
 import com.example.uleammed.questionnaires.QuestionnaireInfo
 import com.example.uleammed.questionnaires.QuestionnaireType
+// ✅ IMPORTACIÓN AÑADIDA
+import com.example.uleammed.scoring.ScoringViewModel
+import androidx.compose.ui.platform.LocalContext // ✅ IMPORTACIÓN AÑADIDA
 
 /**
  * ✅ Función principal HomeScreen con mainNavController
@@ -82,6 +85,7 @@ fun HomeScreen(
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Home.route) {
+                // ✅ LLAMADA A LA NUEVA FUNCIÓN HomeContent
                 HomeContent(userName = currentUser?.displayName ?: "Usuario")
             }
             composable(Screen.Explore.route) {
@@ -195,11 +199,29 @@ fun BottomNavigationBar(
     }
 }
 
-/**
- * ✅ ACTUALIZADO: Contenido de la pestaña Home con Dashboard
- */
+// ---
+
+// ✅ REEMPLAZADA la función HomeContent existente en HomeScreen.kt por esta versión:
+
 @Composable
 fun HomeContent(userName: String) {
+    // ✅ AÑADIR: ViewModel con factory
+    val context = LocalContext.current
+    val scoringViewModel: ScoringViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return ScoringViewModel(context.applicationContext as android.app.Application) as T
+            }
+        }
+    )
+
+    // ✅ MODIFICAR: Usar smart refresh en vez de loadScore()
+    LaunchedEffect(Unit) {
+        android.util.Log.d("HomeScreen", "🔄 Cargando scores con smart refresh...")
+        scoringViewModel.loadScoreWithSmartRefresh()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -220,7 +242,7 @@ fun HomeContent(userName: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Filled.FavoriteBorder, // Puedes usar otro ícono si prefieres
+                    imageVector = Icons.Filled.FavoriteBorder,
                     contentDescription = null,
                     modifier = Modifier.size(32.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -245,6 +267,8 @@ fun HomeContent(userName: String) {
         com.example.uleammed.scoring.HealthDashboard()
     }
 }
+
+// ---
 
 /**
  * Contenido de la pestaña Explorar

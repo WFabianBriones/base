@@ -6,6 +6,7 @@ import com.example.uleammed.HealthQuestionnaire
 import com.example.uleammed.questionnaires.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -26,6 +27,7 @@ class ScoringRepository(private val context: Context) {
         private const val TAG = "ScoringRepository"
         private const val COLLECTION_SCORES = "health_scores"
         private const val KEY_LOCAL_SCORE = "local_score"
+        private const val KEY_LAST_CALC_TIME = "last_calculation_time" // Para el nuevo timestamp
     }
 
     /**
@@ -227,7 +229,17 @@ class ScoringRepository(private val context: Context) {
                 recommendations = recommendations
             )
 
-            // Guardar en Firestore y caché local
+            // ✅ VALIDAR antes de guardar
+            val validation = validateScores(healthScore)
+            if (!validation.isValid) {
+                android.util.Log.w(TAG, "⚠️ Validación de scores falló:")
+                validation.errors.forEach { error ->
+                    android.util.Log.w(TAG, "  - $error")
+                }
+                // Continuar pero registrar advertencia
+            }
+
+            // Guardar en Firestore y caché local (saveToFirestore modificado para incluir histórico y timestamp)
             saveToFirestore(healthScore)
             saveToLocal(healthScore)
 
@@ -360,18 +372,25 @@ class ScoringRepository(private val context: Context) {
     }
 
     /**
-     * Guardar en Firestore
+     * Guardar en Firestore (MODIFICADA para incluir histórico y timestamp)
      */
     private suspend fun saveToFirestore(healthScore: HealthScore) {
         try {
             val userId = auth.currentUser?.uid ?: return
 
+            // Guardar score actual
             firestore.collection(COLLECTION_SCORES)
                 .document(userId)
                 .set(healthScore)
                 .await()
 
-            android.util.Log.d(TAG, "✅ Score guardado en Firestore")
+            // ✅ AÑADIR: Guardar en histórico
+            saveScoreHistory(healthScore)
+
+            // ✅ AÑADIR: Guardar timestamp
+            saveCalculationTime()
+
+            android.util.Log.d(TAG, "✅ Score guardado en Firestore e histórico")
         } catch (e: Exception) {
             android.util.Log.e(TAG, "❌ Error guardando en Firestore", e)
         }
@@ -438,4 +457,111 @@ class ScoringRepository(private val context: Context) {
     fun clearScores() {
         prefs.edit().clear().apply()
     }
+
+    // --- ✅ NUEVAS FUNCIONES AÑADIDAS ---
+
+    /**
+     * ✅ NUEVO: Guardar en histórico (cada vez que se recalcula)
+     */
+    suspend fun saveScoreHistory(healthScore: HealthScore) {
+        try {
+            val userId = auth.currentUser?.uid ?: return
+
+            firestore.collection("users")
+                .document(userId)
+                .collection("score_history")
+                .document(healthScore.timestamp.toString())
+                .set(healthScore)
+                .await()
+
+            android.util.Log.d(TAG, "✅ Score guardado en histórico: ${healthScore.timestamp}")
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "❌ Error guardando en histórico", e)
+        }
+    }
+
+    /**
+     * ✅ NUEVO: Obtener tendencia de scores (últimos N días)
+     */
+    suspend fun getScoreTrend(userId: String, days: Int = 30): Result<List<HealthScore>> =
+        withContext(Dispatchers.IO) {
+            return@withContext try {
+                val cutoff = System.currentTimeMillis() - (days * 24 * 60 * 60 * 1000L)
+
+                val querySnapshot = firestore.collection("users")
+                    .document(userId)
+                    .collection("score_history")
+                    .whereGreaterThan("timestamp", cutoff)
+                    .orderBy("timestamp", Query.Direction.ASCENDING)
+                    .get()
+                    .await()
+
+                val scores = querySnapshot.toObjects(HealthScore::class.java)
+                android.util.Log.d(TAG, "✅ Tendencia obtenida: ${scores.size} registros")
+                Result.success(scores)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "❌ Error obteniendo tendencia", e)
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * ✅ NUEVO: Obtener timestamp del último cálculo
+     */
+    fun getLastCalculationTime(): Long {
+        return prefs.getLong(KEY_LAST_CALC_TIME, 0L)
+    }
+
+    /**
+     * ✅ NUEVO: Guardar timestamp de cálculo
+     */
+    private fun saveCalculationTime() {
+        prefs.edit()
+            .putLong(KEY_LAST_CALC_TIME, System.currentTimeMillis())
+            .apply()
+    }
+
+    /**
+     * ✅ NUEVO: Validar integridad de scores
+     */
+    private fun validateScores(healthScore: HealthScore): ValidationResult {
+        val errors = mutableListOf<String>()
+
+        // Verificar que scores estén en rango 0-100
+        val allScores = listOf(
+            "salud_general" to healthScore.saludGeneralScore,
+            "ergonomia" to healthScore.ergonomiaScore,
+            "sintomas_musculares" to healthScore.sintomasMuscularesScore,
+            "sintomas_visuales" to healthScore.sintomasVisualesScore,
+            "carga_trabajo" to healthScore.cargaTrabajoScore,
+            "estres" to healthScore.estresSaludMentalScore,
+            "sueno" to healthScore.habitosSuenoScore,
+            "actividad_fisica" to healthScore.actividadFisicaScore,
+            "balance" to healthScore.balanceVidaTrabajoScore,
+            "overall" to healthScore.overallScore
+        )
+
+        allScores.forEach { (area, score) ->
+            if (score !in 0..100) {
+                errors.add("Score de $area fuera de rango: $score")
+            }
+        }
+
+        // Verificar consistencia riesgo vs score (ejemplo, se asume que un score bajo es bajo riesgo)
+        if (healthScore.overallScore < 25 && healthScore.overallRisk != RiskLevel.BAJO) {
+            errors.add("Inconsistencia: overall score ${healthScore.overallScore} con riesgo ${healthScore.overallRisk.displayName} (Esperado BAJO)")
+        }
+
+        if (healthScore.overallScore >= 65 && healthScore.overallRisk != RiskLevel.ALTO && healthScore.overallRisk != RiskLevel.MUY_ALTO) {
+            errors.add("Inconsistencia: overall score ${healthScore.overallScore} debería ser riesgo alto/muy alto")
+        }
+
+        return ValidationResult(
+            isValid = errors.isEmpty(),
+            errors = errors
+        )
+    }
 }
+// NOTA: Se asume que la clase de datos 'ValidationResult' existe con 'isValid' (Boolean) y 'errors' (List<String>)
+// para que la función validateScores() compile correctamente. Si no existe, deberías añadirla.
+// data class ValidationResult(val isValid: Boolean, val errors: List<String>)

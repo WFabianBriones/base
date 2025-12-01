@@ -97,11 +97,14 @@ class AuthRepository {
         }
     }
 
+    // ✅ ARREGLADO: Ruta unificada para cuestionario inicial
     suspend fun saveQuestionnaire(questionnaire: HealthQuestionnaire): Result<Unit> {
         return try {
-            // ✅ Guardar en ruta correcta para scoring
-            firestore.collection("questionnaires")
+            // ✅ NUEVA ESTRUCTURA: users/{userId}/questionnaires/salud_general
+            firestore.collection("users")
                 .document(questionnaire.userId)
+                .collection("questionnaires")
+                .document("salud_general")
                 .set(questionnaire)
                 .await()
 
@@ -110,16 +113,21 @@ class AuthRepository {
                 .update("hasCompletedQuestionnaire", true)
                 .await()
 
+            android.util.Log.d("AuthRepository", "✅ Cuestionario inicial guardado en: users/${questionnaire.userId}/questionnaires/salud_general")
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando cuestionario inicial", e)
             Result.failure(e)
         }
     }
 
     suspend fun getQuestionnaire(userId: String): Result<HealthQuestionnaire?> {
         return try {
-            val doc = firestore.collection("questionnaires")
+            // ✅ ARREGLADO: Buscar en la nueva ubicación
+            val doc = firestore.collection("users")
                 .document(userId)
+                .collection("questionnaires")
+                .document("salud_general")
                 .get()
                 .await()
 
@@ -176,7 +184,7 @@ class AuthRepository {
     }
 
     // ===== CUESTIONARIOS ESPECÍFICOS =====
-    // ✅ ESTRUCTURA CORREGIDA: users/{userId}/questionnaires/{tipo}
+    // ✅ Todos usan la misma estructura: users/{userId}/questionnaires/{tipo}
 
     suspend fun saveErgonomiaQuestionnaire(questionnaire: ErgonomiaQuestionnaire): Result<Unit> {
         return try {
@@ -187,7 +195,7 @@ class AuthRepository {
                 .set(questionnaire)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Ergonomía guardado en: users/${questionnaire.userId}/questionnaires/ergonomia")
+            android.util.Log.d("AuthRepository", "✅ Ergonomía guardado")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando ergonomía", e)

@@ -28,6 +28,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlin.math.cos
 import kotlin.math.sin
 
+// --- Asume que RiskLevel, HealthScore, ScoringState y ScoringViewModel existen en otros archivos ---
+// No se incluyen aquí por simplicidad, pero son necesarios para que el código compile.
+
 /**
  * Dashboard principal con todos los gráficos de salud
  */
@@ -473,11 +476,14 @@ fun RadarChart(
             )
         }
 
+        // --- MODIFICACIÓN: Usar el color de riesgo global ---
+        val riskColor = Color(healthScore.overallRisk.color)
+
         // Área rellena
         points.forEachIndexed { index, point ->
             if (index < points.size - 1) {
                 drawLine(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                    color = riskColor.copy(alpha = 0.3f),
                     start = point,
                     end = points[index + 1],
                     strokeWidth = 3.dp.toPx()
@@ -485,7 +491,7 @@ fun RadarChart(
             }
         }
         drawLine(
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+            color = riskColor.copy(alpha = 0.3f),
             start = points.last(),
             end = points.first(),
             strokeWidth = 3.dp.toPx()
@@ -494,7 +500,7 @@ fun RadarChart(
         // Puntos
         points.forEach { point ->
             drawCircle(
-                color = MaterialTheme.colorScheme.primary,
+                color = riskColor,
                 radius = 6.dp.toPx(),
                 center = point
             )
@@ -545,41 +551,43 @@ fun ProgressBarsCard(
                 fontWeight = FontWeight.Bold
             )
 
-            // Solo mostrar áreas completadas
+            // Solo mostrar áreas completadas (Se añaden iconos de tendencia de EJEMPLO)
             if (completedSurveys.contains("ergonomia")) {
-                ProgressBarItem("Ergonomía", healthScore.ergonomiaScore, healthScore.ergonomiaRisk, true)
+                ProgressBarItem("Ergonomía", healthScore.ergonomiaScore, healthScore.ergonomiaRisk, true, Icons.Filled.ArrowUpward)
             }
             if (completedSurveys.contains("sintomas_musculares")) {
-                ProgressBarItem("Síntomas Musculares", healthScore.sintomasMuscularesScore, healthScore.sintomasMuscularesRisk, false)
+                ProgressBarItem("Síntomas Musculares", healthScore.sintomasMuscularesScore, healthScore.sintomasMuscularesRisk, false, Icons.Filled.ArrowDownward)
             }
             if (completedSurveys.contains("sintomas_visuales")) {
-                ProgressBarItem("Síntomas Visuales", healthScore.sintomasVisualesScore, healthScore.sintomasVisualesRisk, false)
+                ProgressBarItem("Síntomas Visuales", healthScore.sintomasVisualesScore, healthScore.sintomasVisualesRisk, false, Icons.Filled.HorizontalRule)
             }
             if (completedSurveys.contains("carga_trabajo")) {
-                ProgressBarItem("Carga de Trabajo", healthScore.cargaTrabajoScore, healthScore.cargaTrabajoRisk, false)
+                ProgressBarItem("Carga de Trabajo", healthScore.cargaTrabajoScore, healthScore.cargaTrabajoRisk, false, Icons.Filled.ArrowUpward)
             }
             if (completedSurveys.contains("estres")) {
-                ProgressBarItem("Estrés y Salud Mental", healthScore.estresSaludMentalScore, healthScore.estresSaludMentalRisk, false)
+                ProgressBarItem("Estrés y Salud Mental", healthScore.estresSaludMentalScore, healthScore.estresSaludMentalRisk, false, Icons.Filled.ArrowDownward)
             }
             if (completedSurveys.contains("sueno")) {
-                ProgressBarItem("Calidad del Sueño", healthScore.habitosSuenoScore, healthScore.habitosSuenoRisk, false)
+                ProgressBarItem("Calidad del Sueño", healthScore.habitosSuenoScore, healthScore.habitosSuenoRisk, false, Icons.Filled.ArrowUpward)
             }
             if (completedSurveys.contains("actividad_fisica")) {
-                ProgressBarItem("Actividad Física", healthScore.actividadFisicaScore, healthScore.actividadFisicaRisk, false)
+                ProgressBarItem("Actividad Física", healthScore.actividadFisicaScore, healthScore.actividadFisicaRisk, false, Icons.Filled.HorizontalRule)
             }
             if (completedSurveys.contains("balance")) {
-                ProgressBarItem("Balance Vida-Trabajo", healthScore.balanceVidaTrabajoScore, healthScore.balanceVidaTrabajoRisk, false)
+                ProgressBarItem("Balance Vida-Trabajo", healthScore.balanceVidaTrabajoScore, healthScore.balanceVidaTrabajoRisk, false, Icons.Filled.ArrowUpward)
             }
         }
     }
 }
 
+// --- FUNCIÓN MODIFICADA: Ahora incluye trendIcon ---
 @Composable
 fun ProgressBarItem(
     label: String,
     score: Int,
     risk: RiskLevel,
-    higherIsBetter: Boolean
+    higherIsBetter: Boolean,
+    trendIcon: androidx.compose.ui.graphics.vector.ImageVector? = null // NUEVO PARAMETRO
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
@@ -592,6 +600,23 @@ fun ProgressBarItem(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f)
             )
+
+            // ✅ LÓGICA DE ICONO DE TENDENCIA
+            trendIcon?.let { icon ->
+                val trendColor = when (icon) {
+                    Icons.Filled.ArrowUpward -> Color(RiskLevel.BAJO.color)
+                    Icons.Filled.ArrowDownward -> Color(RiskLevel.ALTO.color)
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = trendColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
             Surface(
                 shape = MaterialTheme.shapes.small,
                 color = Color(risk.color).copy(alpha = 0.2f)
