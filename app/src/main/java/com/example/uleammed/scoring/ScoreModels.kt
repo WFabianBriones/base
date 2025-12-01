@@ -1,32 +1,26 @@
 package com.example.uleammed.scoring
 
+import com.example.uleammed.HealthQuestionnaire
 import com.example.uleammed.questionnaires.*
 
 /**
- * Sistema de scoring basado en estándares internacionales:
- * - NIOSH (National Institute for Occupational Safety and Health)
- * - OMS/WHO (Organización Mundial de la Salud)
- * - OSHA (Occupational Safety and Health Administration)
- * - Maslach Burnout Inventory
- * - Nordic Musculoskeletal Questionnaire (NMQ)
+ * Sistema de scoring basado en estándares internacionales
  */
 
 // ==================== NIVELES DE RIESGO ====================
 enum class RiskLevel(val value: Int, val displayName: String, val color: Long) {
-    BAJO(1, "Bajo", 0xFF4CAF50),      // Verde
-    MODERADO(2, "Moderado", 0xFFFFC107), // Amarillo
-    ALTO(3, "Alto", 0xFFFF9800),      // Naranja
-    MUY_ALTO(4, "Muy Alto", 0xFFF44336)  // Rojo
+    BAJO(1, "Bajo", 0xFF4CAF50),
+    MODERADO(2, "Moderado", 0xFFFFC107),
+    ALTO(3, "Alto", 0xFFFF9800),
+    MUY_ALTO(4, "Muy Alto", 0xFFF44336)
 }
 
 // ==================== RESULTADO GENERAL ====================
-// En ScoreModels.kt, ACTUALIZAR HealthScore:
-
 data class HealthScore(
     val userId: String = "",
     val timestamp: Long = System.currentTimeMillis(),
 
-    // ✅ AÑADIR: Score del cuestionario inicial
+    // ✅ NUEVO: Salud General (cuestionario inicial)
     val saludGeneralScore: Int = 0,
     val saludGeneralRisk: RiskLevel = RiskLevel.BAJO,
 
@@ -50,14 +44,12 @@ data class HealthScore(
     val actividadFisicaRisk: RiskLevel = RiskLevel.BAJO,
     val balanceVidaTrabajoRisk: RiskLevel = RiskLevel.BAJO,
 
-    // Score global (promedio ponderado)
+    // Score global
     val overallScore: Int = 0,
     val overallRisk: RiskLevel = RiskLevel.BAJO,
 
-    // Áreas de mejora prioritarias
+    // Áreas de mejora
     val topConcerns: List<String> = emptyList(),
-
-    // Recomendaciones
     val recommendations: List<String> = emptyList()
 )
 
@@ -65,8 +57,78 @@ data class HealthScore(
 object ScoreCalculator {
 
     /**
+     * 0. SALUD GENERAL - Cuestionario Inicial (Score 0-100, mayor es peor)
+     */
+    fun calculateHealthQuestionnaireScore(q: HealthQuestionnaire): Pair<Int, RiskLevel> {
+        var score = 0
+
+        // IMC (0-15 puntos)
+        when {
+            q.bmiCategory.contains("Obesidad") -> score += 15
+            q.bmiCategory.contains("Sobrepeso") -> score += 10
+            q.bmiCategory.contains("Bajo peso") -> score += 8
+        }
+
+        // Hábitos (0-20 puntos)
+        when {
+            q.smokingStatus.contains("más de 10") -> score += 15
+            q.smokingStatus.contains("menos de 10") -> score += 10
+            q.smokingStatus.contains("ocasionalmente") -> score += 5
+        }
+
+        when {
+            q.alcoholConsumption.contains("Frecuente") -> score += 5
+        }
+
+        // Condiciones médicas (0-25 puntos)
+        val seriousConditions = listOf("Diabetes", "Hipertensión", "Problemas cardíacos",
+            "Ansiedad/Depresión", "Hernia discal")
+        val userConditions = q.preexistingConditions.filter { it in seriousConditions }
+        score += userConditions.size * 5
+
+        // Medicamentos (0-10 puntos)
+        if (q.medications.size > 2 && !q.medications.contains("Ninguno")) {
+            score += 10
+        }
+
+        // Cirugías (0-5 puntos)
+        if (q.recentSurgeries) score += 5
+
+        // Estado general (0-15 puntos)
+        when {
+            q.energyLevel.contains("Muy bajo") -> score += 10
+            q.energyLevel.contains("Bajo") -> score += 7
+        }
+
+        when {
+            q.generalHealthStatus == "Malo" -> score += 10
+            q.generalHealthStatus == "Regular" -> score += 5
+        }
+
+        // COVID largo (0-10 puntos)
+        if (q.hadCovid.contains("secuelas persistentes")) {
+            score += 10
+        }
+
+        // Indicadores (0-10 puntos)
+        if (q.bloodPressure.contains("Hipertensión")) score += 5
+        if (q.cholesterolLevel.contains("Alto")) score += 3
+        if (q.bloodGlucose.contains("Diabetes")) score += 5
+
+        score = score.coerceIn(0, 100)
+
+        val risk = when {
+            score < 20 -> RiskLevel.BAJO
+            score < 40 -> RiskLevel.MODERADO
+            score < 60 -> RiskLevel.ALTO
+            else -> RiskLevel.MUY_ALTO
+        }
+
+        return Pair(score, risk)
+    }
+
+    /**
      * 1. ERGONOMÍA (Score 0-100, mayor es mejor)
-     * Basado en: OSHA Ergonomic Guidelines
      */
     fun calculateErgonomiaScore(q: ErgonomiaQuestionnaire): Pair<Int, RiskLevel> {
         var score = 100
@@ -110,7 +172,6 @@ object ScoreCalculator {
 
     /**
      * 2. SÍNTOMAS MUSCULARES (Score 0-100, mayor es peor)
-     * Basado en: Nordic Musculoskeletal Questionnaire (NMQ)
      */
     fun calculateSintomasMuscularesScore(q: SintomasMuscularesQuestionnaire): Pair<Int, RiskLevel> {
         var totalSymptoms = 0
@@ -134,13 +195,12 @@ object ScoreCalculator {
         totalSymptoms += (espaldaScore * 3).toInt()
         maxIntensity = maxOf(maxIntensity, q.dolorEspaldaAltaIntensidad, q.dolorEspaldaBajaIntensidad)
 
-        // Manos/muñecas (peso: alto - túnel carpiano)
+        // Manos/muñecas (peso: alto)
         val manosScore = (q.dolorMunecasFrecuencia + q.dolorMunecasIntensidad +
                 q.dolorManosFrecuencia + q.dolorManosIntensidad +
                 q.hormigueoManosFrecuencia + q.hormigueoManosIntensidad) / 6.0
         totalSymptoms += (manosScore * 2).toInt()
 
-        // Hormigueo nocturno (señal de alerta túnel carpiano)
         if (q.hormigueoPorNoche.contains("despierta")) totalSymptoms += 5
 
         // Dolor de cabeza
@@ -151,7 +211,6 @@ object ScoreCalculator {
         if (q.dolorImpidenActividades.contains("frecuentemente")) totalSymptoms += 10
         else if (q.dolorImpidenActividades.contains("ocasionalmente")) totalSymptoms += 5
 
-        // Normalizar a 0-100
         val score = ((totalSymptoms / 50.0) * 100).toInt().coerceIn(0, 100)
 
         val risk = when {
@@ -166,35 +225,29 @@ object ScoreCalculator {
 
     /**
      * 3. SÍNTOMAS VISUALES (Score 0-100, mayor es peor)
-     * Basado en: Computer Vision Syndrome (CVS) Assessment
      */
     fun calculateSintomasVisualesScore(q: SintomasVisualesQuestionnaire): Pair<Int, RiskLevel> {
         var totalSymptoms = 0
 
-        // Molestias oculares (peso: 40%)
         totalSymptoms += q.ojosSecosFrecuencia * 2 + q.ojosSecosIntensidad
         totalSymptoms += q.ardorOjosFrecuencia * 2 + q.ardorOjosIntensidad
         totalSymptoms += q.ojosRojosFrecuencia * 2
         totalSymptoms += q.lagrimeoFrecuencia
 
-        // Problemas visuales (peso: 40%)
         totalSymptoms += q.visionBorrosaFrecuencia * 3
         totalSymptoms += q.dificultadEnfocarFrecuencia * 3
         totalSymptoms += q.sensibilidadLuzFrecuencia * 2
-        totalSymptoms += q.visionDobleFrecuencia * 4 // Síntoma grave
+        totalSymptoms += q.visionDobleFrecuencia * 4
 
-        // Fatiga (peso: 20%)
         if (q.ojosCansadosFinDia == "Siempre") totalSymptoms += 8
         else if (q.ojosCansadosFinDia == "Frecuentemente") totalSymptoms += 5
 
         if (q.esfuerzoVerNitidamente.contains("constantemente")) totalSymptoms += 8
         else if (q.esfuerzoVerNitidamente.contains("final del día")) totalSymptoms += 5
 
-        // Falta de cuidado preventivo
         if (q.aplicaRegla202020.contains("Nunca") || q.aplicaRegla202020.contains("no sé")) totalSymptoms += 5
         if (q.ultimoExamenVisual.contains("Nunca") || q.ultimoExamenVisual.contains("más de 2 años")) totalSymptoms += 5
 
-        // Normalizar a 0-100
         val score = ((totalSymptoms / 80.0) * 100).toInt().coerceIn(0, 100)
 
         val risk = when {
@@ -209,14 +262,13 @@ object ScoreCalculator {
 
     /**
      * 4. CARGA DE TRABAJO (Score 0-100, mayor es peor)
-     * Basado en: Job Content Questionnaire (JCQ) y Job Demand-Control Model
      */
     fun calculateCargaTrabajoScore(q: CargaTrabajoQuestionnaire): Pair<Int, RiskLevel> {
         var demandScore = 0
         var controlScore = 0
         var supportScore = 0
 
-        // DEMANDA LABORAL (0-40 puntos)
+        // DEMANDA
         when (q.cargaTrabajoActual) {
             "Excesiva (no puedo con todo)" -> demandScore += 10
             "Alta (requiere esfuerzo extra)" -> demandScore += 7
@@ -234,7 +286,6 @@ object ScoreCalculator {
             "Acelerado frecuentemente" -> demandScore += 6
         }
 
-        // Horas extra
         if (q.llevaTrabajoCasa.contains("Siempre") || q.llevaTrabajoCasa.contains("Muy frecuentemente")) {
             demandScore += 5
         }
@@ -242,7 +293,7 @@ object ScoreCalculator {
             demandScore += 5
         }
 
-        // CONTROL/AUTONOMÍA (0-30 puntos, invertido)
+        // CONTROL
         when (q.puedeDecidirComoTrabajar) {
             "No, todo está muy controlado" -> controlScore += 10
             "Poco" -> controlScore += 7
@@ -259,7 +310,7 @@ object ScoreCalculator {
             "Rara vez" -> controlScore += 6
         }
 
-        // APOYO SOCIAL (0-20 puntos, invertido)
+        // APOYO
         when (q.apoyoSuperior) {
             "Muy malo/Ninguno" -> supportScore += 8
             "Malo" -> supportScore += 6
@@ -272,10 +323,9 @@ object ScoreCalculator {
         }
 
         if (q.acosoLaboral.contains("Constantemente") || q.acosoLaboral.contains("Frecuentemente")) {
-            supportScore += 15 // MUY GRAVE
+            supportScore += 15
         }
 
-        // SATISFACCIÓN (0-10 puntos, invertido)
         var satisfactionPenalty = 0
         if (q.satisfaccionGeneral.contains("Muy insatisfecho")) satisfactionPenalty += 5
         if (q.trabajoValorado.contains("Nunca") || q.trabajoValorado.contains("Rara vez")) {
@@ -297,16 +347,13 @@ object ScoreCalculator {
 
     /**
      * 5. ESTRÉS Y SALUD MENTAL (Score 0-100, mayor es peor)
-     * Basado en: Maslach Burnout Inventory (MBI) y General Health Questionnaire (GHQ)
      */
     fun calculateEstresSaludMentalScore(q: EstresSaludMentalQuestionnaire): Pair<Int, RiskLevel> {
         var score = 0
 
-        // Nivel de estrés base (0-15 puntos)
         score += q.nivelEstresGeneral * 1.5.toInt()
         if (q.estresAumento6Meses.contains("significativamente")) score += 5
 
-        // Síntomas de estrés crónico (0-40 puntos)
         val stressSymptoms = listOf(
             q.fatigaAgotamiento, q.dificultadConcentracion, q.problemasMemoria,
             q.irritabilidad, q.ansiedadTrabajo, q.preocupacionesConstantes,
@@ -315,7 +362,6 @@ object ScoreCalculator {
         val avgStressSymptoms = stressSymptoms.average()
         score += (avgStressSymptoms * 8).toInt()
 
-        // Burnout (0-35 puntos) - MÁS GRAVE
         val burnoutSymptoms = listOf(
             q.perdidaMotivacion, q.sensacionInproductividad,
             q.actitudNegativa, q.sentimientoIneficacia
@@ -323,15 +369,12 @@ object ScoreCalculator {
         val avgBurnout = burnoutSymptoms.average()
         score += (avgBurnout * 8).toInt()
 
-        // Agotamiento emocional extremo
         if (q.agotamientoEmocional.contains("Constantemente")) score += 10
         else if (q.agotamientoEmocional.contains("Frecuentemente")) score += 7
 
-        // Despersonalización
         if (q.despersonalizacion.contains("Constantemente")) score += 10
         else if (q.despersonalizacion.contains("Frecuentemente")) score += 7
 
-        // Impacto en vida personal (0-10 puntos)
         if (q.estresAfectaVidaPersonal.contains("Severamente")) score += 10
         else if (q.estresAfectaVidaPersonal.contains("Significativamente")) score += 7
 
@@ -341,7 +384,7 @@ object ScoreCalculator {
             score < 25 -> RiskLevel.BAJO
             score < 45 -> RiskLevel.MODERADO
             score < 65 -> RiskLevel.ALTO
-            else -> RiskLevel.MUY_ALTO // BURNOUT CRÍTICO
+            else -> RiskLevel.MUY_ALTO
         }
 
         return Pair(score, risk)
@@ -349,29 +392,24 @@ object ScoreCalculator {
 
     /**
      * 6. HÁBITOS DE SUEÑO (Score 0-100, mayor es peor)
-     * Basado en: Pittsburgh Sleep Quality Index (PSQI)
      */
     fun calculateHabitosSuenoScore(q: HabitosSuenoQuestionnaire): Pair<Int, RiskLevel> {
         var score = 0
 
-        // Cantidad de sueño (0-25 puntos)
         when (q.horasSuenoSemana) {
             "Menos de 5 horas" -> score += 15
             "5-6 horas" -> score += 10
-            "Más de 8 horas" -> score += 5 // Exceso también es problema
+            "Más de 8 horas" -> score += 5
         }
 
-        // Diferencia fin de semana (señal de deuda de sueño)
         if (q.horasSuenoFinSemana.contains("3-4 horas más")) score += 10
 
-        // Calidad del sueño (0-20 puntos)
         when (q.calidadSueno) {
             "Muy mala (nunca descansado)" -> score += 20
             "Mala (rara vez descansado)" -> score += 15
             "Regular (a veces descansado)" -> score += 10
         }
 
-        // Problemas para dormir (0-30 puntos)
         val sleepProblems = listOf(
             q.dificultadConciliarFrecuencia,
             q.despertaresNocturnosFrecuencia,
@@ -380,7 +418,6 @@ object ScoreCalculator {
         val avgProblems = sleepProblems.average()
         score += (avgProblems * 6).toInt()
 
-        // Higiene del sueño (0-25 puntos)
         if (q.usaDispositivosAntesDormir.contains("hasta el momento de dormir")) score += 10
 
         if (q.piensaProblemasTrabajoAntesDormir.contains("Siempre") ||
@@ -407,16 +444,14 @@ object ScoreCalculator {
 
     /**
      * 7. ACTIVIDAD FÍSICA (Score 0-100, mayor es peor)
-     * Basado en: WHO Physical Activity Guidelines
      */
     fun calculateActividadFisicaScore(q: ActividadFisicaQuestionnaire): Pair<Int, RiskLevel> {
         var score = 0
 
-        // Ejercicio regular (0-30 puntos)
         when (q.frecuenciaEjercicio) {
             "Ninguna (sedentario)" -> score += 20
             "1 vez por semana" -> score += 15
-            "2-3 veces por semana" -> score += 5 // OMS recomienda 150 min/semana
+            "2-3 veces por semana" -> score += 5
         }
 
         when (q.duracionEjercicio) {
@@ -424,14 +459,12 @@ object ScoreCalculator {
             "Menos de 20 minutos" -> score += 7
         }
 
-        // Estiramientos (0-10 puntos)
         when (q.realizaEstiramientos) {
             "Nunca" -> score += 10
             "Rara vez" -> score += 7
             "Ocasionalmente" -> score += 4
         }
 
-        // Hábitos alimenticios (0-25 puntos)
         if (q.saltaDesayuno.contains("Siempre") || q.saltaDesayuno.contains("Frecuentemente")) {
             score += 10
         }
@@ -444,14 +477,13 @@ object ScoreCalculator {
             "Menos de 1 litro" -> score += 10
         }
 
-        // Sustancias estimulantes (0-35 puntos)
         when (q.consumoCafeTe) {
             "Más de 5 tazas al día" -> score += 15
             "4-5 tazas al día" -> score += 10
         }
 
         when (q.consumeBebidasEnergizantes) {
-            "Diariamente" -> score += 20 // MUY GRAVE
+            "Diariamente" -> score += 20
             "Frecuentemente (3+ por semana)" -> score += 15
             "Regularmente (1-2 por semana)" -> score += 10
         }
@@ -470,33 +502,28 @@ object ScoreCalculator {
 
     /**
      * 8. BALANCE VIDA-TRABAJO (Score 0-100, mayor es peor)
-     * Basado en: Work-Life Balance Scale
      */
     fun calculateBalanceVidaTrabajoScore(q: BalanceVidaTrabajoQuestionnaire): Pair<Int, RiskLevel> {
         var score = 0
 
-        // Equilibrio percibido (0-20 puntos)
         when (q.equilibrioTrabajoVida) {
             "El trabajo domina completamente mi vida" -> score += 20
             "Más trabajo que vida personal" -> score += 15
             "Parcialmente equilibrado" -> score += 8
         }
 
-        // Tiempo libre (0-15 puntos)
         when (q.tiempoLibreCalidad) {
             "Menos de 5 horas" -> score += 15
             "5-10 horas" -> score += 10
             "10-15 horas" -> score += 5
         }
 
-        // Actividades recreativas (0-15 puntos)
         when (q.actividadesRecreativas) {
             "Nunca, no tengo tiempo" -> score += 15
             "Rara vez" -> score += 10
             "Ocasionalmente (1-2 veces al mes)" -> score += 6
         }
 
-        // Impacto en relaciones (0-20 puntos)
         when (q.trabajoAfectaRelaciones) {
             "Severamente" -> score += 20
             "Bastante" -> score += 15
@@ -508,7 +535,6 @@ object ScoreCalculator {
             "Menos de 2 horas" -> score += 7
         }
 
-        // Desconexión laboral (0-20 puntos)
         when (q.puedeDesconectarseDiasLibres) {
             "Nunca puedo desconectar" -> score += 10
             "Rara vez" -> score += 7
@@ -520,7 +546,6 @@ object ScoreCalculator {
             "Frecuentemente" -> score += 7
         }
 
-        // Vacaciones (0-10 puntos)
         when (q.ultimasVacaciones) {
             "Nunca/No recuerdo" -> score += 10
             "Hace más de 2 años" -> score += 7
@@ -540,19 +565,19 @@ object ScoreCalculator {
     }
 
     /**
-     * SCORE GLOBAL PONDERADO
-     * Pesos basados en impacto en salud según literatura científica
+     * SCORE GLOBAL PONDERADO - 9 ÁREAS
      */
     fun calculateOverallScore(scores: Map<String, Pair<Int, RiskLevel>>): Pair<Int, RiskLevel> {
         val weights = mapOf(
-            "estres" to 0.20,           // Mayor impacto en salud general
-            "sintomas_musculares" to 0.18, // Alta prevalencia y cronicidad
-            "carga_trabajo" to 0.15,    // Factor psicosocial crítico
-            "sueno" to 0.12,            // Impacto en recuperación
-            "balance" to 0.12,          // Prevención de burnout
-            "ergonomia" to 0.10,        // Prevención física
-            "sintomas_visuales" to 0.08, // Específico pero importante
-            "actividad_fisica" to 0.05   // Complementario
+            "salud_general" to 0.10,
+            "estres" to 0.18,
+            "sintomas_musculares" to 0.16,
+            "carga_trabajo" to 0.14,
+            "sueno" to 0.11,
+            "balance" to 0.11,
+            "ergonomia" to 0.09,
+            "sintomas_visuales" to 0.07,
+            "actividad_fisica" to 0.04
         )
 
         var weightedSum = 0.0
@@ -575,7 +600,6 @@ object ScoreCalculator {
             0
         }
 
-        // El riesgo general es el mayor entre el calculado y el más alto individual
         val calculatedRisk = when {
             overallScore < 25 -> RiskLevel.BAJO
             overallScore < 45 -> RiskLevel.MODERADO
@@ -586,73 +610,5 @@ object ScoreCalculator {
         val finalRisk = if (highestRisk.value > calculatedRisk.value) highestRisk else calculatedRisk
 
         return Pair(overallScore, finalRisk)
-    }
-
-    fun calculateHealthQuestionnaireScore(q: HealthQuestionnaire): Pair<Int, RiskLevel> {
-        var score = 0
-
-        // IMC (0-15 puntos)
-        when (q.bmiCategory) {
-            "Obesidad (30+)" -> score += 15
-            "Sobrepeso (25-29.9)" -> score += 10
-            "Bajo peso (<18.5)" -> score += 8
-        }
-
-        // Hábitos (0-20 puntos)
-        when (q.smokingStatus) {
-            "Sí, regularmente (más de 10 cigarrillos/día)" -> score += 15
-            "Sí, regularmente (menos de 10 cigarrillos/día)" -> score += 10
-            "Sí, ocasionalmente" -> score += 5
-        }
-
-        when (q.alcoholConsumption) {
-            "Frecuente (3+ veces/semana)" -> score += 5
-        }
-
-        // Condiciones médicas (0-25 puntos)
-        val seriousConditions = listOf("Diabetes", "Hipertensión", "Problemas cardíacos",
-            "Ansiedad/Depresión", "Hernia discal")
-        val userConditions = q.preexistingConditions.filter { it in seriousConditions }
-        score += userConditions.size * 5 // 5 puntos por condición seria
-
-        // Medicamentos (0-10 puntos)
-        if (q.medications.size > 2 && !q.medications.contains("Ninguno")) {
-            score += 10
-        }
-
-        // Cirugías recientes (0-5 puntos)
-        if (q.recentSurgeries) score += 5
-
-        // Estado general (0-15 puntos)
-        when (q.energyLevel) {
-            "Muy bajo (constantemente cansado)" -> score += 10
-            "Bajo (frecuentemente cansado)" -> score += 7
-        }
-
-        when (q.generalHealthStatus) {
-            "Malo" -> score += 10
-            "Regular" -> score += 5
-        }
-
-        // COVID largo (0-10 puntos)
-        if (q.hadCovid.contains("secuelas persistentes")) {
-            score += 10
-        }
-
-        // Indicadores de salud (0-10 puntos)
-        if (q.bloodPressure.contains("Hipertensión")) score += 5
-        if (q.cholesterolLevel.contains("Alto")) score += 3
-        if (q.bloodGlucose.contains("Diabetes")) score += 5
-
-        score = score.coerceIn(0, 100)
-
-        val risk = when {
-            score < 20 -> RiskLevel.BAJO
-            score < 40 -> RiskLevel.MODERADO
-            score < 60 -> RiskLevel.ALTO
-            else -> RiskLevel.MUY_ALTO
-        }
-
-        return Pair(score, risk)
     }
 }

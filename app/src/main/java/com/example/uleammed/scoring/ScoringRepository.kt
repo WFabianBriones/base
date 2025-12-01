@@ -2,6 +2,7 @@ package com.example.uleammed.scoring
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.uleammed.HealthQuestionnaire
 import com.example.uleammed.questionnaires.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -28,24 +29,26 @@ class ScoringRepository(private val context: Context) {
     }
 
     /**
-     * Calcula scores de todas las encuestas completadas
+     * Calcula scores de TODAS las 9 encuestas completadas
      */
-    // En ScoringRepository.kt, método calculateAllScores():
-
     suspend fun calculateAllScores(): Result<HealthScore> = withContext(Dispatchers.IO) {
         return@withContext try {
             val userId = auth.currentUser?.uid ?: return@withContext Result.failure(
                 IllegalStateException("Usuario no autenticado")
             )
 
+            android.util.Log.d(TAG, "🔄 Iniciando cálculo de scores para usuario: $userId")
+
+            // Obtener cuestionarios desde Firestore
             val db = firestore.collection("users").document(userId)
 
-            // ✅ AÑADIR: Obtener cuestionario inicial de salud
+            // ✅ 1. SALUD GENERAL (cuestionario inicial)
             val saludGeneralDoc = firestore.collection("questionnaires")
                 .document(userId)
                 .get()
                 .await()
 
+            // ✅ 2-9. CUESTIONARIOS ESPECÍFICOS
             val ergonomiaDoc = db.collection("questionnaires").document("ergonomia").get().await()
             val muscularesDoc = db.collection("questionnaires").document("sintomas_musculares").get().await()
             val visualesDoc = db.collection("questionnaires").document("sintomas_visuales").get().await()
@@ -57,43 +60,151 @@ class ScoringRepository(private val context: Context) {
 
             val scores = mutableMapOf<String, Pair<Int, RiskLevel>>()
 
-            // ✅ CALCULAR: Salud General
+            // ===== CALCULAR SCORES INDIVIDUALES =====
+
+            // 1. Salud General
             var saludGeneralScore = 0
             var saludGeneralRisk = RiskLevel.BAJO
             if (saludGeneralDoc.exists()) {
-                val q = saludGeneralDoc.toObject(com.example.uleammed.HealthQuestionnaire::class.java)
+                val q = saludGeneralDoc.toObject(HealthQuestionnaire::class.java)
                 if (q != null) {
                     val result = ScoreCalculator.calculateHealthQuestionnaireScore(q)
                     saludGeneralScore = result.first
                     saludGeneralRisk = result.second
                     scores["salud_general"] = result
+                    android.util.Log.d(TAG, "✅ Salud General: $saludGeneralScore (${saludGeneralRisk.displayName})")
+                }
+            } else {
+                android.util.Log.w(TAG, "⚠️ Cuestionario de Salud General no encontrado")
+            }
+
+            // 2. Ergonomía
+            var ergonomiaScore = 0
+            var ergonomiaRisk = RiskLevel.BAJO
+            if (ergonomiaDoc.exists()) {
+                val q = ergonomiaDoc.toObject(ErgonomiaQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateErgonomiaScore(q)
+                    ergonomiaScore = result.first
+                    ergonomiaRisk = result.second
+                    scores["ergonomia"] = result
+                    android.util.Log.d(TAG, "✅ Ergonomía: $ergonomiaScore (${ergonomiaRisk.displayName})")
                 }
             }
 
-            // ... resto del código existente para las otras 8 áreas ...
+            // 3. Síntomas Musculares
+            var sintomasMuscularesScore = 0
+            var sintomasMuscularesRisk = RiskLevel.BAJO
+            if (muscularesDoc.exists()) {
+                val q = muscularesDoc.toObject(SintomasMuscularesQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateSintomasMuscularesScore(q)
+                    sintomasMuscularesScore = result.first
+                    sintomasMuscularesRisk = result.second
+                    scores["sintomas_musculares"] = result
+                    android.util.Log.d(TAG, "✅ Síntomas Musculares: $sintomasMuscularesScore (${sintomasMuscularesRisk.displayName})")
+                }
+            }
 
-            // ✅ ACTUALIZAR pesos para 9 áreas
-            val weights = mapOf(
-                "salud_general" to 0.10,    // ✅ NUEVO
-                "estres" to 0.18,
-                "sintomas_musculares" to 0.16,
-                "carga_trabajo" to 0.14,
-                "sueno" to 0.11,
-                "balance" to 0.11,
-                "ergonomia" to 0.09,
-                "sintomas_visuales" to 0.07,
-                "actividad_fisica" to 0.04
-            )
+            // 4. Síntomas Visuales
+            var sintomasVisualesScore = 0
+            var sintomasVisualesRisk = RiskLevel.BAJO
+            if (visualesDoc.exists()) {
+                val q = visualesDoc.toObject(SintomasVisualesQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateSintomasVisualesScore(q)
+                    sintomasVisualesScore = result.first
+                    sintomasVisualesRisk = result.second
+                    scores["sintomas_visuales"] = result
+                    android.util.Log.d(TAG, "✅ Síntomas Visuales: $sintomasVisualesScore (${sintomasVisualesRisk.displayName})")
+                }
+            }
 
+            // 5. Carga de Trabajo
+            var cargaTrabajoScore = 0
+            var cargaTrabajoRisk = RiskLevel.BAJO
+            if (cargaDoc.exists()) {
+                val q = cargaDoc.toObject(CargaTrabajoQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateCargaTrabajoScore(q)
+                    cargaTrabajoScore = result.first
+                    cargaTrabajoRisk = result.second
+                    scores["carga_trabajo"] = result
+                    android.util.Log.d(TAG, "✅ Carga de Trabajo: $cargaTrabajoScore (${cargaTrabajoRisk.displayName})")
+                }
+            }
+
+            // 6. Estrés y Salud Mental
+            var estresSaludMentalScore = 0
+            var estresSaludMentalRisk = RiskLevel.BAJO
+            if (estresDoc.exists()) {
+                val q = estresDoc.toObject(EstresSaludMentalQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateEstresSaludMentalScore(q)
+                    estresSaludMentalScore = result.first
+                    estresSaludMentalRisk = result.second
+                    scores["estres"] = result
+                    android.util.Log.d(TAG, "✅ Estrés: $estresSaludMentalScore (${estresSaludMentalRisk.displayName})")
+                }
+            }
+
+            // 7. Hábitos de Sueño
+            var habitosSuenoScore = 0
+            var habitosSuenoRisk = RiskLevel.BAJO
+            if (suenoDoc.exists()) {
+                val q = suenoDoc.toObject(HabitosSuenoQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateHabitosSuenoScore(q)
+                    habitosSuenoScore = result.first
+                    habitosSuenoRisk = result.second
+                    scores["sueno"] = result
+                    android.util.Log.d(TAG, "✅ Sueño: $habitosSuenoScore (${habitosSuenoRisk.displayName})")
+                }
+            }
+
+            // 8. Actividad Física
+            var actividadFisicaScore = 0
+            var actividadFisicaRisk = RiskLevel.BAJO
+            if (actividadDoc.exists()) {
+                val q = actividadDoc.toObject(ActividadFisicaQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateActividadFisicaScore(q)
+                    actividadFisicaScore = result.first
+                    actividadFisicaRisk = result.second
+                    scores["actividad_fisica"] = result
+                    android.util.Log.d(TAG, "✅ Actividad Física: $actividadFisicaScore (${actividadFisicaRisk.displayName})")
+                }
+            }
+
+            // 9. Balance Vida-Trabajo
+            var balanceVidaTrabajoScore = 0
+            var balanceVidaTrabajoRisk = RiskLevel.BAJO
+            if (balanceDoc.exists()) {
+                val q = balanceDoc.toObject(BalanceVidaTrabajoQuestionnaire::class.java)
+                if (q != null) {
+                    val result = ScoreCalculator.calculateBalanceVidaTrabajoScore(q)
+                    balanceVidaTrabajoScore = result.first
+                    balanceVidaTrabajoRisk = result.second
+                    scores["balance"] = result
+                    android.util.Log.d(TAG, "✅ Balance: $balanceVidaTrabajoScore (${balanceVidaTrabajoRisk.displayName})")
+                }
+            }
+
+            // ===== CALCULAR SCORE GLOBAL =====
             val (overallScore, overallRisk) = ScoreCalculator.calculateOverallScore(scores)
+
+            // Identificar áreas críticas
             val topConcerns = identifyTopConcerns(scores)
+
+            // Generar recomendaciones
             val recommendations = generateRecommendations(scores)
 
+            // Crear objeto HealthScore con las 9 áreas
             val healthScore = HealthScore(
                 userId = userId,
                 timestamp = System.currentTimeMillis(),
-                saludGeneralScore = saludGeneralScore,         // ✅ NUEVO
-                saludGeneralRisk = saludGeneralRisk,           // ✅ NUEVO
+                saludGeneralScore = saludGeneralScore,
+                saludGeneralRisk = saludGeneralRisk,
                 ergonomiaScore = ergonomiaScore,
                 sintomasMuscularesScore = sintomasMuscularesScore,
                 sintomasVisualesScore = sintomasVisualesScore,
@@ -116,8 +227,17 @@ class ScoringRepository(private val context: Context) {
                 recommendations = recommendations
             )
 
+            // Guardar en Firestore y caché local
             saveToFirestore(healthScore)
             saveToLocal(healthScore)
+
+            android.util.Log.d(TAG, """
+                ✅ Scores calculados exitosamente
+                - Score global: $overallScore
+                - Riesgo: ${overallRisk.displayName}
+                - Cuestionarios completados: ${scores.size}/9
+                - Áreas críticas: ${topConcerns.size}
+            """.trimIndent())
 
             Result.success(healthScore)
 
@@ -135,6 +255,7 @@ class ScoringRepository(private val context: Context) {
 
         scores.forEach { (key, pair) ->
             val displayName = when (key) {
+                "salud_general" -> "Salud General"
                 "ergonomia" -> "Ergonomía"
                 "sintomas_musculares" -> "Síntomas Musculares"
                 "sintomas_visuales" -> "Síntomas Visuales"
@@ -156,16 +277,20 @@ class ScoringRepository(private val context: Context) {
     }
 
     /**
-     * Genera recomendaciones personalizadas basadas en scores
+     * Genera recomendaciones personalizadas
      */
     private fun generateRecommendations(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
         val recommendations = mutableListOf<String>()
 
         scores.forEach { (key, pair) ->
-            val score = pair.first
             val risk = pair.second
 
             when (key) {
+                "salud_general" -> {
+                    if (risk.value >= RiskLevel.ALTO.value) {
+                        recommendations.add("🏥 Consulta médica general recomendada para evaluación integral")
+                    }
+                }
                 "ergonomia" -> {
                     if (risk.value >= RiskLevel.ALTO.value) {
                         recommendations.add("⚠️ Mejora urgente de tu estación de trabajo ergonómica")
@@ -227,12 +352,11 @@ class ScoringRepository(private val context: Context) {
             }
         }
 
-        // Recomendación general si todo está bien
         if (recommendations.isEmpty()) {
             recommendations.add("✅ ¡Excelente! Mantén tus hábitos saludables")
         }
 
-        return recommendations.take(5) // Máximo 5 recomendaciones
+        return recommendations.take(5)
     }
 
     /**
@@ -287,7 +411,7 @@ class ScoringRepository(private val context: Context) {
             if (doc.exists()) {
                 val score = doc.toObject(HealthScore::class.java)
                 if (score != null) {
-                    saveToLocal(score) // Actualizar caché
+                    saveToLocal(score)
                     return@withContext Result.success(score)
                 }
             }
