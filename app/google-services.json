@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1011822065593",
+    "project_id": "uleammed-143d9",
+    "storage_bucket": "uleammed-143d9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1011822065593:android:a439d218435a06ef2ea868",
+        "android_client_info": {
+          "package_name": "com.example.uleammed"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1011822065593-5j68hcc6drqete5574o77lm04nhnjlbg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.uleammed",
+            "certificate_hash": "6f2f351c0841f8bee034cec765dc6f8da0d55290"
+          }
+        },
+        {
+          "client_id": "1011822065593-2rutoo15t7ijqdacd92m5moateqe3q5m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBd7lHaY7vo-2D8dP8Hkgh68NZbjyeLpc0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1011822065593-2rutoo15t7ijqdacd92m5moateqe3q5m.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
