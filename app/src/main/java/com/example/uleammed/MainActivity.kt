@@ -39,6 +39,11 @@ import com.example.uleammed.perfil.SettingsScreen
 import com.example.uleammed.questionnaires.*
 import com.example.uleammed.scoring.ScoringViewModel
 import com.example.uleammed.ui.UleamAppTheme
+// ⭐ AGREGAR: Importaciones para análisis de burnout
+import com.example.uleammed.burnoutprediction.model.QuestionnaireData
+import com.example.uleammed.burnoutprediction.presentation.screen.BurnoutAnalysisScreen
+import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutAnalysisViewModel
+import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -200,6 +205,10 @@ fun UleamApp(
         }
     }
 
+    val burnoutViewModel: BurnoutAnalysisViewModel = viewModel(
+        factory = BurnoutViewModelFactory(application)
+    )
+
     NavHost(
         navController = navController,
         startDestination = startDestination
@@ -290,13 +299,43 @@ fun UleamApp(
                         launchSingleTop = true
                     }
                 },
-                mainNavController = navController
+                mainNavController = navController,
+                // ⭐ AGREGAR: Callback para análisis de burnout
+                onNavigateToBurnoutAnalysis = { indices ->
+                    android.util.Log.d("MainActivity", "🎯 Iniciando análisis de burnout con IA")
+
+                    val data = QuestionnaireData(
+                        estresIndex = indices["estres"] ?: 0f,
+                        ergonomiaIndex = indices["ergonomia"] ?: 0f,
+                        cargaTrabajoIndex = indices["carga_trabajo"] ?: 0f,
+                        calidadSuenoIndex = indices["calidad_sueno"] ?: 0f,
+                        actividadFisicaIndex = indices["actividad_fisica"] ?: 0f,
+                        sintomasMuscularesIndex = indices["sintomas_musculares"] ?: 0f,
+                        sintomasVisualesIndex = indices["sintomas_visuales"] ?: 0f,
+                        saludGeneralIndex = indices["salud_general"] ?: 0f
+                    )
+
+                    burnoutViewModel.analyzeBurnout(data)
+
+                    navController.navigate(Screen.BurnoutAnalysis.route) {
+                        launchSingleTop = true
+                    }
+                }
             )
         }
 
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Screen.BurnoutAnalysis.route) {
+            BurnoutAnalysisScreen(
+                viewModel = burnoutViewModel,
+                onNavigateBack = {
                     navController.popBackStack()
                 }
             )

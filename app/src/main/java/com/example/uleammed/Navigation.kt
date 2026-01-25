@@ -16,6 +16,8 @@ sealed class Screen(val route: String) {
     object Resources : Screen("resources")
     object Settings : Screen("settings")
 
+    object BurnoutAnalysis : Screen("burnout_analysis")
+
     // ✅ NUEVAS RUTAS DE PERFIL
     object EditProfile : Screen("edit_profile")
     object ViewQuestionnaire : Screen("view_questionnaire")

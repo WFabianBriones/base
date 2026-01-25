@@ -37,6 +37,7 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToResourceDetail: (String) -> Unit,
     mainNavController: NavHostController,
+    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit = {},
     authViewModel: AuthViewModel = viewModel(),
     notificationViewModel: NotificationViewModel = viewModel()
 ) {
@@ -86,7 +87,8 @@ fun HomeScreen(
         ) {
             composable(Screen.Home.route) {
                 // ✅ LLAMADA A LA NUEVA FUNCIÓN HomeContent
-                HomeContent(userName = currentUser?.displayName ?: "Usuario")
+                HomeContent(userName = currentUser?.displayName ?: "Usuario",
+                    onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis)
             }
             composable(Screen.Explore.route) {
                 ExploreContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
@@ -204,7 +206,8 @@ fun BottomNavigationBar(
 // ✅ REEMPLAZADA la función HomeContent existente en HomeScreen.kt por esta versión:
 
 @Composable
-fun HomeContent(userName: String) {
+fun HomeContent(userName: String,
+                onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit) {
     // ✅ AÑADIR: ViewModel con factory
     val context = LocalContext.current
     val scoringViewModel: ScoringViewModel = viewModel(
@@ -264,7 +267,7 @@ fun HomeContent(userName: String) {
         }
 
         // ✅ Dashboard con scores
-        com.example.uleammed.scoring.HealthDashboard()
+        com.example.uleammed.scoring.HealthDashboard(onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis)
     }
 }
 

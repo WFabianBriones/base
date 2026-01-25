@@ -1,23 +1,29 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.jetbrains.kotlin.android)
-    alias(libs.plugins.google.services)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.example.uleammed"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.uleammed"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
+
+        // ⭐ BuildConfig fields
+        buildConfigField("String", "VERSION_NAME", "\"${versionName}\"")
+        buildConfigField("boolean", "DEBUG", "true")
+
+        // ⭐ NUEVO: Para TensorFlow Lite en dispositivos con diferentes arquitecturas
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
     }
 
@@ -28,114 +34,110 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("boolean", "DEBUG", "false")
         }
         debug {
             buildConfigField("boolean", "DEBUG", "true")
         }
     }
 
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "11"
     }
 
+    buildFeatures {
+        compose = true
+        buildConfig = true  // ⭐ Para usar BuildConfig
+        mlModelBinding = true  // ⭐ Para TensorFlow Lite
+    }
+
+    // ⭐ Configuración de Compose Compiler
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
 
+    // ⭐ No comprimir archivos .tflite
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            excludes += "META-INF/DEPENDENCIES"
-            excludes += "META-INF/LICENSE"
-            excludes += "META-INF/LICENSE.txt"
-            excludes += "META-INF/license.txt"
-            excludes += "META-INF/NOTICE"
-            excludes += "META-INF/NOTICE.txt"
-            excludes += "META-INF/notice.txt"
-            excludes += "META-INF/ASL2.0"
-            excludes += "META-INF/*.kotlin_module"
         }
     }
 
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-            isReturnDefaultValues = true
-        }
+    // ⭐ Configuración para archivos .tflite
+    aaptOptions {
+        noCompress("tflite")
+        noCompress("lite")
     }
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.activity.compose)
+    // AndroidX Core
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.appcompat:appcompat:1.6.1")
 
-    // Compose
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.material.icons.extended)
-    debugImplementation(libs.androidx.ui.tooling)
-
+    // ⭐ Material Components para Android (necesario para temas Material3 en XML)
     implementation("com.google.android.material:material:1.11.0")
 
-    // Navigation
-    implementation(libs.androidx.navigation.compose)
+    // Jetpack Compose
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
 
-    // Firebase
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
+    // Compose adicionales para ViewModel y Navigation
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation("androidx.navigation:navigation-compose:2.7.6")
 
-    // Google Sign-In
-    implementation(libs.androidx.credentials)
-    implementation(libs.androidx.credentials.play.services)
-    implementation(libs.googleid)
+    // ⭐ Credential Manager (para Google Sign In)
+    implementation("androidx.credentials:credentials:1.2.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.2.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.0")
 
-    // Gson para serialización
-    implementation("com.google.code.gson:gson:2.10.1")
-
-    // WorkManager para notificaciones programadas
+    // ⭐ WorkManager (para notificaciones programadas)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
-    // ============ KOTLINDL - DEEP LEARNING ============
-    // OPCIÓN A: Dependencias completas (MÁS RECOMENDADO)
-    //implementation("org.jetbrains.kotlinx:kotlin-deeplearning-api:0.5.2")
-    //implementation("org.jetbrains.kotlinx:kotlin-deeplearning-onnx:0.5.2")
-    //implementation("org.jetbrains.kotlinx:kotlin-deeplearning-tensorflow:0.5.2")
+    // ⭐ Gson (para serialización JSON)
+    implementation("com.google.code.gson:gson:2.10.1")
 
-    // Multik para operaciones matemáticas
-    //implementation("org.jetbrains.kotlinx:multik-core:0.2.2")
-    //implementation("org.jetbrains.kotlinx:multik-default:0.2.2")
+    // ⭐ TensorFlow Lite - PARA EL MODELO DE IA
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
-    // ============ TESTING ============
+    // OPCIONAL: TensorFlow Lite GPU (mejor rendimiento)
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
+
+    // OPCIONAL: Select TF Ops (si usas operadores de TensorFlow)
+    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-metadata:0.4.4")
+
+    // Coroutines (para operaciones asíncronas)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-analytics-ktx")
+
+    // Testing
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.mockito:mockito-core:5.7.0")
-    testImplementation("org.mockito:mockito-inline:5.2.0")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    testImplementation("org.robolectric:robolectric:4.11.1")
-    testImplementation("androidx.test:core:1.5.0")
-    testImplementation("androidx.test.ext:junit:1.1.5")
-    testImplementation("androidx.work:work-testing:2.9.0")
-
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+
+    // Debug
+    debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlin.math.cos
 import kotlin.math.sin
-
+import androidx.compose.material.icons.filled.Psychology  // ⭐ AGREGAR
 // --- Asume que RiskLevel, HealthScore, ScoringState y ScoringViewModel existen en otros archivos ---
 // No se incluyen aquí por simplicidad, pero son necesarios para que el código compile.
 
@@ -36,7 +36,8 @@ import kotlin.math.sin
  */
 @Composable
 fun HealthDashboard(
-    viewModel: ScoringViewModel = viewModel()
+    viewModel: ScoringViewModel = viewModel(),
+    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit = {}  // ⭐ AGREGAR
 ) {
     val state by viewModel.state.collectAsState()
     val healthScore by viewModel.healthScore.collectAsState()
@@ -73,7 +74,8 @@ fun HealthDashboard(
                 if (healthScore != null) {
                     DashboardContent(
                         healthScore = healthScore!!,
-                        onRecalculate = { viewModel.recalculateScores() }
+                        onRecalculate = { viewModel.recalculateScores() },
+                        onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
                     )
                 }
             }
@@ -94,7 +96,8 @@ fun HealthDashboard(
 @Composable
 fun DashboardContent(
     healthScore: HealthScore,
-    onRecalculate: () -> Unit
+    onRecalculate: () -> Unit,
+    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit
 ) {
     // Verificar qué encuestas están completadas
     val completedSurveys = getCompletedSurveys(healthScore)
@@ -113,6 +116,15 @@ fun DashboardContent(
         if (completedSurveys.size >= 3) {
             item {
                 OverallScoreCard(healthScore = healthScore)
+            }
+        }
+
+        if (completedSurveys.size >= 3) {
+            item {
+                BurnoutAIAnalysisCard(
+                    healthScore = healthScore,
+                    onAnalyze = onNavigateToBurnoutAnalysis
+                )
             }
         }
 
@@ -975,6 +987,102 @@ fun SurveyProgressCard(completedCount: Int, totalCount: Int) {
                     )
                 }
             }
+        }
+    }
+
+}
+/**
+ * ⭐ Card de análisis de burnout con IA
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BurnoutAIAnalysisCard(
+    healthScore: HealthScore,
+    onAnalyze: (Map<String, Float>) -> Unit
+) {
+    Card(
+        onClick = {
+            // Convertir scores a índices 0-10
+            val indices = mapOf(
+                "estres" to (healthScore.estresSaludMentalScore / 100f * 10f),
+                "ergonomia" to (healthScore.ergonomiaScore / 100f * 10f),
+                "carga_trabajo" to (healthScore.cargaTrabajoScore / 100f * 10f),
+                "calidad_sueno" to (healthScore.habitosSuenoScore / 100f * 10f),
+                "actividad_fisica" to (healthScore.actividadFisicaScore / 100f * 10f),
+                "sintomas_musculares" to (healthScore.sintomasMuscularesScore / 100f * 10f),
+                "sintomas_visuales" to (healthScore.sintomasVisualesScore / 100f * 10f),
+                "salud_general" to (healthScore.saludGeneralScore / 100f * 10f)
+            )
+            onAnalyze(indices)
+        },
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icono principal
+            Icon(
+                imageVector = Icons.Filled.Psychology,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.tertiary
+            )
+
+            // Contenido
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Análisis Predictivo con IA",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Burnout Risk Assessment",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            text = "BETA",
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    Text(
+                        text = "Precisión: 82-86%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Flecha
+            Icon(
+                imageVector = Icons.Filled.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.tertiary
+            )
         }
     }
 }
