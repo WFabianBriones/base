@@ -3,6 +3,7 @@ package com.example.uleammed.resources
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,13 +15,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 /**
- * Pantalla principal de Recursos rediseñada
+ * Pantalla principal de Recursos con HEADER SIMPLIFICADO
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResourcesContentNew(
-    onResourceClick: (String) -> Unit = {},  // Para artículos
-    onExerciseClick: (String) -> Unit = {}, // ✅ NUEVO: Para ejercicios
+    onResourceClick: (String) -> Unit = {},
+    onExerciseClick: (String) -> Unit = {},
     viewModel: ResourceViewModel = viewModel()
 ) {
     val filteredResources by viewModel.filteredResources.collectAsState()
@@ -32,7 +33,6 @@ fun ResourcesContentNew(
 
     var selectedTab by remember { mutableStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
-    var showCategoryFilter by remember { mutableStateOf(false) }
 
     val tabs = listOf(
         "Artículos" to Icons.Filled.Article,
@@ -42,6 +42,10 @@ fun ResourcesContentNew(
     )
 
     Column(modifier = Modifier.fillMaxSize()) {
+
+        // ========== HEADER VISUAL SIMPLIFICADO ==========
+        ResourcesHeaderSimple()
+
         // Barra de búsqueda
         SearchBar(
             query = searchQuery,
@@ -68,7 +72,8 @@ fun ResourcesContentNew(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 8.dp)
         ) { }
 
         // Tabs
@@ -102,14 +107,14 @@ fun ResourcesContentNew(
             0 -> ArticlesTab(
                 resources = filteredResources,
                 state = state,
-                onResourceClick = onResourceClick, // Navega a ArticleViewer
+                onResourceClick = onResourceClick,
                 onFavoriteClick = { resourceId ->
                     viewModel.toggleFavorite(resourceId)
                 }
             )
             1 -> ExercisesTab(
                 exercises = exercises,
-                onStartExercise = onExerciseClick // ✅ Navega a ExerciseGuided
+                onStartExercise = onExerciseClick
             )
             2 -> FAQsTab(
                 faqs = faqs,
@@ -119,10 +124,52 @@ fun ResourcesContentNew(
             )
             3 -> FavoritesTab(
                 favorites = favorites,
-                onResourceClick = { /* TODO: Navegar a detalle */ },
+                onResourceClick = onResourceClick,
                 onFavoriteClick = { resourceId ->
                     viewModel.toggleFavorite(resourceId)
                 }
+            )
+        }
+    }
+}
+
+// ========== HEADER SIMPLIFICADO (SOLO TÍTULO E ICONO) ==========
+@Composable
+private fun ResourcesHeaderSimple() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Icono con fondo verde
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.primary
+        ) {
+            Icon(
+                imageVector = Icons.Filled.MenuBook,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(10.dp),
+                tint = MaterialTheme.colorScheme.onPrimary
+            )
+        }
+
+        // Título y subtítulo en verde
+        Column {
+            Text(
+                text = "Biblioteca de Recursos",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Aprende y cuida tu salud laboral",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
             )
         }
     }
@@ -135,7 +182,7 @@ fun ResourcesContentNew(
 fun ArticlesTab(
     resources: List<ResourceItem>,
     state: ResourceState,
-    onResourceClick: (String) -> Unit, // ✅ Este callback ahora navega
+    onResourceClick: (String) -> Unit,
     onFavoriteClick: (String) -> Unit
 ) {
     when (state) {
@@ -173,7 +220,7 @@ fun ArticlesTab(
                     items(resources, key = { it.id }) { resource ->
                         ResourceCard(
                             resource = resource,
-                            onResourceClick = { onResourceClick(resource.id) }, // ✅ Ahora funciona
+                            onResourceClick = { onResourceClick(resource.id) },
                             onFavoriteClick = { onFavoriteClick(resource.id) }
                         )
                     }
@@ -219,7 +266,7 @@ fun ArticlesTab(
 @Composable
 fun ExercisesTab(
     exercises: List<ExerciseResource>,
-    onStartExercise: (String) -> Unit // ✅ Este callback ahora navega
+    onStartExercise: (String) -> Unit
 ) {
     if (exercises.isEmpty()) {
         EmptyResourcesState(
@@ -259,7 +306,7 @@ fun ExercisesTab(
             items(exercises, key = { it.id }) { exercise ->
                 ExerciseCard(
                     exercise = exercise,
-                    onStartExercise = { onStartExercise(exercise.id) } // ✅ Ahora funciona
+                    onStartExercise = { onStartExercise(exercise.id) }
                 )
             }
         }
@@ -342,22 +389,14 @@ fun FavoritesTab(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Bookmark,
+                            imageVector = Icons.Filled.Info,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
-                        Column {
-                            Text(
-                                text = "Tus Favoritos",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "${favorites.size} recurso${if (favorites.size != 1) "s" else ""} guardado${if (favorites.size != 1) "s" else ""}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = "Tus recursos guardados para consulta rápida.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             }
@@ -372,3 +411,6 @@ fun FavoritesTab(
         }
     }
 }
+
+// NOTA: EmptyResourcesState, FilterSection, ResourceCard, ExerciseCard, FAQCard
+// ya están definidas en ResourceComponents.kt - no las duplicamos aquí

@@ -25,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.material.icons.filled.Psychology  // ⭐ AGREGAR
@@ -406,6 +409,9 @@ fun SummaryItem(
 /**
  * 3. Gráfico de radar (spider chart)
  */
+/**
+ * Gráfico de radar MEJORADO (spider chart) - VERSIÓN CORREGIDA
+ */
 @Composable
 fun RadarChartCard(healthScore: HealthScore) {
     Card(
@@ -413,7 +419,7 @@ fun RadarChartCard(healthScore: HealthScore) {
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 text = "Vista de Radar",
@@ -425,7 +431,7 @@ fun RadarChartCard(healthScore: HealthScore) {
                 healthScore = healthScore,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(350.dp)
             )
         }
     }
@@ -436,111 +442,160 @@ fun RadarChart(
     healthScore: HealthScore,
     modifier: Modifier = Modifier
 ) {
+    // Etiquetas simplificadas
     val dataPoints = listOf(
         "Ergonomía" to healthScore.ergonomiaScore,
-        "Síntomas\nMusculares" to (100 - healthScore.sintomasMuscularesScore), // Invertir
-        "Síntomas\nVisuales" to (100 - healthScore.sintomasVisualesScore),
-        "Carga\nTrabajo" to (100 - healthScore.cargaTrabajoScore),
+        "Síntomas Musculares" to (100 - healthScore.sintomasMuscularesScore),
+        "Síntomas Visuales" to (100 - healthScore.sintomasVisualesScore),
+        "Carga Trabajo" to (100 - healthScore.cargaTrabajoScore),
         "Estrés" to (100 - healthScore.estresSaludMentalScore),
         "Sueño" to (100 - healthScore.habitosSuenoScore),
-        "Actividad\nFísica" to (100 - healthScore.actividadFisicaScore),
+        "Actividad Física" to (100 - healthScore.actividadFisicaScore),
         "Balance" to (100 - healthScore.balanceVidaTrabajoScore)
     )
 
+    val riskColor = Color(healthScore.overallRisk.color)
+
     Canvas(modifier = modifier) {
-        val center = Offset(size.width / 2, size.height / 2)
-        val radius = size.minDimension / 2.5f
+        val centerX = size.width / 2
+        val centerY = size.height / 2
+        val center = Offset(centerX, centerY)
+
+        val radius = size.minDimension / 3.0f
+        val labelRadius = radius * 1.18f // ✅ Etiquetas AÚN más cerca
+
         val angleStep = 360f / dataPoints.size
 
-        // Dibujar líneas de fondo (telaraña)
+        // Configuración de texto
+        val textPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.parseColor("#424242")
+            textSize = 30f
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+
+        // 1. Dibujar círculos de fondo (telaraña)
         for (i in 1..5) {
             val currentRadius = radius * (i / 5f)
             drawCircle(
-                color = Color.Gray.copy(alpha = 0.2f),
+                color = Color.Gray.copy(alpha = 0.15f),
                 radius = currentRadius,
                 center = center,
-                style = Stroke(width = 1.dp.toPx())
+                style = Stroke(width = 1.5.dp.toPx())
             )
         }
 
-        // Dibujar líneas radiales
+        // 2. Dibujar líneas radiales
         dataPoints.forEachIndexed { index, _ ->
             val angle = Math.toRadians((angleStep * index - 90).toDouble())
             val end = Offset(
-                center.x + (radius * cos(angle)).toFloat(),
-                center.y + (radius * sin(angle)).toFloat()
+                centerX + (radius * cos(angle)).toFloat(),
+                centerY + (radius * sin(angle)).toFloat()
             )
             drawLine(
-                color = Color.Gray.copy(alpha = 0.3f),
+                color = Color.Gray.copy(alpha = 0.25f),
                 start = center,
                 end = end,
-                strokeWidth = 1.dp.toPx()
+                strokeWidth = 1.5.dp.toPx()
             )
         }
 
-        // Dibujar el polígono de datos
+        // 3. Calcular puntos del polígono
         val points = dataPoints.mapIndexed { index, (_, value) ->
             val angle = Math.toRadians((angleStep * index - 90).toDouble())
             val distance = radius * (value / 100f)
             Offset(
-                center.x + (distance * cos(angle)).toFloat(),
-                center.y + (distance * sin(angle)).toFloat()
+                centerX + (distance * cos(angle)).toFloat(),
+                centerY + (distance * sin(angle)).toFloat()
             )
         }
 
-        // --- MODIFICACIÓN: Usar el color de riesgo global ---
-        val riskColor = Color(healthScore.overallRisk.color)
-
-        // Área rellena
-        points.forEachIndexed { index, point ->
-            if (index < points.size - 1) {
-                drawLine(
-                    color = riskColor.copy(alpha = 0.3f),
-                    start = point,
-                    end = points[index + 1],
-                    strokeWidth = 3.dp.toPx()
-                )
+        // 4. Dibujar polígono con relleno
+        val path = androidx.compose.ui.graphics.Path().apply {
+            if (points.isNotEmpty()) {
+                moveTo(points[0].x, points[0].y)
+                points.drop(1).forEach { lineTo(it.x, it.y) }
+                close()
             }
         }
-        drawLine(
-            color = riskColor.copy(alpha = 0.3f),
-            start = points.last(),
-            end = points.first(),
-            strokeWidth = 3.dp.toPx()
+
+        drawPath(
+            path = path,
+            color = riskColor.copy(alpha = 0.25f)
         )
 
-        // Puntos
+        drawPath(
+            path = path,
+            color = riskColor,
+            style = Stroke(width = 3.dp.toPx())
+        )
+
+        // 5. Puntos en los vértices
         points.forEach { point ->
             drawCircle(
                 color = riskColor,
                 radius = 6.dp.toPx(),
                 center = point
             )
+            drawCircle(
+                color = Color.White,
+                radius = 3.dp.toPx(),
+                center = point
+            )
         }
-    }
 
-    // Leyenda
-    Column(
-        modifier = Modifier.padding(top = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        dataPoints.chunked(4).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                row.forEach { (label, _) ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f)
+        // 6. DIBUJAR ETIQUETAS ALREDEDOR DEL RADAR (CORREGIDO)
+        dataPoints.forEachIndexed { index, (label, _) ->
+            val angle = Math.toRadians((angleStep * index - 90).toDouble())
+
+            val labelX = centerX + (labelRadius * cos(angle)).toFloat()
+            val labelY = centerY + (labelRadius * sin(angle)).toFloat()
+
+            // Ajustar alineación según posición
+            val adjustedTextPaint = android.graphics.Paint(textPaint).apply {
+                when {
+                    labelX < centerX - 30 -> textAlign = android.graphics.Paint.Align.RIGHT
+                    labelX > centerX + 30 -> textAlign = android.graphics.Paint.Align.LEFT
+                    else -> textAlign = android.graphics.Paint.Align.CENTER
+                }
+            }
+
+            // Dividir etiqueta en palabras
+            val words = label.split(" ")
+
+            // ✅ CORRECCIÓN: Usar drawIntoCanvas
+            drawIntoCanvas { canvas ->
+                if (words.size > 1) {
+                    // Etiqueta de dos líneas
+                    val line1 = words[0]
+                    val line2 = words.drop(1).joinToString(" ")
+
+                    canvas.nativeCanvas.drawText(
+                        line1,
+                        labelX,
+                        labelY - 8f,
+                        adjustedTextPaint
+                    )
+                    canvas.nativeCanvas.drawText(
+                        line2,
+                        labelX,
+                        labelY + 22f,
+                        adjustedTextPaint
+                    )
+                } else {
+                    // Etiqueta de una línea
+                    canvas.nativeCanvas.drawText(
+                        label,
+                        labelX,
+                        labelY + 8f,
+                        adjustedTextPaint
                     )
                 }
             }
         }
     }
 }
+
 
 /**
  * 4. Barras de progreso por área (solo completadas)
