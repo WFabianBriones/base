@@ -933,7 +933,7 @@ fun EmptyDashboardView() {
             )
 
             Text(
-                text = "Responde al menos una encuesta para ver tu análisis de salud laboral con gráficos personalizados.",
+                text = "Responde al menos una encuesta en la pestaña 'Explorar' para ver tu análisis de salud laboral",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
