@@ -216,7 +216,7 @@ fun ProfileContent(
 
         // Información de la app
         Text(
-            text = "ULEAM Salud v2.0",
+            text = "ULEAM Salud v3.0",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.CenterHorizontally)
