@@ -2,17 +2,26 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permisos necesarios -->
+    <!-- ============================================== -->
+    <!-- PERMISOS NECESARIOS -->
+    <!-- ============================================== -->
+
+    <!-- Permisos básicos -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Permiso para notificaciones en Android 13+ -->
+
+    <!-- ⚠️ CRÍTICO: Permiso para notificaciones en Android 13+ (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Permiso para recibir evento de arranque -->
+
+    <!-- ⚠️ CRÍTICO: Permiso para recibir evento de arranque del dispositivo -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Permiso para programar alarmas exactas (Android 12+) -->
+
+    <!-- ⚠️ IMPORTANTE: Permiso para programar alarmas exactas (Android 12+ / API 31+) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
-    <!-- Queries para Google Sign-In -->
+    <!-- ============================================== -->
+    <!-- QUERIES PARA GOOGLE SIGN-IN -->
+    <!-- ============================================== -->
     <queries>
         <package android:name="com.google.android.gms" />
         <intent>
@@ -20,6 +29,9 @@
         </intent>
     </queries>
 
+    <!-- ============================================== -->
+    <!-- CONFIGURACIÓN DE LA APLICACIÓN -->
+    <!-- ============================================== -->
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -32,7 +44,9 @@
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="31">
 
-        <!-- Actividad Principal -->
+        <!-- ============================================== -->
+        <!-- ACTIVIDAD PRINCIPAL -->
+        <!-- ============================================== -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -44,7 +58,12 @@
             </intent-filter>
         </activity>
 
-        <!-- ✅ NUEVO: Receiver para detectar cuando usuario descarta notificación -->
+        <!-- ============================================== -->
+        <!-- BROADCAST RECEIVERS -->
+        <!-- ============================================== -->
+
+        <!-- ⚠️ CRÍTICO: Receiver para manejar descarte de notificaciones -->
+        <!-- Sincroniza el badge cuando el usuario desliza una notificación -->
         <receiver
             android:name=".notifications.NotificationDismissReceiver"
             android:enabled="true"
@@ -54,7 +73,8 @@
             </intent-filter>
         </receiver>
 
-        <!-- Receiver para reiniciar notificaciones tras reinicio del dispositivo -->
+        <!-- ⚠️ CRÍTICO: Receiver para reiniciar notificaciones tras reinicio -->
+        <!-- Este componente reprograma todas las notificaciones cuando se reinicia el dispositivo -->
         <receiver
             android:name=".notifications.BootReceiver"
             android:enabled="true"
@@ -64,28 +84,13 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name=".notifications.NotificationDismissReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.example.uleammed.NOTIFICATION_DISMISSED" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".notifications.BootReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Google Services -->
+        <!-- ============================================== -->
+        <!-- GOOGLE SERVICES -->
+        <!-- ============================================== -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
+
     </application>
 
 </manifest>

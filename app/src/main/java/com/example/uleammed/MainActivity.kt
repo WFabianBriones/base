@@ -3,6 +3,7 @@ package com.example.uleammed
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -46,6 +47,11 @@ import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutAnal
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutViewModelFactory
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -82,22 +88,55 @@ class MainActivity : ComponentActivity() {
         syncNotificationsOnResume()
     }
 
+    /**
+     * ⚠️ CRÍTICO: Manejar deep links cuando la app ya está abierta
+     *
+     * Este método se llama cuando el usuario toca una notificación
+     * y la app ya está en memoria (no se vuelve a llamar onCreate)
+     */
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+
+        // Actualizar el intent de la actividad
+        setIntent(intent)
+
+        val openFromNotification = intent?.getBooleanExtra("open_from_notification", false) ?: false
+        val questionnaireType = intent?.getStringExtra("questionnaire_type")
+
+        if (openFromNotification && questionnaireType != null) {
+            android.util.Log.d(TAG, """
+                📱 Navegación desde notificación (app ya abierta)
+                - Tipo de cuestionario: $questionnaireType
+                - Intent actualizado correctamente
+            """.trimIndent())
+
+            // TODO: Si necesitas navegar programáticamente al cuestionario, hazlo aquí
+            // Ejemplo: navigationController.navigate("questionnaire/$questionnaireType")
+        }
+    }
+
     private fun syncNotificationsOnResume() {
         try {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                android.util.Log.d("MainActivity", "⚠️ API < 23, sincronización no disponible")
+                android.util.Log.d(TAG, "⚠️ API < 23, sincronización no disponible")
                 return
             }
 
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+
+            if (notificationManager == null) {
+                android.util.Log.e(TAG, "❌ NotificationManager no disponible")
+                return
+            }
+
             val activeNotifications = notificationManager.activeNotifications
             val activeIds = activeNotifications.map { it.id }.toSet()
 
-            android.util.Log.d("MainActivity", """
-            🔄 Sincronizando notificaciones
-            - Activas en sistema: ${activeIds.size}
-            - IDs: $activeIds
-        """.trimIndent())
+            android.util.Log.d(TAG, """
+                🔄 Sincronizando notificaciones
+                - Activas en sistema: ${activeIds.size}
+                - IDs: $activeIds
+            """.trimIndent())
 
             val appNotificationManager = QuestionnaireNotificationManager(this)
             val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
@@ -110,30 +149,30 @@ class MainActivity : ComponentActivity() {
                     val notificationId = 1000 + notification.questionnaireType.ordinal
 
                     if (!activeIds.contains(notificationId)) {
-                        android.util.Log.d("MainActivity", """
-                        ⚠️ Notificación push descartada, marcando in-app como leída
-                        - Tipo: ${notification.questionnaireType}
-                        - ID: $notificationId
-                    """.trimIndent())
+                        android.util.Log.d(TAG, """
+                            ⚠️ Notificación push descartada, marcando in-app como leída
+                            - Tipo: ${notification.questionnaireType}
+                            - ID: $notificationId
+                        """.trimIndent())
 
                         appNotificationManager.markAsRead(notification.id)
                     } else {
-                        android.util.Log.d("MainActivity", """
-                        ✅ Notificación push activa, manteniendo in-app sin leer
-                        - Tipo: ${notification.questionnaireType}
-                        - ID: $notificationId
-                    """.trimIndent())
+                        android.util.Log.d(TAG, """
+                            ✅ Notificación push activa, manteniendo in-app sin leer
+                            - Tipo: ${notification.questionnaireType}
+                            - ID: $notificationId
+                        """.trimIndent())
                     }
                 }
 
-                android.util.Log.d("MainActivity", "✅ Sincronización completada")
+                android.util.Log.d(TAG, "✅ Sincronización completada")
             } else {
-                android.util.Log.w("MainActivity", "⚠️ Usuario no autenticado, no se puede sincronizar")
+                android.util.Log.w(TAG, "⚠️ Usuario no autenticado, no se puede sincronizar")
             }
         } catch (e: SecurityException) {
-            android.util.Log.e("MainActivity", "❌ Permiso denegado para acceder a notificaciones", e)
+            android.util.Log.e(TAG, "❌ Permiso denegado para acceder a notificaciones", e)
         } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "❌ Error sincronizando notificaciones", e)
+            android.util.Log.e(TAG, "❌ Error sincronizando notificaciones", e)
         }
     }
 }
