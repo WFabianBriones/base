@@ -364,7 +364,7 @@ fun UleamApp(
         composable(Screen.BurnoutAnalysis.route) {
             BurnoutAnalysisScreen(
                 viewModel = burnoutViewModel,
-                onNavigateBack = {
+                onBack = {
                     navController.popBackStack()
                 }
             )

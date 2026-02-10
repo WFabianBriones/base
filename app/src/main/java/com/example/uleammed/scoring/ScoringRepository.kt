@@ -260,6 +260,39 @@ class ScoringRepository(private val context: Context) {
         }
     }
 
+    // En ScoringRepository.kt
+
+    fun calculateEnhancedScore(
+        userId: String,
+        allQuestionnaires: Map<String, Any?>,
+        previousScore: EnhancedHealthScore? = null
+    ): EnhancedHealthScore {
+
+        // 1. Usar ponderación multiplicativa para síntomas
+        val (muscularScore, muscularRisk) =
+            EnhancedScoreCalculator.calculateSintomasMuscularesScoreEnhanced(
+                muscularesQuestionnaire
+            )
+
+        // 2. Calcular completitud
+        val completeness = EnhancedScoreCalculator.calculateCompleteness(lastUpdated)
+
+        // 3. Generar score base
+        val baseScore = EnhancedHealthScore(
+            userId = userId,
+            // ... todos los scores
+            completeness = completeness
+        )
+
+        // 4. Analizar tendencias
+        val trendAnalysis = EnhancedScoreCalculator.analyzeTrends(
+            currentScore = baseScore,
+            previousScore = previousScore
+        )
+
+        return baseScore.copy(trendAnalysis = trendAnalysis)
+    }
+
     private fun identifyTopConcerns(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
         val concerns = mutableListOf<Pair<String, Int>>()
 

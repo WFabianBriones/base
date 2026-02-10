@@ -19,3 +19,9 @@ enum class NivelRiesgoBurnout {
             ALTO -> 0xFFF44336
         }
 }
+
+// ✅ AGREGAR ESTA LÍNEA
+/**
+ * Alias para compatibilidad con código mejorado
+ */
+typealias BurnoutRiskLevel = NivelRiesgoBurnout

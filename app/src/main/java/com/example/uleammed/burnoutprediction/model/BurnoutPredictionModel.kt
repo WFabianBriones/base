@@ -5,7 +5,9 @@ import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
+import com.example.uleammed.scoring.HealthScore
+import com.example.uleammed.scoring.CriticalPattern
+import com.example.uleammed.scoring.CriticalLevel
 class BurnoutPredictionModel(private val context: Context) {
 
     companion object {
@@ -91,7 +93,62 @@ class BurnoutPredictionModel(private val context: Context) {
                 probabilidadAlto = outputArray[0][2]
             )
         }
+// ✅ AGREGAR ESTOS MÉTODOS DENTRO DE LA CLASE
 
+    fun healthScoreToIndices(healthScore: HealthScore): FloatArray {
+        return floatArrayOf(
+            (healthScore.estresSaludMentalScore / 100f * 10f),
+            ((100 - healthScore.ergonomiaScore) / 100f * 10f),
+            (healthScore.cargaTrabajoScore / 100f * 10f),
+            (healthScore.habitosSuenoScore / 100f * 10f),
+            (healthScore.actividadFisicaScore / 100f * 10f),
+            (healthScore.sintomasMuscularesScore / 100f * 10f),
+            (healthScore.sintomasVisualesScore / 100f * 10f),
+            (healthScore.saludGeneralScore / 100f * 10f)
+        )
+    }
+
+    suspend fun predictFromHealthScore(healthScore: HealthScore): EnhancedBurnoutPrediction =
+        withContext(Dispatchers.Default) {
+            val interpreter = this@BurnoutPredictionModel.interpreter
+                ?: throw IllegalStateException("Modelo no inicializado")
+
+            val features = healthScoreToIndices(healthScore)
+            val normalizedFeatures = normalizeFeatures(features)
+
+            val inputArray = Array(1) { normalizedFeatures }
+            val outputArray = Array(1) { FloatArray(3) }
+
+            interpreter.run(inputArray, outputArray)
+            val probabilities = outputArray[0]
+
+            val criticalPatterns = healthScore.criticalPatterns
+            val hasUrgentPatterns = criticalPatterns.any {
+                it.severity == CriticalLevel.INTERVENCION_URGENTE
+            }
+
+            val adjustedPrediction = if (hasUrgentPatterns) {
+                NivelRiesgoBurnout.ALTO
+            } else when {
+                probabilities[2] > 0.5f -> NivelRiesgoBurnout.ALTO
+                probabilities[1] > 0.4f -> NivelRiesgoBurnout.MEDIO
+                else -> NivelRiesgoBurnout.BAJO
+            }
+
+            EnhancedBurnoutPrediction(
+                probabilidadBajo = probabilities[0],
+                probabilidadMedio = probabilities[1],
+                probabilidadAlto = probabilities[2],
+                nivelRiesgo = adjustedPrediction,
+                confianza = probabilities.maxOrNull() ?: 0.5f,
+                factoresRiesgo = emptyList(),
+                recomendaciones = listOf("Basado en análisis de IA"),
+                criticalPatterns = criticalPatterns,
+                hasCriticalPatterns = criticalPatterns.isNotEmpty(),
+                requiresUrgentAttention = hasUrgentPatterns,
+                scoringVersion = healthScore.version
+            )
+        }
     fun close() {
         interpreter?.close()
         interpreter = null

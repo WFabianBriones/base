@@ -993,6 +993,30 @@ fun SurveyProgressCard(completedCount: Int, totalCount: Int) {
         }
     }
 }
+// En DashboardScreen.kt o ResultsScreen.kt
+
+@Composable
+fun EnhancedDashboard(enhancedScore: EnhancedHealthScore) {
+    LazyColumn {
+        // Completitud
+        item {
+            CompletenessCard(enhancedScore.completeness)
+        }
+
+        // Tendencias (si hay datos previos)
+        enhancedScore.trendAnalysis?.let { trends ->
+            item {
+                TrendOverviewCard(trends)
+            }
+
+            item {
+                AreaTrendsListCard(trends.areaTrends)
+            }
+        }
+
+        // ... resto de cards
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
