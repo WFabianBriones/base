@@ -118,11 +118,54 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val config = getScheduleConfig(userId)
             val updatedConfig = config.copy(periodDays = days)
             saveScheduleConfig(updatedConfig)
+
+            // ✅ NUEVO: Reprogramar todas las notificaciones push
+            config.lastCompletedDates.forEach { (typeName, completedAt) ->
+                val type = QuestionnaireType.valueOf(typeName)
+                val newDueDate = calculateNextDueDate(
+                    completedAt,
+                    days,  // Nuevo período
+                    config.preferredHour,
+                    config.preferredMinute
+                )
+
+                // Cancelar notificación antigua
+                LocalNotificationScheduler.cancelNotification(type)
+
+                // Programar con nueva fecha
+                if (newDueDate > System.currentTimeMillis()) {
+                    // Recordatorio 1 día antes
+                    if (days > 1) {
+                        val reminderDate = newDueDate - TimeUnit.DAYS.toMillis(1)
+                        LocalNotificationScheduler.scheduleNotification(
+                            questionnaireType = type,
+                            dueDate = reminderDate,
+                            title = "📅 Recordatorio: ...",
+                            message = "Mañana es el día...",
+                            isReminder = true,
+                            createInAppNotification = config.showRemindersInApp
+                        )
+                    }
+
+                    // Notificación principal
+                    LocalNotificationScheduler.scheduleNotification(
+                        questionnaireType = type,
+                        dueDate = newDueDate,
+                        title = "⏰ Cuestionario pendiente: ...",
+                        message = "Es momento de completar...",
+                        isReminder = false,
+                        createInAppNotification = true
+                    )
+                }
+            }
+
             logDebug("updatePeriodDays", mapOf(
                 "userId" to userId,
                 "oldPeriod" to config.periodDays,
-                "newPeriod" to days
+                "newPeriod" to days,
+                "reprogrammedCount" to config.lastCompletedDates.size
             ))
+
             checkAndGenerateNotifications(userId)
         }
     }
@@ -170,16 +213,26 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val updatedConfig = config.copy(lastCompletedDates = updatedDates)
             saveScheduleConfig(updatedConfig)
 
-            // ✅ CRÍTICO: Marcar como completada en lugar de eliminar
+            // ✅ CORREGIDO: ELIMINAR notificación en lugar de marcarla como completada
             val notifications = getNotifications().toMutableList()
-            var markedCount = 0
-            notifications.forEachIndexed { index, notification ->
-                if (notification.questionnaireType == questionnaireType && !notification.isCompleted) {
-                    notifications[index] = notification.copy(isCompleted = true)
-                    markedCount++
-                }
+            val notificationToRemove = notifications.find {
+                it.questionnaireType == questionnaireType && !it.isCompleted
             }
-            saveNotifications(notifications)
+
+            if (notificationToRemove != null) {
+                notifications.remove(notificationToRemove)
+                saveNotifications(notifications)
+
+                Log.d(TAG, """
+        🗑️ Notificación eliminada
+        - Tipo: ${questionnaireType.name}
+        - ID: ${notificationToRemove.id}
+        - Total restantes: ${notifications.size}
+        - Pendientes: ${notifications.count { !it.isCompleted }}
+    """.trimIndent())
+            } else {
+                Log.w(TAG, "⚠️ No se encontró notificación pendiente para eliminar: ${questionnaireType.name}")
+            }
 
             val nextDueDate = calculateNextDueDate(now, config.periodDays, config.preferredHour, config.preferredMinute)
 
@@ -188,7 +241,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 "completedAt" to formatDate(now),
                 "nextDueDate" to formatDate(nextDueDate),
                 "daysUntilNext" to TimeUnit.MILLISECONDS.toDays(nextDueDate - now),
-                "markedCompletedCount" to markedCount
+                //"markedCompletedCount" to markedCount
             ))
 
             if (config.periodDays > 1) {
@@ -240,7 +293,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 "completedCount" to config.lastCompletedDates.size
             ))
 
-            val hasCompletedAny = config.lastCompletedDates.isNotEmpty()
+            //val hasCompletedAny = config.lastCompletedDates.isNotEmpty()
 
             QuestionnaireType.values().forEach { type ->
                 if (!config.enabledQuestionnaires.contains(type.name)) {
@@ -272,7 +325,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                     )
                     now >= nextDueDate
                 } else {
-                    hasCompletedAny
+                    true //hasCompletedAny
                 }
 
                 if (shouldShow) {
@@ -329,7 +382,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 "totalNotifications" to currentNotifications.size,
                 "unreadCount" to currentNotifications.count { !it.isRead },
                 "pendingCount" to currentNotifications.count { !it.isCompleted },
-                "hasCompletedAny" to hasCompletedAny
+                //"hasCompletedAny" to hasCompletedAny
             ))
         }
     }

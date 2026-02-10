@@ -13,25 +13,25 @@ class BurnoutPredictionModel(private val context: Context) {
 
         // ⭐ ACTUALIZA ESTOS VALORES con los del Paso 2, Celda 7
         private val FEATURE_MEAN = floatArrayOf(
-            5.4182f,  // estres_index
-            4.7961f,  // ergonomia_index
-            5.9865f,  // carga_trabajo_index
-            4.7451f,  // calidad_sueno_index
-            5.3339f,  // actividad_fisica_index
-            4.4191f,  // sintomas_musculares_index
-            4.6689f,  // sintomas_visuales_index
-            4.6148f  // salud_general_index
+            5.707162f,  // estres_index
+            4.740204f,  // ergonomia_index
+            5.836906f,  // carga_trabajo_index
+            5.190881f,  // calidad_sueno_index
+            5.356390f,  // actividad_fisica_index
+            4.853331f,  // sintomas_musculares_index
+            4.398310f,  // sintomas_visuales_index
+            4.865175f   // salud_general_index
         )
 
         private val FEATURE_STD = floatArrayOf(
-            2.5601f,  // estres_index
-            2.3916f,  // ergonomia_index
-            2.2699f,  // carga_trabajo_index
-            2.6616f,  // calidad_sueno_index
-            2.4370f,  // actividad_fisica_index
-            2.4718f,  // sintomas_musculares_index
-            2.1967f,  // sintomas_visuales_index
-            2.2680f  // salud_general_index
+            2.719379f,  // estres_index
+            2.408723f,  // ergonomia_index
+            2.206976f,  // carga_trabajo_index
+            2.714523f,  // calidad_sueno_index
+            2.276300f,  // actividad_fisica_index
+            2.564424f,  // sintomas_musculares_index
+            2.551944f,  // sintomas_visuales_index
+            2.204002f   // salud_general_index
         )
     }
 

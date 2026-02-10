@@ -241,11 +241,14 @@ class ScoringRepository(private val context: Context) {
             saveToFirestore(healthScore)
             saveToLocal(healthScore)
 
+            // Contar solo los 8 cuestionarios específicos (sin salud_general)
+            val specificQuestionnairesCompleted = scores.keys.filter { it != "salud_general" }.size
+
             android.util.Log.d(TAG, """
                 ✅ Scores calculados exitosamente
                 - Score global: $overallScore
                 - Riesgo: ${overallRisk.displayName}
-                - Cuestionarios completados: ${scores.size}/9
+                - Cuestionarios específicos completados: $specificQuestionnairesCompleted/8
                 - Áreas críticas: ${topConcerns.size}
             """.trimIndent())
 
@@ -284,83 +287,90 @@ class ScoringRepository(private val context: Context) {
     }
 
     private fun generateRecommendations(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
-        val recommendations = mutableListOf<String>()
+        val recommendations = mutableListOf<Pair<Int, String>>() // (score, recomendación)
 
         scores.forEach { (key, pair) ->
+            val score = pair.first
             val risk = pair.second
 
             when (key) {
                 "salud_general" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("🏥 Consulta médica general recomendada para evaluación integral")
+                    when {
+                        score >= 60 -> recommendations.add(Pair(score, "Consulta médica general para evaluación integral de tu salud"))
+                        score >= 40 -> recommendations.add(Pair(score, "Revisa tus hábitos de salud con un profesional médico"))
                     }
                 }
                 "ergonomia" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("⚠️ Mejora urgente de tu estación de trabajo ergonómica")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Ajusta tu silla y monitor para mejor postura")
+                    when {
+                        score >= 70 -> recommendations.add(Pair(score, "Ajusta altura de silla, monitor a nivel de ojos, pies apoyados en el suelo"))
+                        score >= 50 -> recommendations.add(Pair(score, "Verifica que tu monitor esté a la distancia de un brazo y a la altura de tus ojos"))
+                        score >= 30 -> recommendations.add(Pair(score, "Ajusta tu silla para mantener espalda recta y pies apoyados"))
                     }
                 }
                 "sintomas_musculares" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("🚨 Consulta médica recomendada por dolor músculo-esquelético")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Realiza estiramientos cada 30 minutos")
+                    when {
+                        score >= 70 -> recommendations.add(Pair(score, "Consulta médica por dolor músculo-esquelético persistente"))
+                        score >= 50 -> recommendations.add(Pair(score, "Realiza pausas cada 30 minutos con estiramientos de cuello, hombros y espalda"))
+                        score >= 30 -> recommendations.add(Pair(score, "Incorpora estiramientos diarios de 5 minutos para prevenir molestias"))
                     }
                 }
                 "sintomas_visuales" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("👁️ Examen visual urgente recomendado")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Aplica la regla 20-20-20 para tus ojos")
+                    when {
+                        score >= 70 -> recommendations.add(Pair(score, "Agenda examen visual profesional esta semana"))
+                        score >= 50 -> recommendations.add(Pair(score, "Aplica regla 20-20-20: cada 20 minutos, mira 20 segundos a 20 pies de distancia"))
+                        score >= 30 -> recommendations.add(Pair(score, "Reduce brillo de pantalla y usa gotas lubricantes si sientes ojos secos"))
                     }
                 }
                 "carga_trabajo" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("⚡ Tu carga laboral es excesiva - habla con tu supervisor")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Establece límites claros en tu horario laboral")
+                    when {
+                        score >= 70 -> recommendations.add(Pair(score, "Habla con tu supervisor sobre redistribución de carga laboral"))
+                        score >= 50 -> recommendations.add(Pair(score, "Establece límites claros: finaliza trabajo a hora definida y evita emails nocturnos"))
+                        score >= 30 -> recommendations.add(Pair(score, "Prioriza tareas usando matriz de urgencia-importancia para mejor organización"))
                     }
                 }
                 "estres" -> {
-                    if (risk.value >= RiskLevel.MUY_ALTO.value) {
-                        recommendations.add("🆘 Riesgo de burnout - busca apoyo profesional inmediatamente")
-                    } else if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("❗ Considera consultar un profesional de salud mental")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Practica técnicas de manejo del estrés diariamente")
+                    when {
+                        score >= 75 -> recommendations.add(Pair(score, "Busca apoyo profesional de salud mental esta semana"))
+                        score >= 60 -> recommendations.add(Pair(score, "Considera consultar psicólogo especializado en estrés laboral"))
+                        score >= 45 -> recommendations.add(Pair(score, "Practica técnicas de respiración profunda 10 minutos diarios"))
+                        score >= 30 -> recommendations.add(Pair(score, "Dedica 15 minutos diarios a actividad que disfrutes para desconectar del trabajo"))
                     }
                 }
                 "sueno" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("💤 Mejora urgente de tu higiene del sueño necesaria")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Apaga dispositivos 2 horas antes de dormir")
+                    when {
+                        score >= 70 -> recommendations.add(Pair(score, "Establece rutina de sueño: acuéstate y levántate a la misma hora todos los días"))
+                        score >= 50 -> recommendations.add(Pair(score, "Apaga pantallas 1 hora antes de dormir y mantén habitación fresca y oscura"))
+                        score >= 30 -> recommendations.add(Pair(score, "Evita cafeína después de las 3 PM para mejorar calidad de sueño"))
                     }
                 }
                 "actividad_fisica" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("🏃 Incrementa tu actividad física gradualmente")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Objetivo: 150 minutos de ejercicio semanal")
+                    when {
+                        score >= 70 -> recommendations.add(Pair(score, "Comienza con caminatas de 15 minutos tres veces por semana"))
+                        score >= 50 -> recommendations.add(Pair(score, "Incrementa actividad física gradualmente a 150 minutos semanales"))
+                        score >= 30 -> recommendations.add(Pair(score, "Agrega una sesión adicional de ejercicio semanal de 30 minutos"))
                     }
                 }
                 "balance" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("⚖️ Tu balance vida-trabajo está comprometido - toma acción")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Dedica tiempo de calidad a tu vida personal")
+                    when {
+                        score >= 70 -> recommendations.add(Pair(score, "Define horario laboral estricto y desconéctate completamente al terminar"))
+                        score >= 50 -> recommendations.add(Pair(score, "Dedica al menos 2 horas diarias a actividades personales que disfrutas"))
+                        score >= 30 -> recommendations.add(Pair(score, "Programa tiempo semanal con familia y amigos sin revisar correos laborales"))
                     }
                 }
             }
         }
 
-        if (recommendations.isEmpty()) {
-            recommendations.add("✅ ¡Excelente! Mantén tus hábitos saludables")
-        }
+        // Ordenar por score (mayor a menor) para priorizar áreas más críticas
+        val sortedRecommendations = recommendations
+            .sortedByDescending { it.first }
+            .map { it.second }
 
-        return recommendations.take(5)
+        // Retornar solo las 5 recomendaciones más importantes
+        return if (sortedRecommendations.isEmpty()) {
+            listOf("Mantén tus hábitos saludables actuales y continúa monitoreando tu bienestar laboral")
+        } else {
+            sortedRecommendations.take(5)
+        }
     }
 
     private suspend fun saveToFirestore(healthScore: HealthScore) {
@@ -408,6 +418,14 @@ class ScoringRepository(private val context: Context) {
             if (doc.exists()) {
                 val score = doc.toObject(HealthScore::class.java)
                 if (score != null) {
+                    // Verificar si hay cuestionarios nuevos en Firebase que no están en el score
+                    val hasNewQuestionnaires = checkForNewQuestionnaires(userId, score)
+
+                    if (hasNewQuestionnaires) {
+                        android.util.Log.d(TAG, "🔄 Detectados cuestionarios nuevos, recalculando...")
+                        return@withContext calculateAllScores()
+                    }
+
                     saveToLocal(score)
                     return@withContext Result.success(score)
                 }
@@ -416,6 +434,14 @@ class ScoringRepository(private val context: Context) {
             val localJson = prefs.getString(KEY_LOCAL_SCORE, null)
             if (localJson != null) {
                 val score = gson.fromJson(localJson, HealthScore::class.java)
+
+                // También verificar aquí si hay cuestionarios nuevos
+                val hasNewQuestionnaires = checkForNewQuestionnaires(userId, score)
+                if (hasNewQuestionnaires) {
+                    android.util.Log.d(TAG, "🔄 Detectados cuestionarios nuevos en caché, recalculando...")
+                    return@withContext calculateAllScores()
+                }
+
                 return@withContext Result.success(score)
             }
 
@@ -424,6 +450,50 @@ class ScoringRepository(private val context: Context) {
         } catch (e: Exception) {
             android.util.Log.e(TAG, "❌ Error obteniendo score", e)
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Verifica si hay cuestionarios nuevos en Firebase que no están reflejados en el score actual
+     */
+    private suspend fun checkForNewQuestionnaires(userId: String, currentScore: HealthScore): Boolean {
+        return try {
+            val questionnairesRef = firestore.collection("users")
+                .document(userId)
+                .collection("questionnaires")
+                .get()
+                .await()
+
+            // Contar cuestionarios completados en Firebase (excluyendo salud_general)
+            val firebaseCompletedCount = questionnairesRef.documents
+                .filter { doc ->
+                    doc.id != "salud_general" && (doc.getLong("completedAt") ?: 0L) > 0
+                }
+                .size
+
+            // Contar cuestionarios con score > 0 en el HealthScore actual (excluyendo salud_general)
+            val scoreCompletedCount = listOf(
+                currentScore.ergonomiaScore,
+                currentScore.sintomasMuscularesScore,
+                currentScore.sintomasVisualesScore,
+                currentScore.cargaTrabajoScore,
+                currentScore.estresSaludMentalScore,
+                currentScore.habitosSuenoScore,
+                currentScore.actividadFisicaScore,
+                currentScore.balanceVidaTrabajoScore
+            ).count { it > 0 }
+
+            val hasNew = firebaseCompletedCount > scoreCompletedCount
+
+            if (hasNew) {
+                android.util.Log.d(TAG,
+                    "📊 Firebase: $firebaseCompletedCount/8 completados | Score actual: $scoreCompletedCount/8")
+            }
+
+            hasNew
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "❌ Error verificando cuestionarios nuevos", e)
+            false
         }
     }
 

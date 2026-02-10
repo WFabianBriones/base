@@ -586,6 +586,7 @@ object ScoreCalculator {
 
     /**
      * SCORE GLOBAL PONDERADO - 9 ÁREAS
+     * CORREGIDO: El riesgo global se basa SOLO en el score promedio ponderado
      */
     fun calculateOverallScore(scores: Map<String, Pair<Int, RiskLevel>>): Pair<Int, RiskLevel> {
         val weights = mapOf(
@@ -602,16 +603,11 @@ object ScoreCalculator {
 
         var weightedSum = 0.0
         var totalWeight = 0.0
-        var highestRisk = RiskLevel.BAJO
 
         scores.forEach { (key, pair) ->
             val weight = weights[key] ?: 0.0
             weightedSum += pair.first * weight
             totalWeight += weight
-
-            if (pair.second.value > highestRisk.value) {
-                highestRisk = pair.second
-            }
         }
 
         val overallScore = if (totalWeight > 0) {
@@ -620,14 +616,22 @@ object ScoreCalculator {
             0
         }
 
-        val calculatedRisk = when {
+        // CORREGIDO: El riesgo se calcula ÚNICAMENTE basándose en el score global promedio
+        // No se permite que una sola área crítica anule el promedio ponderado
+        val finalRisk = when {
             overallScore < 25 -> RiskLevel.BAJO
-            overallScore < 45 -> RiskLevel.MODERADO
-            overallScore < 65 -> RiskLevel.ALTO
+            overallScore < 50 -> RiskLevel.MODERADO      // Ajustado: 45 -> 50 para mejor distribución
+            overallScore < 70 -> RiskLevel.ALTO
             else -> RiskLevel.MUY_ALTO
         }
 
-        val finalRisk = if (highestRisk.value > calculatedRisk.value) highestRisk else calculatedRisk
+        android.util.Log.d("ScoreCalculator", """
+            📊 Cálculo de Score Global:
+            - Score promedio ponderado: $overallScore
+            - Clasificación de riesgo: ${finalRisk.displayName}
+            - Áreas evaluadas: ${scores.size}
+            - Pesos aplicados: ${weights.filter { it.key in scores.keys }}
+        """.trimIndent())
 
         return Pair(overallScore, finalRisk)
     }

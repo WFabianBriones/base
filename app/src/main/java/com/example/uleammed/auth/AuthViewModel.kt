@@ -180,8 +180,8 @@ class AuthViewModel : ViewModel() {
             email.isBlank() -> ValidationResult(false, "Por favor ingresa tu correo")
             !Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
                 ValidationResult(false, "Correo electrónico inválido")
-            !email.endsWith("@live.uleam.edu.ec") && !email.endsWith("@gmail.com") ->
-                ValidationResult(false, "Usa un correo @live.uleam.edu.ec o @gmail.com")
+            !email.endsWith("@uleam.edu.ec") && !email.endsWith("@gmail.com") ->
+                ValidationResult(false, "Usa un correo @uleam.edu.ec o @gmail.com")
             password.isBlank() -> ValidationResult(false, "Por favor ingresa tu contraseña")
             password.length < 6 -> ValidationResult(
                 false,
