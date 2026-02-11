@@ -31,9 +31,15 @@ import androidx.compose.ui.graphics.nativeCanvas
 import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.material.icons.filled.Psychology
+import com.example.uleammed.scoring.*
+// ✅ IMPORTS AGREGADOS para TrendAnalysisUI
+import com.example.uleammed.scoring.CompletenessCard
+import com.example.uleammed.scoring.TrendOverviewCard
+import com.example.uleammed.scoring.AreaTrendsListCard
 
 /**
  * Dashboard principal con todos los gráficos de salud
+ * ✅ ACTUALIZADO: Incluye análisis de tendencias y completitud
  */
 @Composable
 fun HealthDashboard(
@@ -92,6 +98,7 @@ fun HealthDashboard(
 
 /**
  * Contenido principal del dashboard
+ * ✅ ACTUALIZADO: Incluye tarjetas de tendencias
  */
 @Composable
 fun DashboardContent(
@@ -110,6 +117,18 @@ fun DashboardContent(
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ✅ NUEVO: Tarjeta de completitud (siempre visible)
+        item {
+            CompletenessCard(completeness = healthScore.completeness)
+        }
+
+        // ✅ NUEVO: Tendencias generales (si hay datos previos)
+        healthScore.trendAnalysis?.let { trends ->
+            item {
+                TrendOverviewCard(trendAnalysis = trends)
+            }
+        }
+
         // 1. Score global circular (solo si hay al menos 3 encuestas)
         if (completedSurveys.size >= 3) {
             item {
@@ -117,6 +136,7 @@ fun DashboardContent(
             }
         }
 
+        // 2. Análisis de IA Burnout
         if (completedSurveys.size >= 3) {
             item {
                 BurnoutAIAnalysisCard(
@@ -126,7 +146,14 @@ fun DashboardContent(
             }
         }
 
-        // 2. Resumen de estado (solo si hay encuestas completadas)
+        // ✅ NUEVO: Tendencias detalladas por área (si hay datos previos)
+       healthScore.trendAnalysis?.let { trends ->
+           item {
+               AreaTrendsListCard(areaTrends = trends.areaTrends)
+            }
+        }
+
+        // 3. Resumen de estado (solo si hay encuestas completadas)
         if (completedSurveys.isNotEmpty()) {
             item {
                 StatusSummaryCard(
@@ -136,14 +163,14 @@ fun DashboardContent(
             }
         }
 
-        // 3. Gráfico de radar (solo si hay al menos 4 encuestas)
+        // 4. Gráfico de radar (solo si hay al menos 4 encuestas)
         if (completedSurveys.size >= 4) {
             item {
                 RadarChartCard(healthScore = healthScore)
             }
         }
 
-        // 4. Barra de progreso por área (solo áreas completadas)
+        // 5. Barra de progreso por área (solo áreas completadas)
         item {
             ProgressBarsCard(
                 healthScore = healthScore,
@@ -151,21 +178,21 @@ fun DashboardContent(
             )
         }
 
-        // 5. Áreas críticas (si hay)
+        // 6. Áreas críticas (si hay)
         if (healthScore.topConcerns.isNotEmpty()) {
             item {
                 TopConcernsCard(concerns = healthScore.topConcerns)
             }
         }
 
-        // 6. Recomendaciones (si hay)
+        // 7. Recomendaciones (si hay)
         if (healthScore.recommendations.isNotEmpty()) {
             item {
                 RecommendationsCard(recommendations = healthScore.recommendations)
             }
         }
 
-        // 7. Progreso de encuestas
+        // 8. Progreso de encuestas
         item {
             SurveyProgressCard(
                 completedCount = completedSurveys.size,
@@ -173,7 +200,7 @@ fun DashboardContent(
             )
         }
 
-        // 8. Botón de recalcular
+        // 9. Botón de recalcular
         item {
             Button(
                 onClick = onRecalculate,
@@ -312,7 +339,7 @@ fun CircularScoreIndicator(
 }
 
 /**
- * 2. Resumen de estado con iconos - CORREGIDO
+ * 2. Resumen de estado con iconos
  */
 @Composable
 fun StatusSummaryCard(
@@ -823,7 +850,7 @@ fun ErrorView(
     }
 }
 
-// Función helper - CORREGIDA: solo cuenta áreas con score > 0
+// Función helper
 private fun countByRisk(healthScore: HealthScore, targetRisk: RiskLevel): Int {
     val risks = listOf(
         healthScore.ergonomiaScore to healthScore.ergonomiaRisk,
@@ -836,7 +863,6 @@ private fun countByRisk(healthScore: HealthScore, targetRisk: RiskLevel): Int {
         healthScore.balanceVidaTrabajoScore to healthScore.balanceVidaTrabajoRisk
     )
 
-    // Solo contar áreas que tienen datos (score > 0) y coinciden con el riesgo objetivo
     return risks.count { (score, risk) -> score > 0 && risk == targetRisk }
 }
 
@@ -993,30 +1019,7 @@ fun SurveyProgressCard(completedCount: Int, totalCount: Int) {
         }
     }
 }
-// En DashboardScreen.kt o ResultsScreen.kt
 
-@Composable
-fun EnhancedDashboard(enhancedScore: EnhancedHealthScore) {
-    LazyColumn {
-        // Completitud
-        item {
-            CompletenessCard(enhancedScore.completeness)
-        }
-
-        // Tendencias (si hay datos previos)
-        enhancedScore.trendAnalysis?.let { trends ->
-            item {
-                TrendOverviewCard(trends)
-            }
-
-            item {
-                AreaTrendsListCard(trends.areaTrends)
-            }
-        }
-
-        // ... resto de cards
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1026,24 +1029,9 @@ fun BurnoutAIAnalysisCard(
 ) {
     Card(
         onClick = {
-            // ORDEN CRÍTICO: Debe coincidir EXACTAMENTE con el orden de entrenamiento de la red neuronal
-            // 1. estres_index
-            // 2. ergonomia_index
-            // 3. carga_trabajo_index
-            // 4. calidad_sueno_index
-            // 5. actividad_fisica_index
-            // 6. sintomas_musculares_index
-            // 7. sintomas_visuales_index
-            // 8. salud_general_index
-
-            // IMPORTANTE: Ergonomía es la ÚNICA área donde score ALTO = BUENO
-            // Para la red neuronal, TODOS los índices deben seguir: ALTO = MAYOR RIESGO
-            // Por lo tanto, ergonomía debe invertirse: (100 - score)
-
-            // Usar LinkedHashMap para GARANTIZAR el orden de inserción
             val indices = linkedMapOf(
                 "estres_index" to (healthScore.estresSaludMentalScore / 100f * 10f),
-                "ergonomia_index" to ((100 - healthScore.ergonomiaScore) / 100f * 10f),  // ⚠️ INVERTIDO
+                "ergonomia_index" to ((100 - healthScore.ergonomiaScore) / 100f * 10f),
                 "carga_trabajo_index" to (healthScore.cargaTrabajoScore / 100f * 10f),
                 "calidad_sueno_index" to (healthScore.habitosSuenoScore / 100f * 10f),
                 "actividad_fisica_index" to (healthScore.actividadFisicaScore / 100f * 10f),
@@ -1051,18 +1039,6 @@ fun BurnoutAIAnalysisCard(
                 "sintomas_visuales_index" to (healthScore.sintomasVisualesScore / 100f * 10f),
                 "salud_general_index" to (healthScore.saludGeneralScore / 100f * 10f)
             )
-
-            android.util.Log.d("BurnoutAnalysis", """
-                📊 Datos preparados para red neuronal (escala 0-10, mayor=peor):
-                  1. Estrés: ${indices["estres_index"]} (score original: ${healthScore.estresSaludMentalScore})
-                  2. Ergonomía: ${indices["ergonomia_index"]} (score original: ${healthScore.ergonomiaScore} → INVERTIDO)
-                  3. Carga Trabajo: ${indices["carga_trabajo_index"]} (score original: ${healthScore.cargaTrabajoScore})
-                  4. Calidad Sueño: ${indices["calidad_sueno_index"]} (score original: ${healthScore.habitosSuenoScore})
-                  5. Actividad Física: ${indices["actividad_fisica_index"]} (score original: ${healthScore.actividadFisicaScore})
-                  6. Síntomas Musculares: ${indices["sintomas_musculares_index"]} (score original: ${healthScore.sintomasMuscularesScore})
-                  7. Síntomas Visuales: ${indices["sintomas_visuales_index"]} (score original: ${healthScore.sintomasVisualesScore})
-                  8. Salud General: ${indices["salud_general_index"]} (score original: ${healthScore.saludGeneralScore})
-            """.trimIndent())
 
             onAnalyze(indices)
         },

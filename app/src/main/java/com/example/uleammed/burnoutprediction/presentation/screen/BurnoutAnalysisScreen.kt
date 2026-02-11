@@ -16,6 +16,10 @@ import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutAnal
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutUiState
 import com.example.uleammed.burnoutprediction.model.*
 import com.example.uleammed.scoring.CriticalLevel
+// ✅ IMPORTS AGREGADOS
+import com.example.uleammed.burnoutprediction.model.BurnoutRiskFactor
+import com.example.uleammed.burnoutprediction.model.BurnoutRiskSeverity
+
 
 /**
  * ✅ PANTALLA PRINCIPAL DE ANÁLISIS DE BURNOUT
@@ -331,7 +335,7 @@ private fun UrgentAttentionCard(patterns: List<com.example.uleammed.scoring.Crit
 
 @Composable
 private fun RiskLevelCard(
-    nivelRiesgo: BurnoutRiskLevel,
+    nivelRiesgo: NivelRiesgoBurnout,
     confianza: Float,
     hasCriticalPatterns: Boolean
 ) {
@@ -402,9 +406,9 @@ private fun ProbabilitiesCard(
                     fontWeight = FontWeight.Bold
                 )
             }
-            ProbabilityBar("Riesgo Bajo", probabilidadBajo, BurnoutRiskLevel.BAJO.color)
-            ProbabilityBar("Riesgo Medio", probabilidadMedio, BurnoutRiskLevel.MEDIO.color)
-            ProbabilityBar("Riesgo Alto", probabilidadAlto, BurnoutRiskLevel.ALTO.color)
+            ProbabilityBar("Riesgo Bajo", probabilidadBajo, NivelRiesgoBurnout.BAJO.color)
+            ProbabilityBar("Riesgo Medio", probabilidadMedio, NivelRiesgoBurnout.MEDIO.color)
+            ProbabilityBar("Riesgo Alto", probabilidadAlto, NivelRiesgoBurnout.ALTO.color)
         }
     }
 }
@@ -487,7 +491,7 @@ private fun PatternItem(pattern: com.example.uleammed.scoring.CriticalPattern) {
 }
 
 @Composable
-private fun RiskFactorsCard(factors: List<RiskFactor>) {
+private fun RiskFactorsCard(factors: List<BurnoutRiskFactor>) {  // ✅ CORREGIDO
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -510,7 +514,7 @@ private fun RiskFactorsCard(factors: List<RiskFactor>) {
 }
 
 @Composable
-private fun RiskFactorItem(factor: RiskFactor) {
+private fun RiskFactorItem(factor: BurnoutRiskFactor) {  // ✅ CORREGIDO
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -529,12 +533,12 @@ private fun RiskFactorItem(factor: RiskFactor) {
 }
 
 @Composable
-private fun SeverityChip(severity: RiskSeverity) {
-    val (color, label) = when (severity) {
-        RiskSeverity.MUY_ALTO -> Color.Red to "MUY ALTO"
-        RiskSeverity.ALTO -> Color(0xFFFF9800) to "ALTO"
-        RiskSeverity.MODERADO -> Color(0xFFFFC107) to "MODERADO"
-        RiskSeverity.BAJO -> Color.Green to "BAJO"
+private fun SeverityChip(severity: BurnoutRiskSeverity) {  // ✅ CORREGIDO
+    val (color, label) = when (severity) {  // ✅ CORREGIDO
+        BurnoutRiskSeverity.MUY_ALTO -> Color.Red to "MUY ALTO"
+        BurnoutRiskSeverity.ALTO -> Color(0xFFFF9800) to "ALTO"
+        BurnoutRiskSeverity.MODERADO -> Color(0xFFFFC107) to "MODERADO"
+        BurnoutRiskSeverity.BAJO -> Color.Green to "BAJO"
     }
     Surface(color = color.copy(alpha = 0.2f), shape = MaterialTheme.shapes.small) {
         Text(

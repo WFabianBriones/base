@@ -181,7 +181,7 @@ object ScoreCalculator {
     /**
      * ✅ NUEVO: Detecta patrones críticos en síntomas musculares
      */
-    private fun detectMusculoskeletalPatterns(q: SintomasMuscularesQuestionnaire): List<CriticalPattern> {
+    fun detectMusculoskeletalPatterns(q: SintomasMuscularesQuestionnaire): List<CriticalPattern> {
         val patterns = mutableListOf<CriticalPattern>()
 
         // PATRÓN 1: Síndrome del Túnel Carpiano
@@ -257,7 +257,7 @@ object ScoreCalculator {
     /**
      * ✅ NUEVO: Detecta patrones críticos en estrés y salud mental
      */
-    private fun detectStressPatterns(q: EstresSaludMentalQuestionnaire): List<CriticalPattern> {
+    fun detectStressPatterns(q: EstresSaludMentalQuestionnaire): List<CriticalPattern> {
         val patterns = mutableListOf<CriticalPattern>()
 
         // PATRÓN 1: Burnout severo (triada de Maslach)

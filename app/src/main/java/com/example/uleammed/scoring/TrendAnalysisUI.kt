@@ -1,4 +1,4 @@
-package com.example.uleammed.scoring.ui
+package com.example.uleammed.scoring
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -15,16 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.uleammed.scoring.*
 
 /**
- * ✅ COMPONENTES UI PARA MEJORAS DE PRIORIDAD MEDIA
- *
- * Incluye:
- * - Visualización de tendencias
- * - Indicador de completitud
- * - Gráficos de progreso temporal
- * - Insights automáticos
+ * ✅ COMPONENTES UI PARA TENDENCIAS - COMPATIBLE CON ScoreModels_MEJORADO.kt
  */
 
 // ==================== CARD DE TENDENCIAS GENERALES ====================
@@ -38,7 +31,6 @@ fun TrendOverviewCard(trendAnalysis: TrendAnalysis) {
                 TrendDirection.MEJORANDO -> Color(0xFF4CAF50).copy(alpha = 0.1f)
                 TrendDirection.EMPEORANDO -> Color(0xFFF44336).copy(alpha = 0.1f)
                 TrendDirection.ESTABLE -> MaterialTheme.colorScheme.surfaceVariant
-                TrendDirection.SIN_DATOS -> MaterialTheme.colorScheme.surfaceVariant
             }
         )
     ) {
@@ -73,19 +65,19 @@ fun TrendOverviewCard(trendAnalysis: TrendAnalysis) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 TrendStat(
-                    count = trendAnalysis.areasImproving,
+                    count = trendAnalysis.improvingAreas,
                     label = "Mejorando",
                     color = Color(0xFF4CAF50)
                 )
 
                 TrendStat(
-                    count = trendAnalysis.areasStable,
+                    count = trendAnalysis.stableAreas,
                     label = "Estables",
                     color = Color(0xFF9E9E9E)
                 )
 
                 TrendStat(
-                    count = trendAnalysis.areasWorsening,
+                    count = trendAnalysis.decliningAreas,
                     label = "Empeorando",
                     color = Color(0xFFF44336)
                 )
@@ -131,7 +123,6 @@ private fun TrendBadge(trend: TrendDirection) {
         TrendDirection.MEJORANDO -> Color(0xFF4CAF50) to Icons.Filled.TrendingUp
         TrendDirection.EMPEORANDO -> Color(0xFFF44336) to Icons.Filled.TrendingDown
         TrendDirection.ESTABLE -> Color(0xFF9E9E9E) to Icons.Filled.Remove
-        TrendDirection.SIN_DATOS -> Color(0xFF9E9E9E) to Icons.Filled.Help
     }
 
     Surface(
@@ -182,7 +173,7 @@ private fun TrendStat(count: Int, label: String, color: Color) {
 // ==================== LISTA DETALLADA DE TENDENCIAS POR ÁREA ====================
 
 @Composable
-fun AreaTrendsListCard(trends: Map<String, AreaTrend>) {
+fun AreaTrendsListCard(areaTrends: List<AreaTrend>) {
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -202,8 +193,8 @@ fun AreaTrendsListCard(trends: Map<String, AreaTrend>) {
                 )
             }
 
-            // Ordenar por cambio (mayor cambio primero)
-            val sortedTrends = trends.values.sortedByDescending { kotlin.math.abs(it.changePoints) }
+            // Ordenar por cambio absoluto (mayor cambio primero)
+            val sortedTrends = areaTrends.sortedByDescending { kotlin.math.abs(it.changePoints) }
 
             sortedTrends.forEach { trend ->
                 AreaTrendItem(trend)
@@ -226,12 +217,12 @@ private fun AreaTrendItem(trend: AreaTrend) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = trend.area,
+                    text = trend.areaName,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${trend.previousScore ?: "N/A"} → ${trend.currentScore}",
+                    text = "${trend.previousScore} → ${trend.currentScore}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -245,9 +236,19 @@ private fun AreaTrendItem(trend: AreaTrend) {
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = trend.direction.icon,
-                        style = MaterialTheme.typography.bodyMedium
+                    Icon(
+                        imageVector = when (trend.trend) {
+                            TrendDirection.MEJORANDO -> Icons.Filled.TrendingUp
+                            TrendDirection.EMPEORANDO -> Icons.Filled.TrendingDown
+                            TrendDirection.ESTABLE -> Icons.Filled.Remove
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = when (trend.trend) {
+                            TrendDirection.MEJORANDO -> Color(0xFF4CAF50)
+                            TrendDirection.EMPEORANDO -> Color(0xFFF44336)
+                            TrendDirection.ESTABLE -> Color(0xFF9E9E9E)
+                        }
                     )
                     Text(
                         text = when {
@@ -256,16 +257,16 @@ private fun AreaTrendItem(trend: AreaTrend) {
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = when (trend.direction) {
+                        color = when (trend.trend) {
                             TrendDirection.MEJORANDO -> Color(0xFF4CAF50)
                             TrendDirection.EMPEORANDO -> Color(0xFFF44336)
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            TrendDirection.ESTABLE -> Color(0xFF9E9E9E)
                         }
                     )
                 }
 
                 Text(
-                    text = "${trend.daysElapsed} días",
+                    text = "Hace ${trend.daysSinceLastMeasurement} días",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -343,7 +344,7 @@ fun CompletenessCard(completeness: CompletenessInfo) {
                 }
 
                 LinearProgressIndicator(
-                    progress = completeness.completenessPercent / 100f,
+                    progress = { completeness.completenessPercent / 100f },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp),
@@ -446,7 +447,7 @@ fun TrendGraphCard(
 
             // Gráfico simple de dos puntos
             SimpleTrendGraph(
-                previousScore = trend.previousScore ?: 0,
+                previousScore = trend.previousScore,
                 currentScore = trend.currentScore,
                 maxScore = 100
             )
@@ -458,7 +459,7 @@ fun TrendGraphCard(
             ) {
                 StatItem(
                     label = "Anterior",
-                    value = "${trend.previousScore ?: "N/A"}",
+                    value = "${trend.previousScore}",
                     color = Color.Gray
                 )
 
@@ -474,10 +475,10 @@ fun TrendGraphCard(
                         trend.changePoints > 0 -> "+${trend.changePoints}"
                         else -> "${trend.changePoints}"
                     },
-                    color = when (trend.direction) {
+                    color = when (trend.trend) {
                         TrendDirection.MEJORANDO -> Color(0xFF4CAF50)
                         TrendDirection.EMPEORANDO -> Color(0xFFF44336)
-                        else -> Color.Gray
+                        TrendDirection.ESTABLE -> Color.Gray
                     }
                 )
             }
@@ -559,56 +560,5 @@ private fun StatItem(label: String, value: String, color: Color) {
             fontWeight = FontWeight.Bold,
             color = color
         )
-    }
-}
-
-// ==================== PANTALLA COMPLETA DE TENDENCIAS ====================
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TrendsAnalysisScreen(
-    enhancedScore: EnhancedHealthScore,
-    onBack: () -> Unit
-) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Análisis de Tendencias") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, "Volver")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-
-            // Completitud
-            item {
-                CompletenessCard(enhancedScore.completeness)
-            }
-
-            // Tendencias generales
-            enhancedScore.trendAnalysis?.let { trendAnalysis ->
-                item {
-                    TrendOverviewCard(trendAnalysis)
-                }
-
-                // Tendencias detalladas
-                item {
-                    AreaTrendsListCard(trendAnalysis.areaTrends)
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
-        }
     }
 }
