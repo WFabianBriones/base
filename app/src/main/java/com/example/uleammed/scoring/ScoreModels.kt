@@ -11,6 +11,7 @@ import com.example.uleammed.questionnaires.*
  * 2. ✅ Detección de patrones críticos implementada
  * 3. ✅ Corrección de multiplicación en estrés
  * 4. ✅ Validación estricta de scores (nunca superan 100)
+ * 5. ✅ AGREGADO: Campos completeness y trendAnalysis
  */
 
 // ==================== NIVELES DE RIESGO ====================
@@ -42,6 +43,78 @@ data class CriticalPattern(
     val recommendation: String
 )
 
+// ==================== SISTEMA DE CONFIANZA ====================
+
+/**
+ * ✅ NUEVO: Nivel de confianza en el score
+ */
+enum class ConfidenceLevel {
+    ALTA,       // 90-100% completitud
+    MEDIA,      // 70-89% completitud
+    BAJA;       // <70% completitud
+
+    val displayName: String
+        get() = when (this) {
+            ALTA -> "Alta"
+            MEDIA -> "Media"
+            BAJA -> "Baja"
+        }
+
+    val description: String
+        get() = when (this) {
+            ALTA -> "Todos los cuestionarios completos"
+            MEDIA -> "Algunos cuestionarios pendientes"
+            BAJA -> "Varios cuestionarios pendientes"
+        }
+}
+
+/**
+ * ✅ NUEVO: Información de completitud
+ */
+data class CompletenessInfo(
+    val completedQuestionnaires: Int,
+    val totalQuestionnaires: Int,
+    val completenessPercent: Float,
+    val confidenceLevel: ConfidenceLevel,
+    val missingQuestionnaires: List<String>
+)
+
+// ==================== ANÁLISIS DE TENDENCIAS ====================
+
+/**
+ * ✅ NUEVO: Dirección de tendencia
+ */
+enum class TrendDirection {
+    MEJORANDO,
+    ESTABLE,
+    EMPEORANDO
+}
+
+/**
+ * ✅ NUEVO: Tendencia por área
+ */
+data class AreaTrend(
+    val area: String,
+    val previousScore: Int,
+    val currentScore: Int,
+    val changePoints: Int,
+    val trend: TrendDirection,
+    val daysSinceLastMeasurement: Int
+)
+
+/**
+ * ✅ NUEVO: Análisis completo de tendencias
+ */
+data class TrendAnalysis(
+    val overallTrend: TrendDirection,
+    val areasImproving: Int,
+    val areasWorsening: Int,
+    val areasStable: Int,
+    val areaTrends: List<AreaTrend>,
+    val mostImprovedArea: String?,
+    val mostWorsenedArea: String?
+)
+
 // ==================== VALIDACIÓN ====================
 
 /**
@@ -58,7 +131,7 @@ data class HealthScore(
     val userId: String = "",
     val timestamp: Long = System.currentTimeMillis(),
 
-    val version: Int = 2, // ✅ ACTUALIZADO: Nueva versión con mejoras
+    val version: Int = 3, // ✅ ACTUALIZADO: Nueva versión con completeness y trendAnalysis
     val lastUpdated: Map<String, Long> = mapOf(
         "salud_general" to 0L,
         "ergonomia" to 0L,
@@ -103,7 +176,19 @@ data class HealthScore(
     val recommendations: List<String> = emptyList(),
 
     // ✅ NUEVO: Patrones críticos detectados
-    val criticalPatterns: List<CriticalPattern> = emptyList()
+    val criticalPatterns: List<CriticalPattern> = emptyList(),
+
+    // ✅ AGREGADO: Análisis de completitud
+    val completeness: CompletenessInfo = CompletenessInfo(
+        completedQuestionnaires = 0,
+        totalQuestionnaires = 8,
+        completenessPercent = 0f,
+        confidenceLevel = ConfidenceLevel.BAJA,
+        missingQuestionnaires = emptyList()
+    ),
+
+    // ✅ AGREGADO: Análisis de tendencias
+    val trendAnalysis: TrendAnalysis? = null
 )
 
 // ==================== CALCULADOR DE SCORES ====================
