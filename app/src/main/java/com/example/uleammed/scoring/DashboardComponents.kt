@@ -462,14 +462,14 @@ fun RadarChart(
         val center = Offset(centerX, centerY)
 
         val radius = size.minDimension / 3.0f
-        val labelRadius = radius * 1.18f // ✅ Etiquetas AÚN más cerca
+        val labelRadius = radius * 1.2f // ✅ Etiquetas AÚN más cerca
 
         val angleStep = 360f / dataPoints.size
 
         // Configuración de texto
         val textPaint = android.graphics.Paint().apply {
             color = android.graphics.Color.parseColor("#424242")
-            textSize = 30f
+            textSize = 25f
             textAlign = android.graphics.Paint.Align.CENTER
             isAntiAlias = true
         }
