@@ -7,8 +7,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
-// Asumimos que HealthScore, RiskLevel y ScoringRepository están definidos en el proyecto.
+/**
+ * ✅ VIEWMODEL CORREGIDO - Gestión de estados y recálculo inteligente
+ */
 
 sealed class ScoringState {
     object Idle : ScoringState()
@@ -27,22 +31,58 @@ class ScoringViewModel(application: Application) : AndroidViewModel(application)
     private val _healthScore = MutableStateFlow<HealthScore?>(null)
     val healthScore: StateFlow<HealthScore?> = _healthScore.asStateFlow()
 
+    // ✅ Mutex para prevenir cálculos concurrentes
+    private val calculationMutex = Mutex()
+
     companion object {
         private const val TAG = "ScoringViewModel"
         // Intervalo mínimo para forzar un recálculo (5 minutos)
         private const val MIN_RECALC_INTERVAL = 5 * 60 * 1000L
     }
 
-    // Bandera para prevenir cálculos concurrentes.
-    private var isCalculating = false
-
     init {
-        // Al iniciar, cargamos el score con el refresco inteligente.
+        // Al iniciar, cargamos el score con el refresco inteligente
         loadScoreWithSmartRefresh()
     }
 
     /**
-     * Cargar score actual (usa la versión guardada en caché/DB).
+     * ✅ NUEVA FUNCIÓN: Cargar score con control de recálculo inteligente
+     * Si ha pasado más de MIN_RECALC_INTERVAL, fuerza el recálculo
+     */
+    fun loadScoreWithSmartRefresh() {
+        viewModelScope.launch {
+            try {
+                _state.value = ScoringState.Loading
+
+                val lastCalcTime = repository.getLastCalculationTime()
+                val currentTime = System.currentTimeMillis()
+                val timeSinceLastCalc = currentTime - lastCalcTime
+
+                android.util.Log.d(TAG, """
+                    ⏰ Tiempo desde último cálculo: ${timeSinceLastCalc / 1000}s
+                    - Última vez: $lastCalcTime
+                    - Ahora: $currentTime
+                """.trimIndent())
+
+                // Si nunca se ha calculado o ha pasado el intervalo mínimo, forzar recálculo
+                if (lastCalcTime == 0L || timeSinceLastCalc >= MIN_RECALC_INTERVAL) {
+                    android.util.Log.d(TAG, "🔄 Forzando recálculo de scores...")
+                    forceRecalculate()
+                } else {
+                    // Cargar desde caché/Firestore
+                    android.util.Log.d(TAG, "📦 Cargando score desde caché...")
+                    loadScore()
+                }
+
+            } catch (e: Exception) {
+                _state.value = ScoringState.Error(e.message ?: "Error desconocido")
+                android.util.Log.e(TAG, "❌ Error en loadScoreWithSmartRefresh", e)
+            }
+        }
+    }
+
+    /**
+     * Cargar score actual (usa la versión guardada en caché/DB)
      */
     fun loadScore() {
         viewModelScope.launch {
@@ -73,131 +113,78 @@ class ScoringViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Cargar score con control de recálculo inteligente.
-     * Si ha pasado más de [MIN_RECALC_INTERVAL], fuerza el recálculo.
+     * ✅ MEJORADO: Forzar recálculo con protección contra concurrencia
      */
-    fun loadScoreWithSmartRefresh() {
+    fun forceRecalculate() {
         viewModelScope.launch {
-            try {
-                // No actualizamos _state.value a Loading si ya estamos calculando/cargando
-                if (_state.value != ScoringState.Loading) {
+            // ✅ Usar mutex para prevenir múltiples cálculos simultáneos
+            calculationMutex.withLock {
+                try {
                     _state.value = ScoringState.Loading
+                    android.util.Log.d(TAG, "🔄 Iniciando recálculo forzado...")
+
+                    val result = repository.calculateAllScores()
+
+                    result.onSuccess { score ->
+                        _healthScore.value = score
+                        _state.value = ScoringState.Success(score)
+
+                        android.util.Log.d(TAG, """
+                            ✅ Recálculo completado
+                            - Overall: ${score.overallScore}
+                            - Riesgo: ${score.overallRisk.displayName}
+                            - Top concerns: ${score.topConcerns.size}
+                        """.trimIndent())
+                    }.onFailure { exception ->
+                        _state.value = ScoringState.Error(
+                            exception.message ?: "Error al calcular scores"
+                        )
+                        android.util.Log.e(TAG, "❌ Error en recálculo", exception)
+                    }
+
+                } catch (e: Exception) {
+                    _state.value = ScoringState.Error(e.message ?: "Error desconocido")
+                    android.util.Log.e(TAG, "❌ Error en forceRecalculate", e)
                 }
-
-                // Verificar si necesita recalcular
-                val lastCalculation = repository.getLastCalculationTime()
-                val now = System.currentTimeMillis()
-                val timeSinceLastCalc = now - lastCalculation
-
-                // Convertir a minutos para el log
-                val timeSinceLastCalcInMinutes = timeSinceLastCalc / 60000
-
-                if (timeSinceLastCalc > MIN_RECALC_INTERVAL) {
-                    android.util.Log.d(TAG, "🔄 Han pasado ${timeSinceLastCalcInMinutes} minutos, recalculando...")
-                    recalculateScores()
-                } else {
-                    android.util.Log.d(TAG, "✅ Usando caché (última actualización hace ${timeSinceLastCalcInMinutes} min)")
-                    loadScore()
-                }
-            } catch (e: Exception) {
-                _state.value = ScoringState.Error(e.message ?: "Error desconocido")
-                android.util.Log.e(TAG, "❌ Error en loadScoreWithSmartRefresh", e)
             }
         }
     }
 
-
     /**
-     * Recalcular todos los scores.
-     * Modificado para prevenir llamadas concurrentes.
+     * ✅ NUEVA: Obtener tendencia histórica
      */
-    fun recalculateScores() {
-        // Prevenir cálculos concurrentes
-        if (isCalculating) {
-            android.util.Log.d(TAG, "⏳ Cálculo ya en progreso, ignorando...")
-            return
-        }
-
+    fun loadScoreTrend(days: Int = 30) {
         viewModelScope.launch {
             try {
-                isCalculating = true
-                _state.value = ScoringState.Loading
-
-                val result = repository.calculateAllScores()
-
-                result.onSuccess { score ->
-                    _healthScore.value = score
-                    _state.value = ScoringState.Success(score)
-
-                    android.util.Log.d(TAG, "✅ Scores recalculados exitosamente")
-                }.onFailure { exception ->
-                    _state.value = ScoringState.Error(exception.message ?: "Error al recalcular")
-                    android.util.Log.e(TAG, "❌ Error recalculando scores", exception)
+                val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                if (userId != null) {
+                    val result = repository.getScoreTrend(userId, days)
+                    result.onSuccess { trend ->
+                        android.util.Log.d(TAG, "✅ Tendencia cargada: ${trend.size} registros")
+                    }
                 }
-
             } catch (e: Exception) {
-                _state.value = ScoringState.Error(e.message ?: "Error desconocido")
-                android.util.Log.e(TAG, "❌ Error en recalculateScores", e)
-            } finally {
-                // Asegurarse de resetear la bandera al finalizar
-                isCalculating = false
+                android.util.Log.e(TAG, "❌ Error cargando tendencia", e)
             }
         }
     }
 
     /**
-     * Obtener timestamp de última actualización desde el repositorio.
+     * Limpiar scores (para testing)
      */
-    fun getLastCalculationTime(): Long {
-        return repository.getLastCalculationTime()
+    fun clearScores() {
+        repository.clearScores()
+        _healthScore.value = null
+        _state.value = ScoringState.Idle
+        android.util.Log.d(TAG, "🗑️ Scores limpiados")
     }
 
     /**
-     * Obtener tendencia de scores para un número de días.
-     * Utiliza un callback [onResult] para devolver la lista de HealthScore.
+     * ✅ HELPERS PARA LA UI
      */
-    fun getScoreTrend(days: Int = 30, onResult: (Result<List<HealthScore>>) -> Unit) {
-        viewModelScope.launch {
-            try {
-                // Se necesita un userId, si no existe no se puede buscar la tendencia.
-                val userId = _healthScore.value?.userId ?: run {
-                    android.util.Log.w(TAG, "Advertencia: userId no disponible para buscar tendencia.")
-                    return@launch
-                }
-                val result = repository.getScoreTrend(userId, days)
-                onResult(result)
-            } catch (e: Exception) {
-                android.util.Log.e(TAG, "❌ Error obteniendo tendencia", e)
-                onResult(Result.failure(e))
-            }
-        }
-    }
 
     /**
-     * Verificar si hay datos suficientes para mostrar dashboard completo.
-     * Asume que se requiere completar al menos 3 áreas de score (donde el score sea > 0).
-     */
-    fun hasMinimumDataForDashboard(): Boolean {
-        val score = _healthScore.value ?: return false
-
-        // Lista de scores de áreas para verificar si se completaron (score > 0)
-        val completedAreas = listOf(
-            score.saludGeneralScore,
-            score.ergonomiaScore,
-            score.sintomasMuscularesScore,
-            score.sintomasVisualesScore,
-            score.cargaTrabajoScore,
-            score.estresSaludMentalScore,
-            score.habitosSuenoScore,
-            score.actividadFisicaScore,
-            score.balanceVidaTrabajoScore
-        ).count { it > 0 }
-
-        return completedAreas >= 3
-    }
-
-    /**
-     * Obtener mensaje de estado general basado en el nivel de riesgo.
+     * Obtener mensaje de estado general
      */
     fun getOverallStatusMessage(score: HealthScore): String {
         return when (score.overallRisk) {
@@ -209,10 +196,50 @@ class ScoringViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Obtener color según nivel de riesgo.
-     * Se asume que RiskLevel tiene una propiedad 'color' de tipo Long.
+     * Obtener color según nivel de riesgo
      */
     fun getRiskColor(risk: RiskLevel): Long {
         return risk.color
+    }
+
+    /**
+     * Obtener emoji según nivel de riesgo
+     */
+    fun getRiskEmoji(risk: RiskLevel): String {
+        return when (risk) {
+            RiskLevel.BAJO -> "✅"
+            RiskLevel.MODERADO -> "⚠️"
+            RiskLevel.ALTO -> "🚨"
+            RiskLevel.MUY_ALTO -> "🆘"
+        }
+    }
+
+    /**
+     * Verificar si el score es reciente (menos de 1 día)
+     */
+    fun isScoreRecent(score: HealthScore): Boolean {
+        val oneDayInMillis = 24 * 60 * 60 * 1000L
+        val currentTime = System.currentTimeMillis()
+        return (currentTime - score.timestamp) < oneDayInMillis
+    }
+
+    /**
+     * Obtener tiempo transcurrido desde el último cálculo
+     */
+    fun getTimeSinceLastCalculation(): String {
+        val lastCalcTime = repository.getLastCalculationTime()
+        if (lastCalcTime == 0L) return "Nunca calculado"
+
+        val diff = System.currentTimeMillis() - lastCalcTime
+        val minutes = diff / (60 * 1000)
+        val hours = minutes / 60
+        val days = hours / 24
+
+        return when {
+            days > 0 -> "Hace $days día${if (days > 1) "s" else ""}"
+            hours > 0 -> "Hace $hours hora${if (hours > 1) "s" else ""}"
+            minutes > 0 -> "Hace $minutes minuto${if (minutes > 1) "s" else ""}"
+            else -> "Hace menos de 1 minuto"
+        }
     }
 }

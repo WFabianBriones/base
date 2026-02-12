@@ -81,7 +81,7 @@ fun HealthDashboard(
                 if (healthScore != null) {
                     DashboardContent(
                         healthScore = healthScore!!,
-                        onRecalculate = { viewModel.recalculateScores() },
+                        onRecalculate = { viewModel.forceRecalculate() },
                         onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
                     )
                 }

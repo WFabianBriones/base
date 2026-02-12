@@ -305,7 +305,7 @@ fun UleamApp(
             QuestionnaireScreen(
                 onComplete = {
                     // ✅ Usar la instancia ya creada (sin llamar a viewModel() de nuevo)
-                    scoringViewModel.recalculateScores()
+                    scoringViewModel.forceRecalculate()
 
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Questionnaire.route) { inclusive = true }

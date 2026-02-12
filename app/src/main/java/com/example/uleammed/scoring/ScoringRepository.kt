@@ -12,6 +12,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
+/**
+ * ✅ REPOSITORIO CORREGIDO - Manejo unificado de Firebase y caching local
+ */
 class ScoringRepository(private val context: Context) {
 
     private val firestore = FirebaseFirestore.getInstance()
@@ -31,25 +34,23 @@ class ScoringRepository(private val context: Context) {
     }
 
     /**
-     * ✅ CORREGIDO: Calcula scores usando la estructura users/{userId}/questionnaires/
+     * ✅ CORREGIDO: Estructura Firebase unificada
+     * Todos los cuestionarios están en: users/{userId}/questionnaires/{questionnaireId}
      */
     suspend fun calculateAllScores(): Result<HealthScore> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val userId = auth.currentUser?.uid ?: return@withContext Result.failure(
-                IllegalStateException("Usuario no autenticado")
-            )
+            val userId = auth.currentUser?.uid
+                ?: return@withContext Result.failure(IllegalStateException("Usuario no autenticado"))
 
             android.util.Log.d(TAG, "🔄 Iniciando cálculo de scores para usuario: $userId")
 
-            // ✅ OBTENER CUESTIONARIOS DESDE: users/{userId}/questionnaires/
+            // ✅ ESTRUCTURA UNIFICADA: users/{userId}/questionnaires/
             val userQuestionnaires = firestore.collection("users")
                 .document(userId)
                 .collection("questionnaires")
 
-            // ✅ 1. SALUD GENERAL
+            // Obtener todos los documentos
             val saludGeneralDoc = userQuestionnaires.document("salud_general").get().await()
-
-            // ✅ 2-9. CUESTIONARIOS ESPECÍFICOS
             val ergonomiaDoc = userQuestionnaires.document("ergonomia").get().await()
             val muscularesDoc = userQuestionnaires.document("sintomas_musculares").get().await()
             val visualesDoc = userQuestionnaires.document("sintomas_visuales").get().await()
@@ -75,8 +76,6 @@ class ScoringRepository(private val context: Context) {
                     scores["salud_general"] = result
                     android.util.Log.d(TAG, "✅ Salud General: $saludGeneralScore (${saludGeneralRisk.displayName})")
                 }
-            } else {
-                android.util.Log.w(TAG, "⚠️ Cuestionario de Salud General no encontrado")
             }
 
             // 2. Ergonomía
@@ -191,36 +190,33 @@ class ScoringRepository(private val context: Context) {
                 }
             }
 
-            // ===== CALCULAR SCORE GLOBAL =====
-            val (overallScore, overallRisk) = ScoreCalculator.calculateOverallScore(scores)
+            // ===== CALCULAR SCORE GENERAL =====
+            val (overallScore, overallRisk) = calculateOverallScore(scores)
 
-            // Identificar áreas críticas
+            // ===== IDENTIFICAR ÁREAS CRÍTICAS =====
             val topConcerns = identifyTopConcerns(scores)
-
-            // Generar recomendaciones
             val recommendations = generateRecommendations(scores)
 
-            // Crear objeto HealthScore con las 9 áreas
+            // ===== CREAR HEALTHSCORE =====
             val healthScore = HealthScore(
-                userId = userId,
                 timestamp = System.currentTimeMillis(),
                 saludGeneralScore = saludGeneralScore,
                 saludGeneralRisk = saludGeneralRisk,
                 ergonomiaScore = ergonomiaScore,
-                sintomasMuscularesScore = sintomasMuscularesScore,
-                sintomasVisualesScore = sintomasVisualesScore,
-                cargaTrabajoScore = cargaTrabajoScore,
-                estresSaludMentalScore = estresSaludMentalScore,
-                habitosSuenoScore = habitosSuenoScore,
-                actividadFisicaScore = actividadFisicaScore,
-                balanceVidaTrabajoScore = balanceVidaTrabajoScore,
                 ergonomiaRisk = ergonomiaRisk,
+                sintomasMuscularesScore = sintomasMuscularesScore,
                 sintomasMuscularesRisk = sintomasMuscularesRisk,
+                sintomasVisualesScore = sintomasVisualesScore,
                 sintomasVisualesRisk = sintomasVisualesRisk,
+                cargaTrabajoScore = cargaTrabajoScore,
                 cargaTrabajoRisk = cargaTrabajoRisk,
+                estresSaludMentalScore = estresSaludMentalScore,
                 estresSaludMentalRisk = estresSaludMentalRisk,
+                habitosSuenoScore = habitosSuenoScore,
                 habitosSuenoRisk = habitosSuenoRisk,
+                actividadFisicaScore = actividadFisicaScore,
                 actividadFisicaRisk = actividadFisicaRisk,
+                balanceVidaTrabajoScore = balanceVidaTrabajoScore,
                 balanceVidaTrabajoRisk = balanceVidaTrabajoRisk,
                 overallScore = overallScore,
                 overallRisk = overallRisk,
@@ -228,7 +224,7 @@ class ScoringRepository(private val context: Context) {
                 recommendations = recommendations
             )
 
-            // Validar antes de guardar
+            // ✅ VALIDAR
             val validation = validateScores(healthScore)
             if (!validation.isValid) {
                 android.util.Log.w(TAG, "⚠️ Validación de scores falló:")
@@ -237,11 +233,12 @@ class ScoringRepository(private val context: Context) {
                 }
             }
 
-            // Guardar en Firestore y caché local
+            // ✅ GUARDAR
             saveToFirestore(healthScore)
             saveToLocal(healthScore)
+            saveCalculationTime()
 
-            // Contar solo los 8 cuestionarios específicos (sin salud_general)
+            // Contar cuestionarios completados (sin salud_general)
             val specificQuestionnairesCompleted = scores.keys.filter { it != "salud_general" }.size
 
             android.util.Log.d(TAG, """
@@ -260,158 +257,148 @@ class ScoringRepository(private val context: Context) {
         }
     }
 
+    /**
+     * ✅ MEJORADO: Cálculo ponderado del score general
+     */
+    private fun calculateOverallScore(scores: Map<String, Pair<Int, RiskLevel>>): Pair<Int, RiskLevel> {
+        if (scores.isEmpty()) return Pair(0, RiskLevel.BAJO)
 
+        // Pesos para cada área (total = 100)
+        val weights = mapOf(
+            "salud_general" to 15,
+            "ergonomia" to 10,
+            "sintomas_musculares" to 12,
+            "sintomas_visuales" to 8,
+            "carga_trabajo" to 13,
+            "estres" to 15,
+            "sueno" to 10,
+            "actividad_fisica" to 9,
+            "balance" to 8
+        )
 
-    private fun identifyTopConcerns(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
-        val concerns = mutableListOf<Pair<String, Int>>()
+        var totalWeightedScore = 0.0
+        var totalWeight = 0
 
         scores.forEach { (key, pair) ->
-            val displayName = when (key) {
-                "salud_general" -> "Salud General"
-                "ergonomia" -> "Ergonomía"
-                "sintomas_musculares" -> "Síntomas Musculares"
-                "sintomas_visuales" -> "Síntomas Visuales"
-                "carga_trabajo" -> "Carga de Trabajo"
-                "estres" -> "Estrés y Salud Mental"
-                "sueno" -> "Calidad del Sueño"
-                "actividad_fisica" -> "Actividad Física"
-                "balance" -> "Balance Vida-Trabajo"
-                else -> key
-            }
-
-            concerns.add(Pair(displayName, pair.first))
+            val weight = weights[key] ?: 0
+            totalWeightedScore += pair.first * weight
+            totalWeight += weight
         }
 
-        return concerns
+        val overallScore = if (totalWeight > 0) {
+            (totalWeightedScore / totalWeight).toInt().coerceIn(0, 100)
+        } else {
+            0
+        }
+
+        val overallRisk = when {
+            overallScore < 25 -> RiskLevel.BAJO
+            overallScore < 50 -> RiskLevel.MODERADO
+            overallScore < 70 -> RiskLevel.ALTO
+            else -> RiskLevel.MUY_ALTO
+        }
+
+        return Pair(overallScore, overallRisk)
+    }
+
+    /**
+     * Identificar las 3 áreas con mayor score (Top concerns)
+     */
+    private fun identifyTopConcerns(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
+        val displayNames = mapOf(
+            "salud_general" to "Salud General",
+            "ergonomia" to "Ergonomía",
+            "sintomas_musculares" to "Síntomas Musculares",
+            "sintomas_visuales" to "Síntomas Visuales",
+            "carga_trabajo" to "Carga de Trabajo",
+            "estres" to "Estrés y Salud Mental",
+            "sueno" to "Hábitos de Sueño",
+            "actividad_fisica" to "Actividad Física",
+            "balance" to "Balance Vida-Trabajo"
+        )
+
+        return scores
+            .map { (key, pair) -> Pair(displayNames[key] ?: key, pair.first) }
+            .filter { it.second >= 40 } // Solo áreas con riesgo moderado o superior
             .sortedByDescending { it.second }
             .take(3)
             .map { it.first }
     }
 
+    /**
+     * Generar recomendaciones basadas en áreas de riesgo
+     */
     private fun generateRecommendations(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
-        val recommendations = mutableListOf<Pair<Int, String>>() // (score, recomendación)
+        val recommendations = mutableListOf<String>()
 
         scores.forEach { (key, pair) ->
-            val score = pair.first
-            val risk = pair.second
-
-            when (key) {
-                "salud_general" -> {
-                    when {
-                        score >= 60 -> recommendations.add(Pair(score, "Consulta médica general para evaluación integral de tu salud"))
-                        score >= 40 -> recommendations.add(Pair(score, "Revisa tus hábitos de salud con un profesional médico"))
-                    }
-                }
-                "ergonomia" -> {
-                    when {
-                        score >= 70 -> recommendations.add(Pair(score, "Ajusta altura de silla, monitor a nivel de ojos, pies apoyados en el suelo"))
-                        score >= 50 -> recommendations.add(Pair(score, "Verifica que tu monitor esté a la distancia de un brazo y a la altura de tus ojos"))
-                        score >= 30 -> recommendations.add(Pair(score, "Ajusta tu silla para mantener espalda recta y pies apoyados"))
-                    }
-                }
-                "sintomas_musculares" -> {
-                    when {
-                        score >= 70 -> recommendations.add(Pair(score, "Consulta médica por dolor músculo-esquelético persistente"))
-                        score >= 50 -> recommendations.add(Pair(score, "Realiza pausas cada 30 minutos con estiramientos de cuello, hombros y espalda"))
-                        score >= 30 -> recommendations.add(Pair(score, "Incorpora estiramientos diarios de 5 minutos para prevenir molestias"))
-                    }
-                }
-                "sintomas_visuales" -> {
-                    when {
-                        score >= 70 -> recommendations.add(Pair(score, "Agenda examen visual profesional esta semana"))
-                        score >= 50 -> recommendations.add(Pair(score, "Aplica regla 20-20-20: cada 20 minutos, mira 20 segundos a 20 pies de distancia"))
-                        score >= 30 -> recommendations.add(Pair(score, "Reduce brillo de pantalla y usa gotas lubricantes si sientes ojos secos"))
-                    }
-                }
-                "carga_trabajo" -> {
-                    when {
-                        score >= 70 -> recommendations.add(Pair(score, "Habla con tu supervisor sobre redistribución de carga laboral"))
-                        score >= 50 -> recommendations.add(Pair(score, "Establece límites claros: finaliza trabajo a hora definida y evita emails nocturnos"))
-                        score >= 30 -> recommendations.add(Pair(score, "Prioriza tareas usando matriz de urgencia-importancia para mejor organización"))
-                    }
-                }
-                "estres" -> {
-                    when {
-                        score >= 75 -> recommendations.add(Pair(score, "Busca apoyo profesional de salud mental esta semana"))
-                        score >= 60 -> recommendations.add(Pair(score, "Considera consultar psicólogo especializado en estrés laboral"))
-                        score >= 45 -> recommendations.add(Pair(score, "Practica técnicas de respiración profunda 10 minutos diarios"))
-                        score >= 30 -> recommendations.add(Pair(score, "Dedica 15 minutos diarios a actividad que disfrutes para desconectar del trabajo"))
-                    }
-                }
-                "sueno" -> {
-                    when {
-                        score >= 70 -> recommendations.add(Pair(score, "Establece rutina de sueño: acuéstate y levántate a la misma hora todos los días"))
-                        score >= 50 -> recommendations.add(Pair(score, "Apaga pantallas 1 hora antes de dormir y mantén habitación fresca y oscura"))
-                        score >= 30 -> recommendations.add(Pair(score, "Evita cafeína después de las 3 PM para mejorar calidad de sueño"))
-                    }
-                }
-                "actividad_fisica" -> {
-                    when {
-                        score >= 70 -> recommendations.add(Pair(score, "Comienza con caminatas de 15 minutos tres veces por semana"))
-                        score >= 50 -> recommendations.add(Pair(score, "Incrementa actividad física gradualmente a 150 minutos semanales"))
-                        score >= 30 -> recommendations.add(Pair(score, "Agrega una sesión adicional de ejercicio semanal de 30 minutos"))
-                    }
-                }
-                "balance" -> {
-                    when {
-                        score >= 70 -> recommendations.add(Pair(score, "Define horario laboral estricto y desconéctate completamente al terminar"))
-                        score >= 50 -> recommendations.add(Pair(score, "Dedica al menos 2 horas diarias a actividades personales que disfrutas"))
-                        score >= 30 -> recommendations.add(Pair(score, "Programa tiempo semanal con familia y amigos sin revisar correos laborales"))
-                    }
+            if (pair.second >= RiskLevel.MODERADO) {
+                when (key) {
+                    "ergonomia" -> recommendations.add("Ajusta tu estación de trabajo según las normas ergonómicas")
+                    "sintomas_musculares" -> recommendations.add("Realiza pausas activas cada 2 horas")
+                    "sintomas_visuales" -> recommendations.add("Aplica la regla 20-20-20 para descanso visual")
+                    "carga_trabajo" -> recommendations.add("Prioriza tareas y establece límites claros")
+                    "estres" -> recommendations.add("Practica técnicas de relajación y mindfulness")
+                    "sueno" -> recommendations.add("Establece una rutina de sueño consistente")
+                    "actividad_fisica" -> recommendations.add("Incorpora al menos 30 minutos de actividad física diaria")
+                    "balance" -> recommendations.add("Define límites entre trabajo y vida personal")
                 }
             }
         }
 
-        // Ordenar por score (mayor a menor) para priorizar áreas más críticas
-        val sortedRecommendations = recommendations
-            .sortedByDescending { it.first }
-            .map { it.second }
-
-        // Retornar solo las 5 recomendaciones más importantes
-        return if (sortedRecommendations.isEmpty()) {
-            listOf("Mantén tus hábitos saludables actuales y continúa monitoreando tu bienestar laboral")
-        } else {
-            sortedRecommendations.take(5)
+        if (recommendations.isEmpty()) {
+            recommendations.add("Mantén tus buenos hábitos de salud laboral")
         }
+
+        return recommendations.take(5) // Máximo 5 recomendaciones
     }
 
+    /**
+     * Guardar en Firestore
+     */
     private suspend fun saveToFirestore(healthScore: HealthScore) {
         try {
             val userId = auth.currentUser?.uid ?: return
 
+            // Guardar score actual
             firestore.collection(COLLECTION_SCORES)
                 .document(userId)
                 .set(healthScore)
                 .await()
 
+            // Guardar en histórico
             saveScoreHistory(healthScore)
-            saveCalculationTime()
 
-            android.util.Log.d(TAG, "✅ Score guardado en Firestore e histórico")
+            android.util.Log.d(TAG, "✅ Score guardado en Firestore")
         } catch (e: Exception) {
             android.util.Log.e(TAG, "❌ Error guardando en Firestore", e)
         }
     }
 
+    /**
+     * Guardar en caché local
+     */
     private fun saveToLocal(healthScore: HealthScore) {
         try {
             val json = gson.toJson(healthScore)
             prefs.edit()
                 .putString(KEY_LOCAL_SCORE, json)
                 .apply()
-
-            android.util.Log.d(TAG, "✅ Score guardado localmente")
+            android.util.Log.d(TAG, "✅ Score guardado en caché local")
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error guardando localmente", e)
+            android.util.Log.e(TAG, "❌ Error guardando en local", e)
         }
     }
 
+    /**
+     * Obtener score actual (con detección de cuestionarios nuevos)
+     */
     suspend fun getCurrentScore(): Result<HealthScore> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val userId = auth.currentUser?.uid ?: return@withContext Result.failure(
-                IllegalStateException("Usuario no autenticado")
-            )
+            val userId = auth.currentUser?.uid
+                ?: return@withContext Result.failure(IllegalStateException("Usuario no autenticado"))
 
+            // Intentar desde Firestore primero
             val doc = firestore.collection(COLLECTION_SCORES)
                 .document(userId)
                 .get()
@@ -420,7 +407,7 @@ class ScoringRepository(private val context: Context) {
             if (doc.exists()) {
                 val score = doc.toObject(HealthScore::class.java)
                 if (score != null) {
-                    // Verificar si hay cuestionarios nuevos en Firebase que no están en el score
+                    // ✅ Verificar si hay cuestionarios nuevos
                     val hasNewQuestionnaires = checkForNewQuestionnaires(userId, score)
 
                     if (hasNewQuestionnaires) {
@@ -433,6 +420,7 @@ class ScoringRepository(private val context: Context) {
                 }
             }
 
+            // Si no hay en Firestore, intentar desde local
             val localJson = prefs.getString(KEY_LOCAL_SCORE, null)
             if (localJson != null) {
                 val score = gson.fromJson(localJson, HealthScore::class.java)
@@ -447,6 +435,7 @@ class ScoringRepository(private val context: Context) {
                 return@withContext Result.success(score)
             }
 
+            // No hay score, calcular por primera vez
             calculateAllScores()
 
         } catch (e: Exception) {
@@ -456,7 +445,7 @@ class ScoringRepository(private val context: Context) {
     }
 
     /**
-     * Verifica si hay cuestionarios nuevos en Firebase que no están reflejados en el score actual
+     * ✅ NUEVO: Verificar si hay cuestionarios nuevos en Firebase
      */
     private suspend fun checkForNewQuestionnaires(userId: String, currentScore: HealthScore): Boolean {
         return try {
@@ -473,7 +462,7 @@ class ScoringRepository(private val context: Context) {
                 }
                 .size
 
-            // Contar cuestionarios con score > 0 en el HealthScore actual (excluyendo salud_general)
+            // Contar cuestionarios con score > 0 en el HealthScore actual
             val scoreCompletedCount = listOf(
                 currentScore.ergonomiaScore,
                 currentScore.sintomasMuscularesScore,
@@ -499,11 +488,10 @@ class ScoringRepository(private val context: Context) {
         }
     }
 
-    fun clearScores() {
-        prefs.edit().clear().apply()
-    }
-
-    suspend fun saveScoreHistory(healthScore: HealthScore) {
+    /**
+     * Guardar en histórico
+     */
+    private suspend fun saveScoreHistory(healthScore: HealthScore) {
         try {
             val userId = auth.currentUser?.uid ?: return
 
@@ -520,6 +508,9 @@ class ScoringRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Obtener tendencia de scores (últimos N días)
+     */
     suspend fun getScoreTrend(userId: String, days: Int = 30): Result<List<HealthScore>> =
         withContext(Dispatchers.IO) {
             return@withContext try {
@@ -542,16 +533,25 @@ class ScoringRepository(private val context: Context) {
             }
         }
 
+    /**
+     * Obtener último tiempo de cálculo
+     */
     fun getLastCalculationTime(): Long {
         return prefs.getLong(KEY_LAST_CALC_TIME, 0L)
     }
 
+    /**
+     * Guardar tiempo de cálculo
+     */
     private fun saveCalculationTime() {
         prefs.edit()
             .putLong(KEY_LAST_CALC_TIME, System.currentTimeMillis())
             .apply()
     }
 
+    /**
+     * Validar scores
+     */
     private fun validateScores(healthScore: HealthScore): ValidationResult {
         val errors = mutableListOf<String>()
 
@@ -578,7 +578,9 @@ class ScoringRepository(private val context: Context) {
             errors.add("Inconsistencia: overall score ${healthScore.overallScore} con riesgo ${healthScore.overallRisk.displayName}")
         }
 
-        if (healthScore.overallScore >= 65 && healthScore.overallRisk != RiskLevel.ALTO && healthScore.overallRisk != RiskLevel.MUY_ALTO) {
+        if (healthScore.overallScore >= 70 &&
+            healthScore.overallRisk != RiskLevel.ALTO &&
+            healthScore.overallRisk != RiskLevel.MUY_ALTO) {
             errors.add("Inconsistencia: overall score ${healthScore.overallScore} debería ser riesgo alto/muy alto")
         }
 
@@ -586,5 +588,12 @@ class ScoringRepository(private val context: Context) {
             isValid = errors.isEmpty(),
             errors = errors
         )
+    }
+
+    /**
+     * Limpiar scores (para testing)
+     */
+    fun clearScores() {
+        prefs.edit().clear().apply()
     }
 }
