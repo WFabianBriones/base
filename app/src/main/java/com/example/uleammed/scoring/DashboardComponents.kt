@@ -149,7 +149,7 @@ fun DashboardContent(
         // ✅ NUEVO: Tendencias detalladas por área (si hay datos previos)
        healthScore.trendAnalysis?.let { trends ->
            item {
-               AreaTrendsListCard(areaTrends = trends.areaTrends)
+               AreaTrendsListCard(areaTrends = trends.areaTrends.values.toList())
             }
         }
 

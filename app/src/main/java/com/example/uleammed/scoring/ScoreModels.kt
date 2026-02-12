@@ -87,7 +87,16 @@ data class CompletenessInfo(
 enum class TrendDirection {
     MEJORANDO,
     ESTABLE,
-    EMPEORANDO
+    EMPEORANDO,
+    SIN_DATOS;
+
+    val displayName: String
+        get() = when (this) {
+            MEJORANDO -> "Mejorando"
+            ESTABLE -> "Estable"
+            EMPEORANDO -> "Empeorando"
+            SIN_DATOS -> "Sin datos previos"
+        }
 }
 
 /**
@@ -95,11 +104,12 @@ enum class TrendDirection {
  */
 data class AreaTrend(
     val area: String,
-    val previousScore: Int,
     val currentScore: Int,
+    val previousScore: Int,
+    val direction: TrendDirection,
     val changePoints: Int,
-    val trend: TrendDirection,
-    val daysSinceLastMeasurement: Int
+    val changePercent: Float,
+    val daysElapsed: Int
 )
 
 /**
@@ -107,13 +117,17 @@ data class AreaTrend(
  */
 data class TrendAnalysis(
     val overallTrend: TrendDirection,
+    val areaTrends: Map<String, AreaTrend>,
     val areasImproving: Int,
     val areasWorsening: Int,
     val areasStable: Int,
-    val areaTrends: List<AreaTrend>,
-    val mostImprovedArea: String?,
-    val mostWorsenedArea: String?
-)
+    val keyInsights: List<String>
+) {
+    // Propiedades computadas para compatibilidad con UI
+    val improvingAreas: Int get() = areasImproving
+    val decliningAreas: Int get() = areasWorsening
+    val stableAreas: Int get() = areasStable
+}
 
 // ==================== VALIDACIÓN ====================
 

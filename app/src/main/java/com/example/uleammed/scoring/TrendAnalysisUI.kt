@@ -31,6 +31,7 @@ fun TrendOverviewCard(trendAnalysis: TrendAnalysis) {
                 TrendDirection.MEJORANDO -> Color(0xFF4CAF50).copy(alpha = 0.1f)
                 TrendDirection.EMPEORANDO -> Color(0xFFF44336).copy(alpha = 0.1f)
                 TrendDirection.ESTABLE -> MaterialTheme.colorScheme.surfaceVariant
+                TrendDirection.SIN_DATOS -> MaterialTheme.colorScheme.surfaceVariant
             }
         )
     ) {
@@ -94,7 +95,7 @@ fun TrendOverviewCard(trendAnalysis: TrendAnalysis) {
                         fontWeight = FontWeight.Bold
                     )
 
-                    trendAnalysis.keyInsights.forEach { insight ->
+                    trendAnalysis.keyInsights.forEach { insight: String ->
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.Top
@@ -123,6 +124,7 @@ private fun TrendBadge(trend: TrendDirection) {
         TrendDirection.MEJORANDO -> Color(0xFF4CAF50) to Icons.Filled.TrendingUp
         TrendDirection.EMPEORANDO -> Color(0xFFF44336) to Icons.Filled.TrendingDown
         TrendDirection.ESTABLE -> Color(0xFF9E9E9E) to Icons.Filled.Remove
+        TrendDirection.SIN_DATOS -> Color(0xFF9E9E9E) to Icons.Filled.Info
     }
 
     Surface(
@@ -217,7 +219,7 @@ private fun AreaTrendItem(trend: AreaTrend) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = trend.areaName,
+                    text = trend.area,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -237,17 +239,19 @@ private fun AreaTrendItem(trend: AreaTrend) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = when (trend.trend) {
+                        imageVector = when (trend.direction) {
                             TrendDirection.MEJORANDO -> Icons.Filled.TrendingUp
                             TrendDirection.EMPEORANDO -> Icons.Filled.TrendingDown
                             TrendDirection.ESTABLE -> Icons.Filled.Remove
+                            TrendDirection.SIN_DATOS -> Icons.Filled.Info
                         },
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = when (trend.trend) {
+                        tint = when (trend.direction) {
                             TrendDirection.MEJORANDO -> Color(0xFF4CAF50)
                             TrendDirection.EMPEORANDO -> Color(0xFFF44336)
                             TrendDirection.ESTABLE -> Color(0xFF9E9E9E)
+                            TrendDirection.SIN_DATOS -> Color(0xFF9E9E9E)
                         }
                     )
                     Text(
@@ -257,16 +261,17 @@ private fun AreaTrendItem(trend: AreaTrend) {
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = when (trend.trend) {
+                        color = when (trend.direction) {
                             TrendDirection.MEJORANDO -> Color(0xFF4CAF50)
                             TrendDirection.EMPEORANDO -> Color(0xFFF44336)
                             TrendDirection.ESTABLE -> Color(0xFF9E9E9E)
+                            TrendDirection.SIN_DATOS -> Color(0xFF9E9E9E)
                         }
                     )
                 }
 
                 Text(
-                    text = "Hace ${trend.daysSinceLastMeasurement} días",
+                    text = "Hace ${trend.daysElapsed} días",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -475,10 +480,11 @@ fun TrendGraphCard(
                         trend.changePoints > 0 -> "+${trend.changePoints}"
                         else -> "${trend.changePoints}"
                     },
-                    color = when (trend.trend) {
+                    color = when (trend.direction) {
                         TrendDirection.MEJORANDO -> Color(0xFF4CAF50)
                         TrendDirection.EMPEORANDO -> Color(0xFFF44336)
                         TrendDirection.ESTABLE -> Color.Gray
+                        TrendDirection.SIN_DATOS -> Color.Gray
                     }
                 )
             }

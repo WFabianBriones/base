@@ -12,165 +12,10 @@ import kotlin.math.abs
  * 2. ✅ Análisis de tendencias vs mediciones anteriores
  * 3. ✅ Sistema de confianza basado en completitud
  * 4. ✅ Documentación clara de escala invertida en ergonomía
+ *
+ * NOTA: Los tipos TrendDirection, AreaTrend, TrendAnalysis, ConfidenceLevel
+ * y CompletenessInfo están definidos en ScoreModels.kt
  */
-
-// ==================== ANÁLISIS DE TENDENCIAS ====================
-
-/**
- * ✅ NUEVO: Dirección de la tendencia de salud
- */
-enum class TrendDirection {
-    MEJORANDO,      // +5 puntos o más (score disminuyendo)
-    ESTABLE,        // Entre -4 y +4 puntos
-    EMPEORANDO,     // -5 puntos o más (score aumentando)
-    SIN_DATOS;      // Primera medición
-
-    val displayName: String
-        get() = when (this) {
-            MEJORANDO -> "Mejorando"
-            ESTABLE -> "Estable"
-            EMPEORANDO -> "Empeorando"
-            SIN_DATOS -> "Sin datos previos"
-        }
-
-    val icon: String
-        get() = when (this) {
-            MEJORANDO -> "↗️"
-            ESTABLE -> "→"
-            EMPEORANDO -> "↘️"
-            SIN_DATOS -> "⚪"
-        }
-}
-
-/**
- * ✅ NUEVO: Análisis de tendencia de un área
- */
-data class AreaTrend(
-    val area: String,
-    val currentScore: Int,
-    val previousScore: Int?,
-    val direction: TrendDirection,
-    val changePoints: Int,  // Diferencia en puntos
-    val changePercent: Float, // Diferencia en porcentaje
-    val daysElapsed: Int     // Días desde última medición
-)
-
-/**
- * ✅ NUEVO: Análisis completo de tendencias
- */
-data class TrendAnalysis(
-    val overallTrend: TrendDirection,
-    val areaTrends: Map<String, AreaTrend>,
-    val areasImproving: Int,
-    val areasWorsening: Int,
-    val areasStable: Int,
-    val keyInsights: List<String>
-)
-
-// ==================== SISTEMA DE CONFIANZA ====================
-
-/**
- * ✅ NUEVO: Nivel de confianza en el score
- */
-enum class ConfidenceLevel {
-    ALTA,       // 90-100% completitud
-    MEDIA,      // 70-89% completitud
-    BAJA;       // <70% completitud
-
-    val displayName: String
-        get() = when (this) {
-            ALTA -> "Alta"
-            MEDIA -> "Media"
-            BAJA -> "Baja"
-        }
-
-    val description: String
-        get() = when (this) {
-            ALTA -> "Todos los cuestionarios completos"
-            MEDIA -> "Algunos cuestionarios pendientes"
-            BAJA -> "Varios cuestionarios pendientes"
-        }
-}
-
-/**
- * ✅ NUEVO: Información de completitud
- */
-data class CompletenessInfo(
-    val completedQuestionnaires: Int,
-    val totalQuestionnaires: Int,
-    val completenessPercent: Float,
-    val confidenceLevel: ConfidenceLevel,
-    val missingQuestionnaires: List<String>
-)
-
-// ==================== RESULTADO MEJORADO ====================
-
-/**
- * ✅ MEJORADO: HealthScore con tendencias y confianza
- */
-data class EnhancedHealthScore(
-    val userId: String = "",
-    val timestamp: Long = System.currentTimeMillis(),
-
-    val version: Int = 3, // ✅ ACTUALIZADO: Versión con mejoras prioridad media
-    val lastUpdated: Map<String, Long> = mapOf(
-        "salud_general" to 0L,
-        "ergonomia" to 0L,
-        "sintomas_musculares" to 0L,
-        "sintomas_visuales" to 0L,
-        "carga_trabajo" to 0L,
-        "estres" to 0L,
-        "sueno" to 0L,
-        "actividad_fisica" to 0L,
-        "balance" to 0L
-    ),
-
-    val saludGeneralScore: Int = 0,
-    val saludGeneralRisk: RiskLevel = RiskLevel.BAJO,
-
-    // Scores individuales (0-100)
-    val ergonomiaScore: Int = 0,
-    val sintomasMuscularesScore: Int = 0,
-    val sintomasVisualesScore: Int = 0,
-    val cargaTrabajoScore: Int = 0,
-    val estresSaludMentalScore: Int = 0,
-    val habitosSuenoScore: Int = 0,
-    val actividadFisicaScore: Int = 0,
-    val balanceVidaTrabajoScore: Int = 0,
-
-    // Niveles de riesgo
-    val ergonomiaRisk: RiskLevel = RiskLevel.BAJO,
-    val sintomasMuscularesRisk: RiskLevel = RiskLevel.BAJO,
-    val sintomasVisualesRisk: RiskLevel = RiskLevel.BAJO,
-    val cargaTrabajoRisk: RiskLevel = RiskLevel.BAJO,
-    val estresSaludMentalRisk: RiskLevel = RiskLevel.BAJO,
-    val habitosSuenoRisk: RiskLevel = RiskLevel.BAJO,
-    val actividadFisicaRisk: RiskLevel = RiskLevel.BAJO,
-    val balanceVidaTrabajoRisk: RiskLevel = RiskLevel.BAJO,
-
-    // Score global
-    val overallScore: Int = 0,
-    val overallRisk: RiskLevel = RiskLevel.BAJO,
-
-    // Áreas de mejora
-    val topConcerns: List<String> = emptyList(),
-    val recommendations: List<String> = emptyList(),
-
-    // Patrones críticos
-    val criticalPatterns: List<CriticalPattern> = emptyList(),
-
-    // ✅ NUEVO: Análisis de tendencias
-    val trendAnalysis: TrendAnalysis? = null,
-
-    // ✅ NUEVO: Sistema de confianza
-    val completeness: CompletenessInfo = CompletenessInfo(
-        completedQuestionnaires = 0,
-        totalQuestionnaires = 9,
-        completenessPercent = 0f,
-        confidenceLevel = ConfidenceLevel.BAJA,
-        missingQuestionnaires = emptyList()
-    )
-)
 
 // ==================== CALCULADOR MEJORADO ====================
 
@@ -299,8 +144,8 @@ object EnhancedScoreCalculator {
      * ✅ NUEVO: Analizar tendencias comparando con medición anterior
      */
     fun analyzeTrends(
-        currentScore: EnhancedHealthScore,
-        previousScore: EnhancedHealthScore?
+        currentScore: HealthScore,
+        previousScore: HealthScore?
     ): TrendAnalysis {
 
         if (previousScore == null) {
@@ -448,7 +293,7 @@ object EnhancedScoreCalculator {
      * ✅ NUEVO: Calcular completitud de cuestionarios
      */
     fun calculateCompleteness(lastUpdated: Map<String, Long>): CompletenessInfo {
-        val totalQuestionnaires = 9
+        val totalQuestionnaires = 8  // Cambiado de 9 a 8 para coincidir con HealthScore
         val completedQuestionnaires = lastUpdated.values.count { it > 0 }
         val completenessPercent = (completedQuestionnaires.toFloat() / totalQuestionnaires * 100)
 
@@ -496,43 +341,6 @@ object EnhancedScoreCalculator {
             "balance" -> "Balance Vida-Trabajo"
             else -> key
         }
-    }
-
-    /**
-     * ✅ NUEVO: Generar EnhancedHealthScore completo
-     */
-    fun calculateEnhancedHealthScore(
-        userId: String,
-        allQuestionnaires: Map<String, Any?>,
-        previousScore: EnhancedHealthScore? = null
-    ): EnhancedHealthScore {
-
-        // Calcular scores de cada área (usando ScoreCalculator existente)
-        val scores = mutableMapOf<String, Pair<Int, RiskLevel>>()
-        val lastUpdated = mutableMapOf<String, Long>()
-
-        // Extraer y calcular scores individuales
-        // (Esta parte conectaría con el ScoreCalculator existente)
-
-        // Calcular completitud
-        val completeness = calculateCompleteness(lastUpdated)
-
-        // Calcular score base (usando ScoreCalculator.calculateOverallScore)
-        val baseScore = EnhancedHealthScore(
-            userId = userId,
-            timestamp = System.currentTimeMillis(),
-            version = 3,
-            lastUpdated = lastUpdated,
-            completeness = completeness
-            // ... otros campos
-        )
-
-        // Analizar tendencias
-        val trendAnalysis = analyzeTrends(baseScore, previousScore)
-
-        return baseScore.copy(
-            trendAnalysis = trendAnalysis
-        )
     }
 }
 
