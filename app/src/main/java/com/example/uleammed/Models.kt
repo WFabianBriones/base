@@ -58,7 +58,7 @@ sealed class AuthState {
 }
 
 // Resultado de validación
-data class ValidationResult(
+data class AuthValidationResult(
     val isValid: Boolean,
     val errorMessage: String? = null
 )

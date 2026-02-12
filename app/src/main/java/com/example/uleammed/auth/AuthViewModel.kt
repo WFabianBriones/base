@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.uleammed.auth.AuthRepository
 import com.example.uleammed.AuthState
 import com.example.uleammed.User
-import com.example.uleammed.ValidationResult
+import com.example.uleammed.AuthValidationResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -170,26 +170,26 @@ class AuthViewModel : ViewModel() {
         password: String,
         confirmPassword: String,
         displayName: String
-    ): ValidationResult {
+    ): AuthValidationResult {
         return when {
-            displayName.isBlank() -> ValidationResult(false, "Por favor ingresa tu nombre")
-            displayName.length < 2 -> ValidationResult(
+            displayName.isBlank() -> AuthValidationResult(false, "Por favor ingresa tu nombre")
+            displayName.length < 2 -> AuthValidationResult(
                 false,
                 "El nombre debe tener al menos 2 caracteres"
             )
-            email.isBlank() -> ValidationResult(false, "Por favor ingresa tu correo")
+            email.isBlank() -> AuthValidationResult(false, "Por favor ingresa tu correo")
             !Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
-                ValidationResult(false, "Correo electrónico inválido")
-            !email.endsWith("@live.uleam.edu.ec") && !email.endsWith("@gmail.com") ->
-                ValidationResult(false, "Usa un correo @live.uleam.edu.ec o @gmail.com")
-            password.isBlank() -> ValidationResult(false, "Por favor ingresa tu contraseña")
-            password.length < 6 -> ValidationResult(
+                AuthValidationResult(false, "Correo electrónico inválido")
+            !email.endsWith("@uleam.edu.ec") && !email.endsWith("@gmail.com") ->
+                AuthValidationResult(false, "Usa un correo @uleam.edu.ec o @gmail.com")
+            password.isBlank() -> AuthValidationResult(false, "Por favor ingresa tu contraseña")
+            password.length < 6 -> AuthValidationResult(
                 false,
                 "La contraseña debe tener al menos 6 caracteres"
             )
-            password.length > 50 -> ValidationResult(false, "La contraseña es demasiado larga")
-            password != confirmPassword -> ValidationResult(false, "Las contraseñas no coinciden")
-            else -> ValidationResult(true)
+            password.length > 50 -> AuthValidationResult(false, "La contraseña es demasiado larga")
+            password != confirmPassword -> AuthValidationResult(false, "Las contraseñas no coinciden")
+            else -> AuthValidationResult(true)
         }
     }
 

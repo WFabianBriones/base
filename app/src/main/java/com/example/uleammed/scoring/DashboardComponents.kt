@@ -30,17 +30,21 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import kotlin.math.cos
 import kotlin.math.sin
-import androidx.compose.material.icons.filled.Psychology  // ⭐ AGREGAR
-// --- Asume que RiskLevel, HealthScore, ScoringState y ScoringViewModel existen en otros archivos ---
-// No se incluyen aquí por simplicidad, pero son necesarios para que el código compile.
+import androidx.compose.material.icons.filled.Psychology
+import com.example.uleammed.scoring.*
+// ✅ IMPORTS AGREGADOS para TrendAnalysisUI
+import com.example.uleammed.scoring.CompletenessCard
+import com.example.uleammed.scoring.TrendOverviewCard
+import com.example.uleammed.scoring.AreaTrendsListCard
 
 /**
  * Dashboard principal con todos los gráficos de salud
+ * ✅ ACTUALIZADO: Incluye análisis de tendencias y completitud
  */
 @Composable
 fun HealthDashboard(
     viewModel: ScoringViewModel = viewModel(),
-    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit = {}  // ⭐ AGREGAR
+    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val healthScore by viewModel.healthScore.collectAsState()
@@ -77,14 +81,13 @@ fun HealthDashboard(
                 if (healthScore != null) {
                     DashboardContent(
                         healthScore = healthScore!!,
-                        onRecalculate = { viewModel.recalculateScores() },
+                        onRecalculate = { viewModel.forceRecalculate() },
                         onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
                     )
                 }
             }
 
             else -> {
-                // Idle - intentar cargar
                 LaunchedEffect(Unit) {
                     viewModel.loadScore()
                 }
@@ -95,6 +98,7 @@ fun HealthDashboard(
 
 /**
  * Contenido principal del dashboard
+ * ✅ ACTUALIZADO: Incluye tarjetas de tendencias
  */
 @Composable
 fun DashboardContent(
@@ -102,12 +106,10 @@ fun DashboardContent(
     onRecalculate: () -> Unit,
     onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit
 ) {
-    // Verificar qué encuestas están completadas
     val completedSurveys = getCompletedSurveys(healthScore)
     val hasAnySurvey = completedSurveys.isNotEmpty()
 
     if (!hasAnySurvey) {
-        // No hay encuestas completadas
         EmptyDashboardView()
         return
     }
@@ -115,6 +117,18 @@ fun DashboardContent(
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ✅ NUEVO: Tarjeta de completitud (siempre visible)
+        item {
+            CompletenessCard(completeness = healthScore.completeness)
+        }
+
+        // ✅ NUEVO: Tendencias generales (si hay datos previos)
+        healthScore.trendAnalysis?.let { trends ->
+            item {
+                TrendOverviewCard(trendAnalysis = trends)
+            }
+        }
+
         // 1. Score global circular (solo si hay al menos 3 encuestas)
         if (completedSurveys.size >= 3) {
             item {
@@ -122,6 +136,7 @@ fun DashboardContent(
             }
         }
 
+        // 2. Análisis de IA Burnout
         if (completedSurveys.size >= 3) {
             item {
                 BurnoutAIAnalysisCard(
@@ -131,22 +146,31 @@ fun DashboardContent(
             }
         }
 
-        // 2. Resumen de estado
-        item {
-            StatusSummaryCard(
-                healthScore = healthScore,
-                completedCount = completedSurveys.size
-            )
+        // ✅ NUEVO: Tendencias detalladas por área (si hay datos previos)
+       healthScore.trendAnalysis?.let { trends ->
+           item {
+               AreaTrendsListCard(areaTrends = trends.areaTrends.values.toList())
+            }
         }
 
-        // 3. Gráfico de radar (solo si hay al menos 4 encuestas)
+        // 3. Resumen de estado (solo si hay encuestas completadas)
+        if (completedSurveys.isNotEmpty()) {
+            item {
+                StatusSummaryCard(
+                    healthScore = healthScore,
+                    completedCount = completedSurveys.size
+                )
+            }
+        }
+
+        // 4. Gráfico de radar (solo si hay al menos 4 encuestas)
         if (completedSurveys.size >= 4) {
             item {
                 RadarChartCard(healthScore = healthScore)
             }
         }
 
-        // 4. Barra de progreso por área (solo áreas completadas)
+        // 5. Barra de progreso por área (solo áreas completadas)
         item {
             ProgressBarsCard(
                 healthScore = healthScore,
@@ -154,21 +178,21 @@ fun DashboardContent(
             )
         }
 
-        // 5. Áreas críticas (si hay)
+        // 6. Áreas críticas (si hay)
         if (healthScore.topConcerns.isNotEmpty()) {
             item {
                 TopConcernsCard(concerns = healthScore.topConcerns)
             }
         }
 
-        // 6. Recomendaciones (si hay)
+        // 7. Recomendaciones (si hay)
         if (healthScore.recommendations.isNotEmpty()) {
             item {
                 RecommendationsCard(recommendations = healthScore.recommendations)
             }
         }
 
-        // 7. Progreso de encuestas
+        // 8. Progreso de encuestas
         item {
             SurveyProgressCard(
                 completedCount = completedSurveys.size,
@@ -176,7 +200,7 @@ fun DashboardContent(
             )
         }
 
-        // 8. Botón de recalcular
+        // 9. Botón de recalcular
         item {
             Button(
                 onClick = onRecalculate,
@@ -190,7 +214,6 @@ fun DashboardContent(
             }
         }
 
-        // Espaciado final
         item {
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -216,19 +239,17 @@ fun OverallScoreCard(healthScore: HealthScore) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Tu Salud Laboral",
+                text = "Nivel de Riesgo Laboral",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
 
-            // Gráfico circular animado
             CircularScoreIndicator(
                 score = healthScore.overallScore,
                 risk = healthScore.overallRisk,
                 size = 180.dp
             )
 
-            // Nivel de riesgo
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = Color(healthScore.overallRisk.color)
@@ -242,13 +263,12 @@ fun OverallScoreCard(healthScore: HealthScore) {
                 )
             }
 
-            // Mensaje
             Text(
                 text = when (healthScore.overallRisk) {
-                    RiskLevel.BAJO -> "¡Excelente! Mantén tus hábitos saludables"
+                    RiskLevel.BAJO -> "Buen estado general. Mantén tus hábitos saludables"
                     RiskLevel.MODERADO -> "Hay áreas que mejorar. Revisa las recomendaciones"
-                    RiskLevel.ALTO -> "Varias áreas requieren atención inmediata"
-                    RiskLevel.MUY_ALTO -> "⚠️ Situación crítica - Busca apoyo profesional"
+                    RiskLevel.ALTO -> "Varias áreas requieren atención. Implementa cambios pronto"
+                    RiskLevel.MUY_ALTO -> "Situación que requiere intervención. Busca apoyo profesional"
                 },
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyLarge,
@@ -281,14 +301,12 @@ fun CircularScoreIndicator(
             val strokeWidth = 20.dp.toPx()
             val radius = (size.toPx() - strokeWidth) / 2
 
-            // Círculo de fondo
             drawCircle(
                 color = Color.Gray.copy(alpha = 0.2f),
                 radius = radius,
                 style = Stroke(width = strokeWidth)
             )
 
-            // Arco de progreso
             val sweepAngle = (animatedScore / 100f) * 360f
             drawArc(
                 color = Color(risk.color),
@@ -304,7 +322,6 @@ fun CircularScoreIndicator(
             )
         }
 
-        // Score en el centro
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${animatedScore.toInt()}",
@@ -406,12 +423,6 @@ fun SummaryItem(
     }
 }
 
-/**
- * 3. Gráfico de radar (spider chart)
- */
-/**
- * Gráfico de radar MEJORADO (spider chart) - VERSIÓN CORREGIDA
- */
 @Composable
 fun RadarChartCard(healthScore: HealthScore) {
     Card(
@@ -442,7 +453,6 @@ fun RadarChart(
     healthScore: HealthScore,
     modifier: Modifier = Modifier
 ) {
-    // Etiquetas simplificadas
     val dataPoints = listOf(
         "Ergonomía" to healthScore.ergonomiaScore,
         "Síntomas Musculares" to (100 - healthScore.sintomasMuscularesScore),
@@ -462,11 +472,10 @@ fun RadarChart(
         val center = Offset(centerX, centerY)
 
         val radius = size.minDimension / 3.0f
-        val labelRadius = radius * 1.18f // ✅ Etiquetas AÚN más cerca
+        val labelRadius = radius * 1.18f
 
         val angleStep = 360f / dataPoints.size
 
-        // Configuración de texto
         val textPaint = android.graphics.Paint().apply {
             color = android.graphics.Color.parseColor("#424242")
             textSize = 30f
@@ -474,7 +483,6 @@ fun RadarChart(
             isAntiAlias = true
         }
 
-        // 1. Dibujar círculos de fondo (telaraña)
         for (i in 1..5) {
             val currentRadius = radius * (i / 5f)
             drawCircle(
@@ -485,7 +493,6 @@ fun RadarChart(
             )
         }
 
-        // 2. Dibujar líneas radiales
         dataPoints.forEachIndexed { index, _ ->
             val angle = Math.toRadians((angleStep * index - 90).toDouble())
             val end = Offset(
@@ -500,7 +507,6 @@ fun RadarChart(
             )
         }
 
-        // 3. Calcular puntos del polígono
         val points = dataPoints.mapIndexed { index, (_, value) ->
             val angle = Math.toRadians((angleStep * index - 90).toDouble())
             val distance = radius * (value / 100f)
@@ -510,7 +516,6 @@ fun RadarChart(
             )
         }
 
-        // 4. Dibujar polígono con relleno
         val path = androidx.compose.ui.graphics.Path().apply {
             if (points.isNotEmpty()) {
                 moveTo(points[0].x, points[0].y)
@@ -530,7 +535,6 @@ fun RadarChart(
             style = Stroke(width = 3.dp.toPx())
         )
 
-        // 5. Puntos en los vértices
         points.forEach { point ->
             drawCircle(
                 color = riskColor,
@@ -544,14 +548,12 @@ fun RadarChart(
             )
         }
 
-        // 6. DIBUJAR ETIQUETAS ALREDEDOR DEL RADAR (CORREGIDO)
         dataPoints.forEachIndexed { index, (label, _) ->
             val angle = Math.toRadians((angleStep * index - 90).toDouble())
 
             val labelX = centerX + (labelRadius * cos(angle)).toFloat()
             val labelY = centerY + (labelRadius * sin(angle)).toFloat()
 
-            // Ajustar alineación según posición
             val adjustedTextPaint = android.graphics.Paint(textPaint).apply {
                 when {
                     labelX < centerX - 30 -> textAlign = android.graphics.Paint.Align.RIGHT
@@ -560,13 +562,10 @@ fun RadarChart(
                 }
             }
 
-            // Dividir etiqueta en palabras
             val words = label.split(" ")
 
-            // ✅ CORRECCIÓN: Usar drawIntoCanvas
             drawIntoCanvas { canvas ->
                 if (words.size > 1) {
-                    // Etiqueta de dos líneas
                     val line1 = words[0]
                     val line2 = words.drop(1).joinToString(" ")
 
@@ -583,7 +582,6 @@ fun RadarChart(
                         adjustedTextPaint
                     )
                 } else {
-                    // Etiqueta de una línea
                     canvas.nativeCanvas.drawText(
                         label,
                         labelX,
@@ -596,10 +594,6 @@ fun RadarChart(
     }
 }
 
-
-/**
- * 4. Barras de progreso por área (solo completadas)
- */
 @Composable
 fun ProgressBarsCard(
     healthScore: HealthScore,
@@ -618,7 +612,6 @@ fun ProgressBarsCard(
                 fontWeight = FontWeight.Bold
             )
 
-            // Solo mostrar áreas completadas (Se añaden iconos de tendencia de EJEMPLO)
             if (completedSurveys.contains("ergonomia")) {
                 ProgressBarItem("Ergonomía", healthScore.ergonomiaScore, healthScore.ergonomiaRisk, true, Icons.Filled.ArrowUpward)
             }
@@ -647,14 +640,13 @@ fun ProgressBarsCard(
     }
 }
 
-// --- FUNCIÓN MODIFICADA: Ahora incluye trendIcon ---
 @Composable
 fun ProgressBarItem(
     label: String,
     score: Int,
     risk: RiskLevel,
     higherIsBetter: Boolean,
-    trendIcon: androidx.compose.ui.graphics.vector.ImageVector? = null // NUEVO PARAMETRO
+    trendIcon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
@@ -668,7 +660,6 @@ fun ProgressBarItem(
                 modifier = Modifier.weight(1f)
             )
 
-            // ✅ LÓGICA DE ICONO DE TENDENCIA
             trendIcon?.let { icon ->
                 val trendColor = when (icon) {
                     Icons.Filled.ArrowUpward -> Color(RiskLevel.BAJO.color)
@@ -710,9 +701,6 @@ fun ProgressBarItem(
     }
 }
 
-/**
- * 5. Áreas críticas
- */
 @Composable
 fun TopConcernsCard(concerns: List<String>) {
     if (concerns.isEmpty()) return
@@ -772,9 +760,6 @@ fun TopConcernsCard(concerns: List<String>) {
     }
 }
 
-/**
- * 6. Recomendaciones
- */
 @Composable
 fun RecommendationsCard(recommendations: List<String>) {
     if (recommendations.isEmpty()) return
@@ -826,9 +811,6 @@ fun RecommendationsCard(recommendations: List<String>) {
     }
 }
 
-/**
- * Vista de error
- */
 @Composable
 fun ErrorView(
     message: String,
@@ -871,21 +853,19 @@ fun ErrorView(
 // Función helper
 private fun countByRisk(healthScore: HealthScore, targetRisk: RiskLevel): Int {
     val risks = listOf(
-        healthScore.ergonomiaRisk,
-        healthScore.sintomasMuscularesRisk,
-        healthScore.sintomasVisualesRisk,
-        healthScore.cargaTrabajoRisk,
-        healthScore.estresSaludMentalRisk,
-        healthScore.habitosSuenoRisk,
-        healthScore.actividadFisicaRisk,
-        healthScore.balanceVidaTrabajoRisk
+        healthScore.ergonomiaScore to healthScore.ergonomiaRisk,
+        healthScore.sintomasMuscularesScore to healthScore.sintomasMuscularesRisk,
+        healthScore.sintomasVisualesScore to healthScore.sintomasVisualesRisk,
+        healthScore.cargaTrabajoScore to healthScore.cargaTrabajoRisk,
+        healthScore.estresSaludMentalScore to healthScore.estresSaludMentalRisk,
+        healthScore.habitosSuenoScore to healthScore.habitosSuenoRisk,
+        healthScore.actividadFisicaScore to healthScore.actividadFisicaRisk,
+        healthScore.balanceVidaTrabajoScore to healthScore.balanceVidaTrabajoRisk
     )
-    return risks.count { it == targetRisk }
+
+    return risks.count { (score, risk) -> score > 0 && risk == targetRisk }
 }
 
-/**
- * Helper: Detectar qué encuestas están completadas
- */
 private fun getCompletedSurveys(healthScore: HealthScore): List<String> {
     val completed = mutableListOf<String>()
 
@@ -901,9 +881,6 @@ private fun getCompletedSurveys(healthScore: HealthScore): List<String> {
     return completed
 }
 
-/**
- * Vista cuando no hay encuestas completadas
- */
 @Composable
 fun EmptyDashboardView() {
     Card(
@@ -956,9 +933,6 @@ fun EmptyDashboardView() {
     }
 }
 
-/**
- * Card de progreso de encuestas
- */
 @Composable
 fun SurveyProgressCard(completedCount: Int, totalCount: Int) {
     Card(
@@ -1044,11 +1018,9 @@ fun SurveyProgressCard(completedCount: Int, totalCount: Int) {
             }
         }
     }
-
 }
-/**
- * ⭐ Card de análisis de burnout con IA
- */
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BurnoutAIAnalysisCard(
@@ -1057,17 +1029,17 @@ fun BurnoutAIAnalysisCard(
 ) {
     Card(
         onClick = {
-            // Convertir scores a índices 0-10
-            val indices = mapOf(
-                "estres" to (healthScore.estresSaludMentalScore / 100f * 10f),
-                "ergonomia" to (healthScore.ergonomiaScore / 100f * 10f),
-                "carga_trabajo" to (healthScore.cargaTrabajoScore / 100f * 10f),
-                "calidad_sueno" to (healthScore.habitosSuenoScore / 100f * 10f),
-                "actividad_fisica" to (healthScore.actividadFisicaScore / 100f * 10f),
-                "sintomas_musculares" to (healthScore.sintomasMuscularesScore / 100f * 10f),
-                "sintomas_visuales" to (healthScore.sintomasVisualesScore / 100f * 10f),
-                "salud_general" to (healthScore.saludGeneralScore / 100f * 10f)
+            val indices = linkedMapOf(
+                "estres_index" to (healthScore.estresSaludMentalScore / 100f * 10f),
+                "ergonomia_index" to ((100 - healthScore.ergonomiaScore) / 100f * 10f),
+                "carga_trabajo_index" to (healthScore.cargaTrabajoScore / 100f * 10f),
+                "calidad_sueno_index" to (healthScore.habitosSuenoScore / 100f * 10f),
+                "actividad_fisica_index" to (healthScore.actividadFisicaScore / 100f * 10f),
+                "sintomas_musculares_index" to (healthScore.sintomasMuscularesScore / 100f * 10f),
+                "sintomas_visuales_index" to (healthScore.sintomasVisualesScore / 100f * 10f),
+                "salud_general_index" to (healthScore.saludGeneralScore / 100f * 10f)
             )
+
             onAnalyze(indices)
         },
         modifier = Modifier.fillMaxWidth(),
@@ -1083,7 +1055,6 @@ fun BurnoutAIAnalysisCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono principal
             Icon(
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
@@ -1091,7 +1062,6 @@ fun BurnoutAIAnalysisCard(
                 tint = MaterialTheme.colorScheme.tertiary
             )
 
-            // Contenido
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1131,7 +1101,6 @@ fun BurnoutAIAnalysisCard(
                 }
             }
 
-            // Flecha
             Icon(
                 imageVector = Icons.Filled.ArrowForward,
                 contentDescription = null,
