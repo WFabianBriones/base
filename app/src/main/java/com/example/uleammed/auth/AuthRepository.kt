@@ -221,10 +221,12 @@ class AuthRepository {
      * Obtiene el conjunto de tipos de cuestionarios que están completados Y vigentes
      * Usa la configuración personalizada del usuario (periodDays)
      */
-    suspend fun getCompletedQuestionnaires(userId: String): Result<Set<String>> {
+    suspend fun getCompletedQuestionnaires(
+        userId: String,
+        periodDays: Int  // ✅ Nuevo parámetro
+    ): Result<Set<String>> {
         return try {
             val currentTime = System.currentTimeMillis()
-            val periodDays = getUserScheduleConfig(userId)
             val validityPeriod = TimeUnit.DAYS.toMillis(periodDays.toLong())
             val cutoffTime = currentTime - validityPeriod
 
@@ -254,7 +256,11 @@ class AuthRepository {
     /**
      * Verifica si un cuestionario específico está completado Y vigente
      */
-    suspend fun isQuestionnaireCompleted(userId: String, questionnaireType: String): Result<Boolean> {
+    suspend fun isQuestionnaireCompleted(
+        userId: String,
+        questionnaireType: String,
+        periodDays: Int  // ✅ Nuevo parámetro
+    ): Result<Boolean> {
         return try {
             val doc = firestore.collection("users")
                 .document(userId)
@@ -267,7 +273,6 @@ class AuthRepository {
                 return Result.success(false)
             }
 
-            val periodDays = getUserScheduleConfig(userId)
             val timestamp = doc.getLong("completedAt") ?: 0L
             val currentTime = System.currentTimeMillis()
             val validityPeriod = TimeUnit.DAYS.toMillis(periodDays.toLong())
@@ -290,7 +295,11 @@ class AuthRepository {
     /**
      * Obtiene información detallada sobre el estado de los cuestionarios
      */
-    suspend fun getQuestionnaireStatus(userId: String, questionnaireType: String): Result<QuestionnaireStatus> {
+    suspend fun getQuestionnaireStatus(
+        userId: String,
+        questionnaireType: String,
+        periodDays: Int  // ✅ Nuevo parámetro
+    ): Result<QuestionnaireStatus> {
         return try {
             val doc = firestore.collection("users")
                 .document(userId)
@@ -303,7 +312,6 @@ class AuthRepository {
                 return Result.success(QuestionnaireStatus.NotCompleted)
             }
 
-            val periodDays = getUserScheduleConfig(userId)
             val timestamp = doc.getLong("completedAt") ?: 0L
             val currentTime = System.currentTimeMillis()
             val validityPeriod = TimeUnit.DAYS.toMillis(periodDays.toLong())
@@ -317,7 +325,7 @@ class AuthRepository {
                 Result.success(QuestionnaireStatus.Completed(
                     completedAt = timestamp,
                     daysRemaining = daysRemaining,
-                    totalPeriodDays = periodDays
+                    totalPeriodDays = periodDays  // ✅ Usa el parámetro
                 ))
             } else {
                 Result.success(QuestionnaireStatus.Expired(

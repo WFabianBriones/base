@@ -89,7 +89,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.updatePeriodDays(pendingFrequency!!.days)
+                        viewModel.updatePeriodDays(pendingFrequency!!.days)  // ✅ Esto está correcto
                         selectedFrequency = pendingFrequency!!
                         showFrequencyDialog = false
                         pendingFrequency = null

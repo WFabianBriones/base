@@ -149,16 +149,25 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             try {
                 val userId = auth.currentUser?.uid ?: return@launch
 
+                // ✅ CRÍTICO: Actualizar StateFlow INMEDIATAMENTE
+                val currentConfig = _scheduleConfig.value
+                if (currentConfig != null) {
+                    _scheduleConfig.value = currentConfig.copy(periodDays = days)
+                    Log.d("NotificationViewModel", "✅ StateFlow actualizado inmediatamente a $days días")
+                }
+
+                // Actualizar en Firestore (en segundo plano)
                 withContext(Dispatchers.IO) {
                     notificationManager.updatePeriodDays(userId, days)
                 }
 
+                // Recargar para sincronizar todo
                 loadNotifications()
 
-                Log.d("NotificationViewModel", "Período actualizado a $days días")
+                Log.d("NotificationViewModel", "✅ Período completamente actualizado a $days días")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar período: ${e.message}"
-                Log.e("NotificationViewModel", "Error updating period", e)
+                Log.e("NotificationViewModel", "❌ Error updating period", e)
             }
         }
     }

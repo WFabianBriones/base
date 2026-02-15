@@ -290,7 +290,7 @@ fun ExploreContent(
     val repository = remember { AuthRepository() }
     val userId = FirebaseAuth.getInstance().currentUser?.uid
 
-    // ✅ CORRECCIÓN: Obtener periodDays del ViewModel en lugar de AuthRepository
+    // ✅ Obtener periodDays del ViewModel
     val scheduleConfig by notificationViewModel.scheduleConfig.collectAsState()
     val periodDays = scheduleConfig?.periodDays ?: 7
 
@@ -298,11 +298,13 @@ fun ExploreContent(
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
-    // ✅ Recargar cuando cambia el período
+    // ✅ CRÍTICO: Recargar cuando cambia el período Y pasar periodDays al repository
     LaunchedEffect(periodDays, userId) {
         scope.launch {
             if (userId != null) {
-                val result = repository.getCompletedQuestionnaires(userId)
+                isLoading = true
+                // ✅ CAMBIO IMPORTANTE: Pasar periodDays como segundo parámetro
+                val result = repository.getCompletedQuestionnaires(userId, periodDays)
                 result.onSuccess { completed ->
                     completedQuestionnaires = completed
                     isLoading = false
@@ -310,6 +312,7 @@ fun ExploreContent(
                         "🔄 Cuestionarios recargados con período de $periodDays días")
                 }.onFailure {
                     isLoading = false
+                    android.util.Log.e("ExploreContent", "❌ Error recargando cuestionarios", it)
                 }
             } else {
                 isLoading = false
@@ -483,11 +486,16 @@ fun QuestionnaireCardDynamic(
     var status by remember { mutableStateOf<QuestionnaireStatus?>(null) }
     val scope = rememberCoroutineScope()
 
-    // ✅ CAMBIO CRÍTICO: Agregar periodDays como dependencia
-    LaunchedEffect(isCompleted, periodDays) {  // ← ANTES: LaunchedEffect(isCompleted)
+    // ✅ CRÍTICO: Agregar periodDays como dependencia Y pasarlo al repository
+    LaunchedEffect(isCompleted, periodDays) {
         if (isCompleted && userId.isNotEmpty()) {
             scope.launch {
-                val result = repository.getQuestionnaireStatus(userId, questionnaire.firestoreId)
+                // ✅ CAMBIO IMPORTANTE: Pasar periodDays como tercer parámetro
+                val result = repository.getQuestionnaireStatus(
+                    userId,
+                    questionnaire.firestoreId,
+                    periodDays  // ✅ Usar el valor actualizado
+                )
                 result.onSuccess { s ->
                     status = s
                     android.util.Log.d("QuestionnaireCard",
