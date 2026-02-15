@@ -199,7 +199,7 @@ class AuthRepository {
     /**
      * Obtiene la configuración de periodicidad del usuario
      */
-    private suspend fun getUserScheduleConfig(userId: String): Int {
+    suspend fun getUserScheduleConfig(userId: String): Int {
         return try {
             val doc = firestore.collection("users")
                 .document(userId)

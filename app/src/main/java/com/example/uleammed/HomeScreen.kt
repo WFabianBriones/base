@@ -27,6 +27,8 @@ import com.example.uleammed.scoring.ScoringViewModel
 import androidx.compose.ui.platform.LocalContext
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import androidx.compose.ui.draw.alpha
+import android.widget.Toast
 
 /**
  * Función principal HomeScreen
@@ -288,6 +290,7 @@ fun ExploreContent(
     val repository = remember { AuthRepository() }
     val userId = FirebaseAuth.getInstance().currentUser?.uid
 
+    // ✅ CORRECCIÓN: Obtener periodDays del ViewModel en lugar de AuthRepository
     val scheduleConfig by notificationViewModel.scheduleConfig.collectAsState()
     val periodDays = scheduleConfig?.periodDays ?: 7
 
@@ -295,13 +298,16 @@ fun ExploreContent(
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(userId) {
+    // ✅ Recargar cuando cambia el período
+    LaunchedEffect(periodDays, userId) {
         scope.launch {
             if (userId != null) {
                 val result = repository.getCompletedQuestionnaires(userId)
                 result.onSuccess { completed ->
                     completedQuestionnaires = completed
                     isLoading = false
+                    android.util.Log.d("ExploreContent",
+                        "🔄 Cuestionarios recargados con período de $periodDays días")
                 }.onFailure {
                     isLoading = false
                 }
@@ -311,30 +317,31 @@ fun ExploreContent(
         }
     }
 
+    // ✅ LISTA COMPLETA CON LOS 8 CUESTIONARIOS
     val questionnaireList = remember {
         listOf(
             QuestionnaireInfo(
                 type = QuestionnaireType.ERGONOMIA,
-                title = "Ergonomía y Ambiente",
-                description = "Evalúa tu espacio de trabajo",
-                icon = Icons.Filled.Computer,
+                title = "Ergonomía",
+                description = "Evalúa tu estación de trabajo",
+                icon = Icons.Filled.Chair,
                 estimatedTime = "8-10 min",
                 totalQuestions = 22,
                 firestoreId = "ergonomia"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.SINTOMAS_MUSCULARES,
-                title = "Síntomas Músculo-Esqueléticos",
-                description = "Identifica dolores y molestias",
-                icon = Icons.Filled.MonitorHeart,
+                title = "Síntomas Musculares",
+                description = "Identifica molestias físicas",
+                icon = Icons.Filled.Accessibility,
                 estimatedTime = "6-8 min",
-                totalQuestions = 18,
+                totalQuestions = 17,
                 firestoreId = "sintomas_musculares"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.SINTOMAS_VISUALES,
                 title = "Síntomas Visuales",
-                description = "Evalúa fatiga ocular",
+                description = "Detecta fatiga ocular",
                 icon = Icons.Filled.RemoveRedEye,
                 estimatedTime = "4-5 min",
                 totalQuestions = 14,
@@ -407,7 +414,12 @@ fun ExploreContent(
                 )
 
                 Text(
-                    text = "Frecuencia: cada $periodDays días",
+                    text = when (periodDays) {
+                        7 -> "Frecuencia: Semanal"
+                        15 -> "Frecuencia: Quincenal"
+                        30 -> "Frecuencia: Mensual"
+                        else -> "Frecuencia: cada $periodDays días"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -464,26 +476,37 @@ fun QuestionnaireCardDynamic(
     isCompleted: Boolean,
     userId: String,
     repository: AuthRepository,
-    periodDays: Int,
+    periodDays: Int,  // ✅ Este valor ya llega actualizado
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     var status by remember { mutableStateOf<QuestionnaireStatus?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(isCompleted) {
+    // ✅ CAMBIO CRÍTICO: Agregar periodDays como dependencia
+    LaunchedEffect(isCompleted, periodDays) {  // ← ANTES: LaunchedEffect(isCompleted)
         if (isCompleted && userId.isNotEmpty()) {
             scope.launch {
                 val result = repository.getQuestionnaireStatus(userId, questionnaire.firestoreId)
                 result.onSuccess { s ->
                     status = s
+                    android.util.Log.d("QuestionnaireCard",
+                        "📊 Status actualizado para ${questionnaire.title}: $s (período: $periodDays días)")
                 }
             }
+        } else {
+            status = null
         }
     }
 
+    // Calcular umbrales dinámicamente basados en el período configurado
     val criticalThreshold = (periodDays * 0.3).toInt().coerceAtLeast(1)
     val warningThreshold = (periodDays * 0.5).toInt().coerceAtLeast(2)
 
+    // ✅ Determinar si está bloqueado
+    val isLocked = isCompleted && status is QuestionnaireStatus.Completed
+
+    // Colores dinámicos según estado y tiempo restante
     val cardColor = when {
         !isCompleted -> MaterialTheme.colorScheme.surface
         status is QuestionnaireStatus.Completed -> {
@@ -511,165 +534,221 @@ fun QuestionnaireCardDynamic(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor)
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (isLocked) 0.6f else 1f), // Opacidad reducida cuando está bloqueado
+        onClick = {
+            if (isLocked && status is QuestionnaireStatus.Completed) {
+                // Mostrar mensaje informativo
+                val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+                val periodText = when (periodDays) {
+                    7 -> "semanal"
+                    15 -> "quincenal"
+                    30 -> "mensual"
+                    else -> "de $periodDays días"
+                }
+
+                val mensaje = when {
+                    daysRemaining <= 0 -> "Este cuestionario estará disponible mañana. Recibirás una notificación."
+                    daysRemaining == 1 -> "Este cuestionario ($periodText) estará disponible en 1 día. Recibirás una notificación."
+                    else -> "Este cuestionario ($periodText) estará disponible en $daysRemaining días. Recibirás una notificación."
+                }
+
+                Toast.makeText(context, mensaje, Toast.LENGTH_LONG).show()
+
+                android.util.Log.d("QuestionnaireCard",
+                    "🔒 Intento de abrir cuestionario bloqueado: ${questionnaire.title} (disponible en $daysRemaining días)")
+            } else {
+                // Navegar normalmente
+                onClick()
+                android.util.Log.d("QuestionnaireCard",
+                    "✅ Navegando a cuestionario: ${questionnaire.title}")
+            }
+        },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isLocked) 0.dp else 2.dp
+        ),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        enabled = !isLocked // Deshabilitar cuando está bloqueado
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Icono del cuestionario
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = iconColor,
                 modifier = Modifier.size(56.dp)
             ) {
-                Icon(
-                    imageVector = questionnaire.icon,
-                    contentDescription = null,
-                    modifier = Modifier.padding(12.dp),
-                    tint = when {
-                        !isCompleted -> MaterialTheme.colorScheme.onPrimaryContainer
-                        status is QuestionnaireStatus.Completed -> {
-                            val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
-                            when {
-                                daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
-                                daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
-                                else -> MaterialTheme.colorScheme.onSecondary
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = questionnaire.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = when {
+                            !isCompleted -> MaterialTheme.colorScheme.onPrimaryContainer
+                            status is QuestionnaireStatus.Completed -> {
+                                val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+                                when {
+                                    daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
+                                    daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
+                                    else -> MaterialTheme.colorScheme.onSecondary
+                                }
                             }
+                            else -> MaterialTheme.colorScheme.onPrimaryContainer
                         }
-                        else -> MaterialTheme.colorScheme.onPrimaryContainer
-                    }
-                )
+                    )
+                }
             }
 
+            // Contenido principal
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                Text(
+                    text = questionnaire.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Text(
+                    text = questionnaire.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Info de tiempo y preguntas
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.AccessTime,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Text(
-                        text = questionnaire.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f, fill = false)
+                        text = questionnaire.estimatedTime,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    if (isCompleted && status is QuestionnaireStatus.Completed) {
-                        val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+                    Spacer(modifier = Modifier.width(4.dp))
 
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = when {
-                                daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.error
-                                daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.tertiary
-                                else -> MaterialTheme.colorScheme.secondary
-                            }
+                    Icon(
+                        imageVector = Icons.Filled.Assignment,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${questionnaire.totalQuestions} preguntas",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // ✅ Indicador de bloqueo (muestra el período configurado)
+                if (isLocked && status is QuestionnaireStatus.Completed) {
+                    val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+                    val periodText = when (periodDays) {
+                        7 -> "Semanal"
+                        15 -> "Quincenal"
+                        30 -> "Mensual"
+                        else -> "Cada $periodDays días"
+                    }
+
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = when {
-                                        daysRemaining <= criticalThreshold -> Icons.Filled.Warning
-                                        else -> Icons.Filled.CheckCircle
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = when {
-                                        daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
-                                        daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
-                                        else -> MaterialTheme.colorScheme.onSecondary
-                                    }
-                                )
-                                Text(
-                                    text = when {
-                                        daysRemaining <= 0 -> "Vence hoy"
-                                        daysRemaining == 1 -> "1 día"
-                                        daysRemaining <= criticalThreshold -> "$daysRemaining días"
-                                        else -> "Completado"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = when {
-                                        daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
-                                        daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
-                                        else -> MaterialTheme.colorScheme.onSecondary
-                                    },
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Filled.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = when {
+                                    daysRemaining <= 0 -> "Disponible mañana ($periodText)"
+                                    daysRemaining == 1 -> "Disponible en 1 día ($periodText)"
+                                    else -> "Disponible en $daysRemaining días ($periodText)"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
 
-                Text(
-                    text = questionnaire.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // Estado de completado con indicador visual
+                if (isCompleted && status is QuestionnaireStatus.Completed) {
+                    val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = when {
+                            daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.errorContainer
+                            daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.tertiaryContainer
+                            else -> MaterialTheme.colorScheme.secondaryContainer
+                        }
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.AccessTime,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = questionnaire.estimatedTime,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Assignment,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "${questionnaire.totalQuestions} preguntas",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = when {
+                                    daysRemaining <= criticalThreshold -> Icons.Filled.Warning
+                                    else -> Icons.Filled.CheckCircle
+                                },
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = when {
+                                    daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
+                                    daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
+                                    else -> MaterialTheme.colorScheme.onSecondary
+                                }
+                            )
+                            Text(
+                                text = when {
+                                    daysRemaining <= 0 -> "Vence hoy"
+                                    daysRemaining == 1 -> "1 día restante"
+                                    daysRemaining <= criticalThreshold -> "$daysRemaining días restantes"
+                                    else -> "Completado"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = when {
+                                    daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onErrorContainer
+                                    daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiaryContainer
+                                    else -> MaterialTheme.colorScheme.onSecondaryContainer
+                                }
+                            )
+                        }
                     }
                 }
             }
 
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = when {
-                    !isCompleted -> MaterialTheme.colorScheme.onSurfaceVariant
-                    status is QuestionnaireStatus.Completed -> {
-                        val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
-                        when {
-                            daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.error
-                            daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.tertiary
-                            else -> MaterialTheme.colorScheme.secondary
-                        }
-                    }
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            )
+            // ✅ Solo mostrar flecha si NO está bloqueado
+            if (!isLocked) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = "Ir al cuestionario",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
