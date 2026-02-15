@@ -49,7 +49,7 @@ data class ErgonomiaQuestionnaire(
     val duracionPausas: String = "",
     val realizaEstiramientos: String = "",
     val tiempoSentadoContinuo: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO: 0L en lugar de System.currentTimeMillis()
 )
 
 // 2. Síntomas Músculo-Esqueléticos
@@ -85,7 +85,7 @@ data class SintomasMuscularesQuestionnaire(
     val momentoDolorCabeza: String = "",
     val dolorImpidenActividades: String = "",
     val haConsultadoMedico: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO
 )
 
 // 3. Síntomas Visuales
@@ -108,7 +108,7 @@ data class SintomasVisualesQuestionnaire(
     val ultimoExamenVisual: String = "",
     val aplicaRegla202020: String = "",
     val brilloPantalla: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO
 )
 
 // 4. Carga de Trabajo y Factores Psicosociales
@@ -130,7 +130,7 @@ data class CargaTrabajoQuestionnaire(
     val trabajoValorado: String = "",
     val satisfaccionGeneral: String = "",
     val salarioAdecuado: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO
 )
 
 // 5. Estrés y Salud Mental
@@ -156,7 +156,7 @@ data class EstresSaludMentalQuestionnaire(
     val estresAfectaVidaPersonal: String = "",
     val consideraCambiarTrabajo: String = "",
     val trabajoInterfiereTiempoDescanso: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO
 )
 
 // 6. Hábitos de Sueño
@@ -172,7 +172,7 @@ data class HabitosSuenoQuestionnaire(
     val usaDispositivosAntesDormir: String = "",
     val piensaProblemasTrabajoAntesDormir: String = "",
     val revisaCorreosFueraHorario: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO
 )
 
 // 7. Actividad Física
@@ -189,7 +189,7 @@ data class ActividadFisicaQuestionnaire(
     val consumoAguaDiario: String = "",
     val consumoCafeTe: String = "",
     val consumeBebidasEnergizantes: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO
 )
 
 // 8. Balance Vida-Trabajo
@@ -204,5 +204,5 @@ data class BalanceVidaTrabajoQuestionnaire(
     val puedeDesconectarseDiasLibres: String = "",
     val revisaCorreosVacaciones: String = "",
     val ultimasVacaciones: String = "",
-    val completedAt: Long = System.currentTimeMillis()
+    val completedAt: Long = 0L  // ✅ CORREGIDO
 )

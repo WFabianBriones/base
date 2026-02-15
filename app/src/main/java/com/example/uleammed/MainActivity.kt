@@ -33,9 +33,9 @@ import com.example.uleammed.auth.LoginScreen
 import com.example.uleammed.auth.RegisterScreen
 import com.example.uleammed.notifications.LocalNotificationScheduler
 import com.example.uleammed.notifications.NotificationPermissionHandler
-import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.QuestionnaireNotificationManager
 import com.example.uleammed.notifications.hasNotificationPermission
+import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.perfil.SettingsScreen
 import com.example.uleammed.questionnaires.*
 import com.example.uleammed.scoring.ScoringViewModel

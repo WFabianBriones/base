@@ -111,7 +111,6 @@ fun SettingsScreen(
         )
     }
 
-    // ✅ NUEVO: Dialog de selección de hora
     if (showTimeDialog) {
         TimePickerDialog(
             initialHour = selectedHour,
@@ -152,7 +151,6 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
-            // PERMISOS
             Text(
                 text = "Permisos",
                 style = MaterialTheme.typography.titleLarge,
@@ -178,7 +176,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // CONFIGURACIÓN DE NOTIFICACIONES
             Text(
                 text = "Notificaciones de Cuestionarios",
                 style = MaterialTheme.typography.titleLarge,
@@ -196,7 +193,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Periodicidad
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -238,7 +234,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ✅ NUEVO: Selector de hora preferida
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { showTimeDialog = true }
@@ -282,7 +277,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ✅ NUEVO: Mostrar recordatorios en app
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -318,17 +312,13 @@ fun SettingsScreen(
                     }
                     Switch(
                         checked = showRemindersInApp,
-                        onCheckedChange = {
-                            showRemindersInApp = it
-                            viewModel.updateRemindersInApp(it)
-                        }
+                        onCheckedChange = { /* TODO: Implementar si es necesario */ }
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // INFO CARD
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -362,6 +352,9 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedButton(
                 onClick = {
                     DebugNotificationHelper.diagnoseNotifications(context)
@@ -375,7 +368,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ✅ NUEVO: Sección de pruebas (solo en DEBUG)
             if (BuildConfig.DEBUG) {
                 Text(
                     text = "🧪 Herramientas de Prueba",
@@ -466,9 +458,6 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // ESTADO ACTUAL
-
-            // ESTADO ACTUAL
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -561,11 +550,6 @@ fun FrequencyOption(
     }
 }
 
-
-
-/**
- * ✅ NUEVO: Dialog de selección de hora
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimePickerDialog(
@@ -574,15 +558,11 @@ fun TimePickerDialog(
     onConfirm: (Int, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedHour by remember { mutableIntStateOf(initialHour) }
-    var selectedMinute by remember { mutableIntStateOf(initialMinute) }
-
     val timePickerState = rememberTimePickerState(
         initialHour = initialHour,
         initialMinute = initialMinute,
         is24Hour = false
     )
-
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -630,5 +610,4 @@ fun TimePickerDialog(
             }
         }
     )
-
 }

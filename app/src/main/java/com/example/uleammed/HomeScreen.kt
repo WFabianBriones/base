@@ -18,16 +18,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.uleammed.auth.AuthViewModel
-import com.example.uleammed.notifications.NotificationViewModel
+import com.example.uleammed.auth.AuthRepository
+import com.example.uleammed.auth.QuestionnaireStatus
 import com.example.uleammed.notifications.NotificationsContent
-import com.example.uleammed.questionnaires.QuestionnaireInfo
+import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.questionnaires.QuestionnaireType
-// ✅ IMPORTACIÓN AÑADIDA
 import com.example.uleammed.scoring.ScoringViewModel
-import androidx.compose.ui.platform.LocalContext // ✅ IMPORTACIÓN AÑADIDA
+import androidx.compose.ui.platform.LocalContext
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 /**
- * ✅ Función principal HomeScreen con mainNavController
+ * Función principal HomeScreen
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,12 +88,16 @@ fun HomeScreen(
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Home.route) {
-                // ✅ LLAMADA A LA NUEVA FUNCIÓN HomeContent
-                HomeContent(userName = currentUser?.displayName ?: "Usuario",
-                    onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis)
+                HomeContent(
+                    userName = currentUser?.displayName ?: "Usuario",
+                    onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
+                )
             }
             composable(Screen.Explore.route) {
-                ExploreContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
+                ExploreContent(
+                    onNavigateToQuestionnaire = onNavigateToQuestionnaire,
+                    notificationViewModel = notificationViewModel
+                )
             }
             composable(Screen.Notifications.route) {
                 NotificationsContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
@@ -201,14 +207,14 @@ fun BottomNavigationBar(
     }
 }
 
-// ---
-
-// ✅ REEMPLAZADA la función HomeContent existente en HomeScreen.kt por esta versión:
-
+/**
+ * Contenido de la pestaña Home
+ */
 @Composable
-fun HomeContent(userName: String,
-                onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit) {
-    // ✅ AÑADIR: ViewModel con factory
+fun HomeContent(
+    userName: String,
+    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit
+) {
     val context = LocalContext.current
     val scoringViewModel: ScoringViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
@@ -219,7 +225,6 @@ fun HomeContent(userName: String,
         }
     )
 
-    // ✅ MODIFICAR: Usar smart refresh en vez de loadScore()
     LaunchedEffect(Unit) {
         android.util.Log.d("HomeScreen", "🔄 Cargando scores con smart refresh...")
         scoringViewModel.loadScoreWithSmartRefresh()
@@ -230,7 +235,6 @@ fun HomeContent(userName: String,
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        // Header de bienvenida
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -266,19 +270,47 @@ fun HomeContent(userName: String,
             }
         }
 
-        // ✅ Dashboard con scores
-        com.example.uleammed.scoring.HealthDashboard(onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis)
+        com.example.uleammed.scoring.HealthDashboard(
+            onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
+        )
     }
 }
 
-// ---
-
 /**
- * Contenido de la pestaña Explorar
+ * Contenido de la pestaña Explorar con sistema de expiración integrado
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
+fun ExploreContent(
+    onNavigateToQuestionnaire: (String) -> Unit,
+    notificationViewModel: NotificationViewModel = viewModel()
+) {
+    val repository = remember { AuthRepository() }
+    val userId = FirebaseAuth.getInstance().currentUser?.uid
+
+    val scheduleConfig by notificationViewModel.scheduleConfig.collectAsState()
+    val periodDays = scheduleConfig?.periodDays ?: 7
+
+    var completedQuestionnaires by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var isLoading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(userId) {
+        scope.launch {
+            if (userId != null) {
+                val result = repository.getCompletedQuestionnaires(userId)
+                result.onSuccess { completed ->
+                    completedQuestionnaires = completed
+                    isLoading = false
+                }.onFailure {
+                    isLoading = false
+                }
+            } else {
+                isLoading = false
+            }
+        }
+    }
+
     val questionnaireList = remember {
         listOf(
             QuestionnaireInfo(
@@ -287,7 +319,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Evalúa tu espacio de trabajo",
                 icon = Icons.Filled.Computer,
                 estimatedTime = "8-10 min",
-                totalQuestions = 22
+                totalQuestions = 22,
+                firestoreId = "ergonomia"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.SINTOMAS_MUSCULARES,
@@ -295,7 +328,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Identifica dolores y molestias",
                 icon = Icons.Filled.MonitorHeart,
                 estimatedTime = "6-8 min",
-                totalQuestions = 18
+                totalQuestions = 18,
+                firestoreId = "sintomas_musculares"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.SINTOMAS_VISUALES,
@@ -303,7 +337,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Evalúa fatiga ocular",
                 icon = Icons.Filled.RemoveRedEye,
                 estimatedTime = "4-5 min",
-                totalQuestions = 14
+                totalQuestions = 14,
+                firestoreId = "sintomas_visuales"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.CARGA_TRABAJO,
@@ -311,7 +346,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Analiza demanda laboral",
                 icon = Icons.Filled.Work,
                 estimatedTime = "5-7 min",
-                totalQuestions = 15
+                totalQuestions = 15,
+                firestoreId = "carga_trabajo"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.ESTRES_SALUD_MENTAL,
@@ -319,7 +355,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Identifica niveles de estrés",
                 icon = Icons.Filled.Psychology,
                 estimatedTime = "7-9 min",
-                totalQuestions = 19
+                totalQuestions = 19,
+                firestoreId = "estres_salud_mental"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.HABITOS_SUENO,
@@ -327,7 +364,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Evalúa calidad de descanso",
                 icon = Icons.Filled.NightlightRound,
                 estimatedTime = "3-4 min",
-                totalQuestions = 9
+                totalQuestions = 9,
+                firestoreId = "habitos_sueno"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.ACTIVIDAD_FISICA,
@@ -335,7 +373,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Analiza hábitos de ejercicio",
                 icon = Icons.Filled.SportsGymnastics,
                 estimatedTime = "4-5 min",
-                totalQuestions = 10
+                totalQuestions = 10,
+                firestoreId = "actividad_fisica"
             ),
             QuestionnaireInfo(
                 type = QuestionnaireType.BALANCE_VIDA_TRABAJO,
@@ -343,7 +382,8 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
                 description = "Evalúa equilibrio personal",
                 icon = Icons.Filled.Scale,
                 estimatedTime = "3-4 min",
-                totalQuestions = 8
+                totalQuestions = 8,
+                firestoreId = "balance_vida_trabajo"
             )
         )
     }
@@ -353,53 +393,128 @@ fun ExploreContent(onNavigateToQuestionnaire: (String) -> Unit) {
             .fillMaxSize()
             .padding(24.dp)
     ) {
-        Text(
-            text = "Cuestionarios Disponibles",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Cuestionarios Disponibles",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Text(
+                    text = "Frecuencia: cada $periodDays días",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(questionnaireList) { questionnaire ->
-                QuestionnaireCard(
-                    questionnaire = questionnaire,
-                    onClick = {
-                        val route = when (questionnaire.type) {
-                            QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
-                            QuestionnaireType.SINTOMAS_MUSCULARES -> Screen.SintomasMuscularesQuestionnaire.route
-                            QuestionnaireType.SINTOMAS_VISUALES -> Screen.SintomasVisualesQuestionnaire.route
-                            QuestionnaireType.CARGA_TRABAJO -> Screen.CargaTrabajoQuestionnaire.route
-                            QuestionnaireType.ESTRES_SALUD_MENTAL -> Screen.EstresSaludMentalQuestionnaire.route
-                            QuestionnaireType.HABITOS_SUENO -> Screen.HabitosSuenoQuestionnaire.route
-                            QuestionnaireType.ACTIVIDAD_FISICA -> Screen.ActividadFisicaQuestionnaire.route
-                            QuestionnaireType.BALANCE_VIDA_TRABAJO -> Screen.BalanceVidaTrabajoQuestionnaire.route
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(questionnaireList) { questionnaire ->
+                    QuestionnaireCardDynamic(
+                        questionnaire = questionnaire,
+                        isCompleted = completedQuestionnaires.contains(questionnaire.firestoreId),
+                        userId = userId ?: "",
+                        repository = repository,
+                        periodDays = periodDays,
+                        onClick = {
+                            val route = when (questionnaire.type) {
+                                QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
+                                QuestionnaireType.SINTOMAS_MUSCULARES -> Screen.SintomasMuscularesQuestionnaire.route
+                                QuestionnaireType.SINTOMAS_VISUALES -> Screen.SintomasVisualesQuestionnaire.route
+                                QuestionnaireType.CARGA_TRABAJO -> Screen.CargaTrabajoQuestionnaire.route
+                                QuestionnaireType.ESTRES_SALUD_MENTAL -> Screen.EstresSaludMentalQuestionnaire.route
+                                QuestionnaireType.HABITOS_SUENO -> Screen.HabitosSuenoQuestionnaire.route
+                                QuestionnaireType.ACTIVIDAD_FISICA -> Screen.ActividadFisicaQuestionnaire.route
+                                QuestionnaireType.BALANCE_VIDA_TRABAJO -> Screen.BalanceVidaTrabajoQuestionnaire.route
+                            }
+                            onNavigateToQuestionnaire(route)
                         }
-                        onNavigateToQuestionnaire(route)
-                    }
-                )
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Card de cuestionario individual
+ * Card de cuestionario con umbrales dinámicos
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuestionnaireCard(
+fun QuestionnaireCardDynamic(
     questionnaire: QuestionnaireInfo,
+    isCompleted: Boolean,
+    userId: String,
+    repository: AuthRepository,
+    periodDays: Int,
     onClick: () -> Unit
 ) {
+    var status by remember { mutableStateOf<QuestionnaireStatus?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(isCompleted) {
+        if (isCompleted && userId.isNotEmpty()) {
+            scope.launch {
+                val result = repository.getQuestionnaireStatus(userId, questionnaire.firestoreId)
+                result.onSuccess { s ->
+                    status = s
+                }
+            }
+        }
+    }
+
+    val criticalThreshold = (periodDays * 0.3).toInt().coerceAtLeast(1)
+    val warningThreshold = (periodDays * 0.5).toInt().coerceAtLeast(2)
+
+    val cardColor = when {
+        !isCompleted -> MaterialTheme.colorScheme.surface
+        status is QuestionnaireStatus.Completed -> {
+            val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+            when {
+                daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+                else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+            }
+        }
+        else -> MaterialTheme.colorScheme.surface
+    }
+
+    val iconColor = when {
+        !isCompleted -> MaterialTheme.colorScheme.primaryContainer
+        status is QuestionnaireStatus.Completed -> {
+            val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+            when {
+                daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.error
+                daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.secondary
+            }
+        }
+        else -> MaterialTheme.colorScheme.primaryContainer
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -408,14 +523,25 @@ fun QuestionnaireCard(
         ) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = iconColor,
                 modifier = Modifier.size(56.dp)
             ) {
                 Icon(
                     imageVector = questionnaire.icon,
                     contentDescription = null,
                     modifier = Modifier.padding(12.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = when {
+                        !isCompleted -> MaterialTheme.colorScheme.onPrimaryContainer
+                        status is QuestionnaireStatus.Completed -> {
+                            val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+                            when {
+                                daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
+                                daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
+                                else -> MaterialTheme.colorScheme.onSecondary
+                            }
+                        }
+                        else -> MaterialTheme.colorScheme.onPrimaryContainer
+                    }
                 )
             }
 
@@ -423,16 +549,72 @@ fun QuestionnaireCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = questionnaire.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = questionnaire.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+
+                    if (isCompleted && status is QuestionnaireStatus.Completed) {
+                        val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = when {
+                                daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.error
+                                daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.tertiary
+                                else -> MaterialTheme.colorScheme.secondary
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = when {
+                                        daysRemaining <= criticalThreshold -> Icons.Filled.Warning
+                                        else -> Icons.Filled.CheckCircle
+                                    },
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = when {
+                                        daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
+                                        daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
+                                        else -> MaterialTheme.colorScheme.onSecondary
+                                    }
+                                )
+                                Text(
+                                    text = when {
+                                        daysRemaining <= 0 -> "Vence hoy"
+                                        daysRemaining == 1 -> "1 día"
+                                        daysRemaining <= criticalThreshold -> "$daysRemaining días"
+                                        else -> "Completado"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = when {
+                                        daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.onError
+                                        daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.onTertiary
+                                        else -> MaterialTheme.colorScheme.onSecondary
+                                    },
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Text(
                     text = questionnaire.description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -475,11 +657,35 @@ fun QuestionnaireCard(
             Icon(
                 imageVector = Icons.Filled.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                tint = when {
+                    !isCompleted -> MaterialTheme.colorScheme.onSurfaceVariant
+                    status is QuestionnaireStatus.Completed -> {
+                        val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+                        when {
+                            daysRemaining <= criticalThreshold -> MaterialTheme.colorScheme.error
+                            daysRemaining <= warningThreshold -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.secondary
+                        }
+                    }
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
         }
     }
 }
+
+/**
+ * Data class para información de cuestionarios
+ */
+data class QuestionnaireInfo(
+    val type: QuestionnaireType,
+    val title: String,
+    val description: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val estimatedTime: String,
+    val totalQuestions: Int,
+    val firestoreId: String
+)
 
 /**
  * Contenido de la pestaña Recursos

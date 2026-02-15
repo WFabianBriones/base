@@ -6,8 +6,11 @@ import com.example.uleammed.questionnaires.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
+import java.util.concurrent.TimeUnit
 
 class AuthRepository {
     private val auth = FirebaseAuth.getInstance()
@@ -15,6 +18,8 @@ class AuthRepository {
 
     val currentUser: FirebaseUser?
         get() = auth.currentUser
+
+    // ===== MÉTODOS DE AUTENTICACIÓN =====
 
     suspend fun registerWithEmail(email: String, password: String, displayName: String): Result<User> {
         return try {
@@ -33,6 +38,9 @@ class AuthRepository {
                 .set(user)
                 .await()
 
+            // ✅ NUEVO: Inicializar configuración de notificaciones
+            initializeNotificationSettings(firebaseUser.uid)
+
             Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
@@ -50,6 +58,10 @@ class AuthRepository {
                 .await()
 
             val user = userDoc.toObject(User::class.java) ?: throw Exception("Usuario no encontrado")
+
+            // ✅ NUEVO: Verificar que settings/notifications exista (para usuarios antiguos)
+            initializeNotificationSettings(firebaseUser.uid)
+
             Result.success(user)
         } catch (e: Exception) {
             Result.failure(e)
@@ -84,49 +96,10 @@ class AuthRepository {
                 newUser
             }
 
+            // ✅ NUEVO: Inicializar configuración de notificaciones
+            initializeNotificationSettings(firebaseUser.uid)
+
             Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // ✅ CORREGIDO: Cuestionario inicial ahora usa la estructura users/{userId}/questionnaires/
-    suspend fun saveQuestionnaire(questionnaire: HealthQuestionnaire): Result<Unit> {
-        return try {
-            // ✅ NUEVA ESTRUCTURA: users/{userId}/questionnaires/salud_general
-            firestore.collection("users")
-                .document(questionnaire.userId)
-                .collection("questionnaires")
-                .document("salud_general")
-                .set(questionnaire)
-                .await()
-
-            // Actualizar flag de completado
-            firestore.collection("users")
-                .document(questionnaire.userId)
-                .update("hasCompletedQuestionnaire", true)
-                .await()
-
-            android.util.Log.d("AuthRepository", "✅ Cuestionario inicial guardado en: users/${questionnaire.userId}/questionnaires/salud_general")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            android.util.Log.e("AuthRepository", "❌ Error guardando cuestionario inicial", e)
-            Result.failure(e)
-        }
-    }
-
-    suspend fun getQuestionnaire(userId: String): Result<HealthQuestionnaire?> {
-        return try {
-            // ✅ CORREGIDO: Buscar en la nueva ubicación
-            val doc = firestore.collection("users")
-                .document(userId)
-                .collection("questionnaires")
-                .document("salud_general")
-                .get()
-                .await()
-
-            val questionnaire = doc.toObject(HealthQuestionnaire::class.java)
-            Result.success(questionnaire)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -177,19 +150,284 @@ class AuthRepository {
         }
     }
 
-    // ===== CUESTIONARIOS ESPECÍFICOS =====
-    // ✅ Todos usan la misma estructura: users/{userId}/questionnaires/{tipo}
+    // ===== CUESTIONARIO INICIAL DE SALUD =====
+
+    suspend fun saveQuestionnaire(questionnaire: HealthQuestionnaire): Result<Unit> {
+        return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
+            firestore.collection("users")
+                .document(questionnaire.userId)
+                .collection("questionnaires")
+                .document("salud_general")
+                .set(questionnaireWithTimestamp)
+                .await()
+
+            firestore.collection("users")
+                .document(questionnaire.userId)
+                .update("hasCompletedQuestionnaire", true)
+                .await()
+
+            android.util.Log.d("AuthRepository", "✅ Cuestionario inicial guardado con timestamp")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando cuestionario inicial", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getQuestionnaire(userId: String): Result<HealthQuestionnaire?> {
+        return try {
+            val doc = firestore.collection("users")
+                .document(userId)
+                .collection("questionnaires")
+                .document("salud_general")
+                .get()
+                .await()
+
+            val questionnaire = doc.toObject(HealthQuestionnaire::class.java)
+            Result.success(questionnaire)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // ===== GESTIÓN DE ESTADO DE CUESTIONARIOS =====
+
+    /**
+     * Obtiene la configuración de periodicidad del usuario
+     */
+    private suspend fun getUserScheduleConfig(userId: String): Int {
+        return try {
+            val doc = firestore.collection("users")
+                .document(userId)
+                .collection("settings")
+                .document("notifications")
+                .get()
+                .await()
+
+            val periodDays = doc.getLong("periodDays")?.toInt() ?: 7
+            android.util.Log.d("AuthRepository", "✅ Período de usuario: $periodDays días")
+            periodDays
+        } catch (e: Exception) {
+            android.util.Log.w("AuthRepository", "⚠️ No se pudo obtener configuración, usando 7 días por defecto", e)
+            7
+        }
+    }
+
+    /**
+     * Obtiene el conjunto de tipos de cuestionarios que están completados Y vigentes
+     * Usa la configuración personalizada del usuario (periodDays)
+     */
+    suspend fun getCompletedQuestionnaires(userId: String): Result<Set<String>> {
+        return try {
+            val currentTime = System.currentTimeMillis()
+            val periodDays = getUserScheduleConfig(userId)
+            val validityPeriod = TimeUnit.DAYS.toMillis(periodDays.toLong())
+            val cutoffTime = currentTime - validityPeriod
+
+            val questionnairesRef = firestore.collection("users")
+                .document(userId)
+                .collection("questionnaires")
+                .get()
+                .await()
+
+            val completedTypes = questionnairesRef.documents
+                .filter { doc ->
+                    val timestamp = doc.getLong("completedAt") ?: 0L
+                    timestamp >= cutoffTime
+                }
+                .map { it.id }
+                .toSet()
+
+            android.util.Log.d("AuthRepository",
+                "✅ Cuestionarios vigentes: $completedTypes (válidos por $periodDays días)")
+            Result.success(completedTypes)
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error obteniendo cuestionarios completados", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Verifica si un cuestionario específico está completado Y vigente
+     */
+    suspend fun isQuestionnaireCompleted(userId: String, questionnaireType: String): Result<Boolean> {
+        return try {
+            val doc = firestore.collection("users")
+                .document(userId)
+                .collection("questionnaires")
+                .document(questionnaireType)
+                .get()
+                .await()
+
+            if (!doc.exists()) {
+                return Result.success(false)
+            }
+
+            val periodDays = getUserScheduleConfig(userId)
+            val timestamp = doc.getLong("completedAt") ?: 0L
+            val currentTime = System.currentTimeMillis()
+            val validityPeriod = TimeUnit.DAYS.toMillis(periodDays.toLong())
+            val cutoffTime = currentTime - validityPeriod
+
+            val isValid = timestamp >= cutoffTime
+
+            if (!isValid) {
+                android.util.Log.d("AuthRepository",
+                    "⏰ Cuestionario $questionnaireType expirado (completado hace más de $periodDays días)")
+            }
+
+            Result.success(isValid)
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error verificando cuestionario $questionnaireType", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Obtiene información detallada sobre el estado de los cuestionarios
+     */
+    suspend fun getQuestionnaireStatus(userId: String, questionnaireType: String): Result<QuestionnaireStatus> {
+        return try {
+            val doc = firestore.collection("users")
+                .document(userId)
+                .collection("questionnaires")
+                .document(questionnaireType)
+                .get()
+                .await()
+
+            if (!doc.exists()) {
+                return Result.success(QuestionnaireStatus.NotCompleted)
+            }
+
+            val periodDays = getUserScheduleConfig(userId)
+            val timestamp = doc.getLong("completedAt") ?: 0L
+            val currentTime = System.currentTimeMillis()
+            val validityPeriod = TimeUnit.DAYS.toMillis(periodDays.toLong())
+            val cutoffTime = currentTime - validityPeriod
+
+            if (timestamp >= cutoffTime) {
+                val daysRemaining = TimeUnit.MILLISECONDS.toDays(
+                    (timestamp + validityPeriod) - currentTime
+                ).toInt()
+
+                Result.success(QuestionnaireStatus.Completed(
+                    completedAt = timestamp,
+                    daysRemaining = daysRemaining,
+                    totalPeriodDays = periodDays
+                ))
+            } else {
+                Result.success(QuestionnaireStatus.Expired(
+                    lastCompletedAt = timestamp
+                ))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error obteniendo estado del cuestionario", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * ✅ NUEVO: Inicializa el documento settings/notifications para un usuario
+     * Llamar esto cuando se crea una cuenta nueva o en el primer inicio de sesión
+     */
+    private suspend fun initializeNotificationSettings(userId: String) {
+        try {
+            val settingsRef = firestore.collection("users")
+                .document(userId)
+                .collection("settings")
+                .document("notifications")
+
+            // Verificar si ya existe
+            val doc = settingsRef.get().await()
+
+            if (!doc.exists()) {
+                // Crear documento inicial
+                val initialConfig = mapOf(
+                    "periodDays" to 7,  // Período por defecto: 7 días
+                    "preferredHour" to 9, // Hora por defecto: 9 AM
+                    "preferredMinute" to 0,
+                    "showRemindersInApp" to true,
+                    "lastCompletedDates" to mapOf<String, Long>(), // Mapa vacío
+                    "enabledQuestionnaires" to listOf(
+                        "ERGONOMIA",
+                        "SINTOMAS_MUSCULARES",
+                        "SINTOMAS_VISUALES",
+                        "CARGA_TRABAJO",
+                        "ESTRES_SALUD_MENTAL",
+                        "HABITOS_SUENO",
+                        "ACTIVIDAD_FISICA",
+                        "BALANCE_VIDA_TRABAJO"
+                    ),
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+
+                settingsRef.set(initialConfig).await()
+
+                android.util.Log.d("AuthRepository",
+                    "✅ Documento settings/notifications creado para usuario: $userId")
+            } else {
+                android.util.Log.d("AuthRepository",
+                    "✓ settings/notifications ya existe para usuario: $userId")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository",
+                "❌ Error inicializando settings/notifications", e)
+            // No lanzar excepción para no bloquear el login/registro
+        }
+    }
+
+    /**
+     * ✅ MEJORADO: Actualizar lastCompletedDate usando set con merge
+     * Esto crea el documento si no existe y solo actualiza el campo específico
+     */
+    private suspend fun updateLastCompletedDate(userId: String, questionnaireTypeName: String) {
+        val configRef = firestore.collection("users")
+            .document(userId)
+            .collection("settings")
+            .document("notifications")
+
+        try {
+            // ✅ SIEMPRE usar set con merge (es más seguro que update)
+            configRef.set(
+                mapOf(
+                    "lastCompletedDates" to mapOf(
+                        questionnaireTypeName to System.currentTimeMillis()
+                    )
+                ),
+                SetOptions.merge() // ← Esto crea el documento si no existe
+            ).await()
+
+            android.util.Log.d("AuthRepository",
+                "✅ Actualizado/Creado lastCompletedDate para $questionnaireTypeName")
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository",
+                "❌ Error actualizando lastCompletedDate para $questionnaireTypeName", e)
+            throw e
+        }
+    }
+
+    // ===== CUESTIONARIOS ESPECÍFICOS CON TIMESTAMP =====
 
     suspend fun saveErgonomiaQuestionnaire(questionnaire: ErgonomiaQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("ergonomia")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Ergonomía guardado")
+            updateLastCompletedDate(questionnaire.userId, "ERGONOMIA")
+
+            android.util.Log.d("AuthRepository", "✅ Ergonomía guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando ergonomía", e)
@@ -199,14 +437,20 @@ class AuthRepository {
 
     suspend fun saveSintomasMuscularesQuestionnaire(questionnaire: SintomasMuscularesQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("sintomas_musculares")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Síntomas musculares guardado")
+            updateLastCompletedDate(questionnaire.userId, "SINTOMAS_MUSCULARES")
+
+            android.util.Log.d("AuthRepository", "✅ Síntomas musculares guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando síntomas musculares", e)
@@ -216,14 +460,20 @@ class AuthRepository {
 
     suspend fun saveSintomasVisualesQuestionnaire(questionnaire: SintomasVisualesQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("sintomas_visuales")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Síntomas visuales guardado")
+            updateLastCompletedDate(questionnaire.userId, "SINTOMAS_VISUALES")
+
+            android.util.Log.d("AuthRepository", "✅ Síntomas visuales guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando síntomas visuales", e)
@@ -233,14 +483,20 @@ class AuthRepository {
 
     suspend fun saveCargaTrabajoQuestionnaire(questionnaire: CargaTrabajoQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("carga_trabajo")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Carga de trabajo guardado")
+            updateLastCompletedDate(questionnaire.userId, "CARGA_TRABAJO")
+
+            android.util.Log.d("AuthRepository", "✅ Carga de trabajo guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando carga trabajo", e)
@@ -250,14 +506,20 @@ class AuthRepository {
 
     suspend fun saveEstresSaludMentalQuestionnaire(questionnaire: EstresSaludMentalQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("estres_salud_mental")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Estrés y salud mental guardado")
+            updateLastCompletedDate(questionnaire.userId, "ESTRES_SALUD_MENTAL")
+
+            android.util.Log.d("AuthRepository", "✅ Estrés y salud mental guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando estrés", e)
@@ -267,14 +529,20 @@ class AuthRepository {
 
     suspend fun saveHabitosSuenoQuestionnaire(questionnaire: HabitosSuenoQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("habitos_sueno")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Hábitos de sueño guardado")
+            updateLastCompletedDate(questionnaire.userId, "HABITOS_SUENO")
+
+            android.util.Log.d("AuthRepository", "✅ Hábitos de sueño guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando hábitos sueño", e)
@@ -284,14 +552,20 @@ class AuthRepository {
 
     suspend fun saveActividadFisicaQuestionnaire(questionnaire: ActividadFisicaQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("actividad_fisica")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Actividad física guardado")
+            updateLastCompletedDate(questionnaire.userId, "ACTIVIDAD_FISICA")
+
+            android.util.Log.d("AuthRepository", "✅ Actividad física guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando actividad física", e)
@@ -301,18 +575,41 @@ class AuthRepository {
 
     suspend fun saveBalanceVidaTrabajoQuestionnaire(questionnaire: BalanceVidaTrabajoQuestionnaire): Result<Unit> {
         return try {
+            val questionnaireWithTimestamp = questionnaire.copy(
+                completedAt = System.currentTimeMillis()
+            )
+
             firestore.collection("users")
                 .document(questionnaire.userId)
                 .collection("questionnaires")
                 .document("balance_vida_trabajo")
-                .set(questionnaire)
+                .set(questionnaireWithTimestamp)
                 .await()
 
-            android.util.Log.d("AuthRepository", "✅ Balance vida-trabajo guardado")
+            updateLastCompletedDate(questionnaire.userId, "BALANCE_VIDA_TRABAJO")
+
+            android.util.Log.d("AuthRepository", "✅ Balance vida-trabajo guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando balance", e)
             Result.failure(e)
         }
     }
+}
+
+/**
+ * Sealed class para representar el estado de un cuestionario
+ */
+sealed class QuestionnaireStatus {
+    object NotCompleted : QuestionnaireStatus()
+
+    data class Completed(
+        val completedAt: Long,
+        val daysRemaining: Int,
+        val totalPeriodDays: Int
+    ) : QuestionnaireStatus()
+
+    data class Expired(
+        val lastCompletedAt: Long
+    ) : QuestionnaireStatus()
 }
