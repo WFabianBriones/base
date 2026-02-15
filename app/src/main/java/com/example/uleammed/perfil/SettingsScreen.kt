@@ -312,7 +312,10 @@ fun SettingsScreen(
                     }
                     Switch(
                         checked = showRemindersInApp,
-                        onCheckedChange = { /* TODO: Implementar si es necesario */ }
+                        onCheckedChange = { isEnabled ->
+                            showRemindersInApp = isEnabled
+                            viewModel.updateRemindersInApp(isEnabled)
+                        }
                     )
                 }
             }
