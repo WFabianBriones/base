@@ -25,6 +25,37 @@ data class QuestionnaireInfo(
     val totalQuestions: Int
 )
 
+// ✅ NUEVO: Cuestionario de Salud General (SF-12)
+// ✅ NUEVO: Cuestionario de Salud General (SF-12)
+data class SaludGeneralQuestionnaire(
+    val responseId: String = System.currentTimeMillis().toString(),
+    val userId: String = "",
+
+    // Salud General (1 pregunta)
+    val saludGeneral: String = "", // Excelente/Muy buena/Buena/Regular/Mala
+
+    // Limitaciones por salud física (2 preguntas)
+    val limitacionActividadesModeradas: String = "", // Sí mucho/Sí un poco/No
+    val limitacionSubirEscaleras: String = "", // Sí mucho/Sí un poco/No
+
+    // Limitaciones por problemas emocionales (2 preguntas)
+    val problemasEmocionales: String = "", // Sí/No
+    val menosRendimientoEmocional: String = "", // Sí/No
+
+    // Dolor (1 pregunta)
+    val dolorInterfiereActividadesNormales: String = "", // Nada/Un poco/Moderado/Bastante/Mucho
+
+    // Salud Mental (3 preguntas)
+    val frecuenciaCalma: String = "", // Siempre/Casi siempre/Muchas veces/Algunas veces/Solo alguna vez/Nunca
+    val frecuenciaEnergia: String = "", // Siempre/Casi siempre/Muchas veces/Algunas veces/Solo alguna vez/Nunca
+    val frecuenciaDesanimado: String = "", // Siempre/Casi siempre/Muchas veces/Algunas veces/Solo alguna vez/Nunca
+
+    // Función Social (1 pregunta)
+    val saludInterfiereActividadesSociales: String = "", // Siempre/Casi siempre/Algunas veces/Solo alguna vez/Nunca
+
+    val completedAt: Long = 0L
+)
+
 // 1. Ergonomía y Ambiente de Trabajo
 data class ErgonomiaQuestionnaire(
     val responseId: String = System.currentTimeMillis().toString(),

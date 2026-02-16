@@ -31,6 +31,11 @@ import androidx.compose.ui.draw.alpha
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+// ✅ NUEVOS IMPORTS para el dialog de Salud General
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.util.Log
 
 /**
  * Función principal HomeScreen
@@ -51,17 +56,39 @@ fun HomeScreen(
     val currentUser by authViewModel.currentUser.collectAsState()
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
-    LaunchedEffect(Unit) {
-        android.util.Log.d("HomeScreen", "🔄 Recargando notificaciones...")
-        notificationViewModel.loadNotifications()
-        notificationViewModel.checkForNewNotifications()
+    // ✅ OBSERVAR el estado del dialog desde el ViewModel
+    val shouldShowDialog by notificationViewModel.shouldShowSaludGeneralDialog.collectAsState()
+    val isCheckingDialog by notificationViewModel.isCheckingSaludGeneral.collectAsState()
+
+    // ✅ VERIFICACIÓN ÚNICA cuando aparece el usuario
+    LaunchedEffect(currentUser) {
+        currentUser?.let { user ->
+            Log.d("HomeScreen", "👤 Usuario detectado: ${user.uid}")
+            Log.d("HomeScreen", "🔍 Verificando Salud General para: ${user.uid}")
+
+            // Llamar la verificación en el ViewModel
+            notificationViewModel.checkShouldShowSaludGeneralDialog(user.uid)
+        }
     }
 
-    LaunchedEffect(currentUser) {
-        if (currentUser != null) {
-            android.util.Log.d("HomeScreen", "👤 Usuario detectado, verificando notificaciones...")
-            notificationViewModel.checkForNewNotifications()
-        }
+    // ✅ MOSTRAR DIALOG cuando el estado cambie a true
+    if (shouldShowDialog) {
+        Log.d("HomeScreen", "🎨 Mostrando dialog de Salud General")
+
+        SaludGeneralDialog(
+            onStart = {
+                Log.d("HomeScreen", "➡️ Navegando a cuestionario de Salud General")
+                notificationViewModel.dismissSaludGeneralDialog()
+                onNavigateToQuestionnaire(Screen.Questionnaire.route)
+            }
+        )
+    }
+
+    // ✅ Cargar notificaciones al iniciar
+    LaunchedEffect(Unit) {
+        Log.d("HomeScreen", "🔄 Recargando notificaciones...")
+        notificationViewModel.loadNotifications()
+        notificationViewModel.checkForNewNotifications()
     }
 
     Scaffold(
@@ -92,6 +119,7 @@ fun HomeScreen(
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Home.route) {
+                // ✅ ELIMINADA la verificación duplicada aquí
                 HomeContent(
                     userName = currentUser?.displayName ?: "Usuario",
                     onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
@@ -322,7 +350,7 @@ fun ExploreContent(
         }
     }
 
-    // ✅ LISTA COMPLETA CON LOS 8 CUESTIONARIOS
+    // ✅ LISTA COMPLETA CON LOS 8 CUESTIONARIOS (sin SALUD_GENERAL)
     val questionnaireList = remember {
         listOf(
             QuestionnaireInfo(
@@ -488,7 +516,7 @@ fun ExploreContent(
 /**
  * Card de cuestionario con umbrales dinámicos
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)  // ✅ Agregar ExperimentalFoundationApi
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun QuestionnaireCardDynamic(
     questionnaire: QuestionnaireInfo,
@@ -631,7 +659,7 @@ fun QuestionnaireCardDynamic(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (isLocked) 0.6f else 1f)
-            // ✅ NUEVO: Combinador de gestos para click y long press
+            // ✅ Combinador de gestos para click y long press
             .combinedClickable(
                 onClick = {
                     if (isLocked && status is QuestionnaireStatus.Completed) {
@@ -660,7 +688,7 @@ fun QuestionnaireCardDynamic(
                     }
                 },
                 onLongClick = {
-                    // ✅ NUEVO: Long press solo funciona si está completado
+                    // ✅ Long press solo funciona si está completado
                     if (isCompleted) {
                         showDeleteDialog = true
                         android.util.Log.d("QuestionnaireCard",
@@ -753,7 +781,7 @@ fun QuestionnaireCardDynamic(
                     )
                 }
 
-                // ✅ NUEVO: Hint de long press para cuestionarios completados
+                // ✅ Hint de long press para cuestionarios completados
                 if (isCompleted) {
                     Surface(
                         shape = MaterialTheme.shapes.small,
@@ -901,5 +929,80 @@ fun ResourcesContent(
 ) {
     com.example.uleammed.resources.ResourcesContentNew(
         onResourceClick = onNavigateToResourceDetail
+    )
+}
+
+/**
+ * ✅ NUEVO: Dialog obligatorio de Salud General
+ *
+ * Se muestra automáticamente cuando el período de reevaluación ha vencido.
+ * El usuario no puede cerrar el dialog sin completar el cuestionario.
+ */
+@Composable
+fun SaludGeneralDialog(
+    onStart: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { /* No se puede cerrar */ },
+        icon = {
+            Icon(
+                Icons.Filled.HealthAndSafety,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp)
+            )
+        },
+        title = {
+            Text(
+                "Reevaluación de Salud General",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                Text("Es momento de actualizar tu evaluación de salud base.")
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    "Este cuestionario nos ayuda a monitorear cambios en tu estado de salud general y condiciones preexistentes.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.AccessTime,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Tiempo estimado: 5-7 minutos",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onStart,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.ArrowForward, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Comenzar Ahora")
+            }
+        },
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
     )
 }

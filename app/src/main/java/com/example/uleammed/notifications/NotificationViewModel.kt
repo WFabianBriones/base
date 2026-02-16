@@ -13,14 +13,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * ViewModel mejorado para gestión de notificaciones con soporte para
- * configuración de hora preferida y recordatorios
- *
- * ✅ ACTUALIZADO: Ahora incluye soporte para períodos diferenciados
- */
 class NotificationViewModel(application: Application) : AndroidViewModel(application) {
-    val notificationManager = QuestionnaireNotificationManager(application) // ✅ CAMBIO: Public para acceso desde Settings
+    val notificationManager = QuestionnaireNotificationManager(application)
     private val auth = FirebaseAuth.getInstance()
 
     private val _notifications = MutableStateFlow<List<QuestionnaireNotification>>(emptyList())
@@ -38,10 +32,46 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // ✅ NUEVO: Estado para el dialog de Salud General
+    private val _shouldShowSaludGeneralDialog = MutableStateFlow(false)
+    val shouldShowSaludGeneralDialog: StateFlow<Boolean> = _shouldShowSaludGeneralDialog.asStateFlow()
+
+    private val _isCheckingSaludGeneral = MutableStateFlow(false)
+    val isCheckingSaludGeneral: StateFlow<Boolean> = _isCheckingSaludGeneral.asStateFlow()
+
     init {
         Log.d("NotificationViewModel", "🚀 ViewModel inicializado")
         loadNotifications()
         checkForNewNotifications()
+    }
+
+    // ✅ NUEVA FUNCIÓN: Verificar si debe mostrar el dialog de Salud General
+    fun checkShouldShowSaludGeneralDialog(userId: String) {
+        viewModelScope.launch {
+            try {
+                _isCheckingSaludGeneral.value = true
+                Log.d("NotificationViewModel", "🔍 Verificando dialog de Salud General para: $userId")
+
+                val shouldShow = withContext(Dispatchers.IO) {
+                    notificationManager.shouldShowSaludGeneralDialog(userId)
+                }
+
+                Log.d("NotificationViewModel", "✅ Resultado verificación: $shouldShow")
+                _shouldShowSaludGeneralDialog.value = shouldShow
+
+            } catch (e: Exception) {
+                Log.e("NotificationViewModel", "❌ Error verificando Salud General", e)
+                _shouldShowSaludGeneralDialog.value = false
+            } finally {
+                _isCheckingSaludGeneral.value = false
+            }
+        }
+    }
+
+    // ✅ NUEVA FUNCIÓN: Cerrar el dialog de Salud General
+    fun dismissSaludGeneralDialog() {
+        Log.d("NotificationViewModel", "🚪 Dialog de Salud General cerrado")
+        _shouldShowSaludGeneralDialog.value = false
     }
 
     fun loadNotifications() {
@@ -100,7 +130,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     notificationManager.checkAndGenerateNotifications(userId)
                 }
 
-                // ✅ CRÍTICO: Recargar después de generar
                 loadNotifications()
             } catch (e: Exception) {
                 _error.value = "Error al verificar notificaciones: ${e.message}"
@@ -109,9 +138,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Marcar notificación como leída
-     */
+    // ... resto de funciones (mantener sin cambios)
     fun markAsRead(notificationId: String) {
         viewModelScope.launch {
             try {
@@ -126,9 +153,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Eliminar notificación específica
-     */
     fun deleteNotification(notificationId: String) {
         viewModelScope.launch {
             try {
@@ -143,27 +167,21 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Actualizar período de días entre cuestionarios regulares
-     */
     fun updatePeriodDays(days: Int) {
         viewModelScope.launch {
             try {
                 val userId = auth.currentUser?.uid ?: return@launch
 
-                // ✅ CRÍTICO: Actualizar StateFlow INMEDIATAMENTE
                 val currentConfig = _scheduleConfig.value
                 if (currentConfig != null) {
                     _scheduleConfig.value = currentConfig.copy(periodDays = days)
                     Log.d("NotificationViewModel", "✅ StateFlow actualizado inmediatamente a $days días")
                 }
 
-                // Actualizar en Firestore (en segundo plano)
                 withContext(Dispatchers.IO) {
                     notificationManager.updatePeriodDays(userId, days)
                 }
 
-                // Recargar para sincronizar todo
                 loadNotifications()
 
                 Log.d("NotificationViewModel", "✅ Período completamente actualizado a $days días")
@@ -174,20 +192,11 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * ✅ NUEVO: Actualizar período del cuestionario de salud general
-     *
-     * Este método actualiza solo el período de reevaluación de salud general
-     * sin afectar los períodos de los otros 8 cuestionarios regulares
-     *
-     * @param days Nuevo período en días (30, 90 o 180)
-     */
     fun updateSaludGeneralPeriodDays(days: Int) {
         viewModelScope.launch {
             try {
                 val userId = auth.currentUser?.uid ?: return@launch
 
-                // ✅ Actualizar StateFlow inmediatamente
                 val currentConfig = _scheduleConfig.value
                 if (currentConfig != null) {
                     _scheduleConfig.value = currentConfig.copy(
@@ -198,12 +207,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                         "✅ StateFlow salud general actualizado inmediatamente a $days días")
                 }
 
-                // Actualizar en backend
                 withContext(Dispatchers.IO) {
                     notificationManager.updateSaludGeneralPeriodDays(userId, days)
                 }
 
-                // Recargar para sincronizar
                 loadNotifications()
 
                 Log.d("NotificationViewModel",
@@ -215,9 +222,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Actualizar hora preferida para notificaciones
-     */
     fun updatePreferredTime(hour: Int, minute: Int) {
         viewModelScope.launch {
             try {
@@ -241,9 +245,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Actualizar si mostrar recordatorios en la app
-     */
     fun updateRemindersInApp(show: Boolean) {
         viewModelScope.launch {
             try {
@@ -266,9 +267,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Marcar cuestionario como completado
-     */
     fun markQuestionnaireCompleted(questionnaireType: QuestionnaireType) {
         viewModelScope.launch {
             try {
@@ -288,9 +286,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Limpiar notificaciones antiguas (30+ días)
-     */
     fun cleanupOldNotifications() {
         viewModelScope.launch {
             try {
@@ -307,9 +302,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Limpiar notificaciones leídas
-     */
     fun clearReadNotifications() {
         viewModelScope.launch {
             try {
@@ -326,9 +318,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Limpiar TODAS las notificaciones
-     */
     fun clearAllNotifications() {
         viewModelScope.launch {
             try {
@@ -345,9 +334,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Obtener estadísticas de un cuestionario
-     */
     fun getQuestionnaireSummary(questionnaireType: QuestionnaireType): QuestionnaireStatsSummary? {
         return try {
             val userId = auth.currentUser?.uid ?: return null
@@ -359,9 +345,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Obtener estadísticas globales
-     */
     fun getGlobalSummary(): GlobalStatsSummary? {
         return try {
             val userId = auth.currentUser?.uid ?: return null
@@ -372,16 +355,10 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /**
-     * Filtrar notificaciones
-     */
     fun filterNotifications(filter: NotificationFilter): List<QuestionnaireNotification> {
         return filter.apply(_notifications.value)
     }
 
-    /**
-     * Limpiar error
-     */
     fun clearError() {
         _error.value = null
     }
