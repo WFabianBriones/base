@@ -377,6 +377,7 @@ fun NotificationCard(
 
 private fun getIconForQuestionnaireType(type: QuestionnaireType): ImageVector {
     return when (type) {
+        QuestionnaireType.SALUD_GENERAL -> Icons.Filled.MonitorHeart
         QuestionnaireType.ERGONOMIA -> Icons.Filled.Computer
         QuestionnaireType.SINTOMAS_MUSCULARES -> Icons.Filled.MonitorHeart
         QuestionnaireType.SINTOMAS_VISUALES -> Icons.Filled.RemoveRedEye
@@ -390,6 +391,7 @@ private fun getIconForQuestionnaireType(type: QuestionnaireType): ImageVector {
 
 private fun getRouteForQuestionnaireType(type: QuestionnaireType): String {
     return when (type) {
+        QuestionnaireType.SALUD_GENERAL -> Screen.Questionnaire.route
         QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
         QuestionnaireType.SINTOMAS_MUSCULARES -> Screen.SintomasMuscularesQuestionnaire.route
         QuestionnaireType.SINTOMAS_VISUALES -> Screen.SintomasVisualesQuestionnaire.route

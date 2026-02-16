@@ -224,6 +224,7 @@ fun UleamApp(
             try {
                 val type = QuestionnaireType.valueOf(questionnaireType)
                 val route = when (type) {
+                    QuestionnaireType.SALUD_GENERAL -> Screen.Questionnaire.route
                     QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
                     QuestionnaireType.SINTOMAS_MUSCULARES -> Screen.SintomasMuscularesQuestionnaire.route
                     QuestionnaireType.SINTOMAS_VISUALES -> Screen.SintomasVisualesQuestionnaire.route

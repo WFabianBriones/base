@@ -42,38 +42,117 @@ data class QuestionnaireNotification(
 }
 
 /**
+ * ✅ NUEVO: Periodicidad específica para el Cuestionario de Salud General
+ *
+ * A diferencia de los cuestionarios regulares (7, 15, 30 días),
+ * el cuestionario de salud general tiene períodos más largos
+ */
+enum class SaludGeneralFrequency(
+    val days: Int,
+    val displayName: String,
+    val description: String
+) {
+    /**
+     * Reevaluación mensual - Para seguimiento cercano
+     */
+    MONTHLY(
+        days = 30,
+        displayName = "1 mes",
+        description = "Reevaluar cada mes"
+    ),
+
+    /**
+     * Reevaluación trimestral - Opción recomendada
+     */
+    QUARTERLY(
+        days = 90,
+        displayName = "3 meses",
+        description = "Reevaluar cada 3 meses (recomendado)"
+    ),
+
+    /**
+     * Reevaluación semestral - Para seguimiento general
+     */
+    BIANNUAL(
+        days = 180,
+        displayName = "6 meses",
+        description = "Reevaluar cada 6 meses"
+    );
+
+    companion object {
+        /**
+         * Obtiene la frecuencia desde el número de días
+         *
+         * @param days Número de días
+         * @return Frecuencia correspondiente o QUARTERLY por defecto
+         */
+        fun fromDays(days: Int): SaludGeneralFrequency = when (days) {
+            30 -> MONTHLY
+            90 -> QUARTERLY
+            180 -> BIANNUAL
+            else -> QUARTERLY // Por defecto 3 meses
+        }
+    }
+}
+
+/**
  * Configuración de periodicidad de cuestionarios
  *
+ * ✅ ACTUALIZADO: Ahora incluye configuración separada para Salud General
+ *
  * @property userId ID del usuario
- * @property periodDays Días entre cuestionarios (7, 15, 30)
+ * @property periodDays Días entre cuestionarios regulares (7, 15, 30)
  * @property preferredHour Hora preferida para notificaciones (0-23)
  * @property preferredMinute Minuto preferido para notificaciones (0-59)
  * @property lastCompletedDates Mapa de últimas fechas de completación por cuestionario
  * @property enabledQuestionnaires Set de cuestionarios habilitados
  * @property showRemindersInApp Si los recordatorios previos deben aparecer en la app
+ * @property saludGeneralPeriodDays ✅ NUEVO: Período específico para salud general (30, 90, 180)
  */
 data class QuestionnaireScheduleConfig(
     val userId: String = "",
-    val periodDays: Int = 7, // Por defecto 7 días
-    val preferredHour: Int = 9, // ✅ NUEVO: 9 AM por defecto
-    val preferredMinute: Int = 0, // ✅ NUEVO: En punto
+    val periodDays: Int = 7, // Para los 8 cuestionarios regulares
+    val preferredHour: Int = 9, // 9 AM por defecto
+    val preferredMinute: Int = 0, // En punto
     val lastCompletedDates: Map<String, Long> = emptyMap(),
     val enabledQuestionnaires: Set<String> = QuestionnaireType.values().map { it.name }.toSet(),
-    val showRemindersInApp: Boolean = true, // ✅ NUEVO: Mostrar recordatorios en Avisos
+    val showRemindersInApp: Boolean = true,
+    val saludGeneralPeriodDays: Int = 90, // ✅ NUEVO: Por defecto 3 meses (90 días)
     val lastModified: Long = System.currentTimeMillis()
 ) {
     /**
+     * ✅ NUEVO: Obtiene el período correcto según el tipo de cuestionario
+     *
+     * - SALUD_GENERAL usa saludGeneralPeriodDays (30, 90 o 180 días)
+     * - Otros cuestionarios usan periodDays (7, 15 o 30 días)
+     *
+     * @param type Tipo de cuestionario
+     * @return Número de días del período
+     */
+    fun getPeriodForQuestionnaire(type: QuestionnaireType): Int {
+        return when (type) {
+            QuestionnaireType.SALUD_GENERAL -> saludGeneralPeriodDays
+            else -> periodDays
+        }
+    }
+
+    /**
      * Obtiene la próxima fecha de vencimiento para un cuestionario
+     *
+     * ✅ ACTUALIZADO: Usa getPeriodForQuestionnaire para obtener el período correcto
      */
     fun getNextDueDate(questionnaireType: QuestionnaireType): Long? {
         val lastCompleted = lastCompletedDates[questionnaireType.name] ?: return null
-        return calculateNextDueDate(lastCompleted)
+        val period = getPeriodForQuestionnaire(questionnaireType)
+        return calculateNextDueDate(lastCompleted, period)
     }
 
     /**
      * Calcula la próxima fecha de vencimiento desde una fecha base
+     *
+     * ✅ ACTUALIZADO: Ahora acepta periodDays como parámetro
      */
-    private fun calculateNextDueDate(fromDate: Long): Long {
+    private fun calculateNextDueDate(fromDate: Long, periodDays: Int): Long {
         val calendar = Calendar.getInstance().apply {
             timeInMillis = fromDate
             add(Calendar.DAY_OF_MONTH, periodDays)
@@ -91,6 +170,35 @@ data class QuestionnaireScheduleConfig(
     fun isQuestionnaireEnabled(type: QuestionnaireType): Boolean {
         return enabledQuestionnaires.contains(type.name)
     }
+
+    /**
+     * ✅ NUEVO: Obtiene una descripción legible del período configurado
+     * para un cuestionario específico
+     *
+     * @param type Tipo de cuestionario
+     * @return Descripción del período (ej: "cada 3 meses", "cada 7 días")
+     */
+    fun getPeriodDescription(type: QuestionnaireType): String {
+        val days = getPeriodForQuestionnaire(type)
+        return when (type) {
+            QuestionnaireType.SALUD_GENERAL -> {
+                when (days) {
+                    30 -> "cada mes"
+                    90 -> "cada 3 meses"
+                    180 -> "cada 6 meses"
+                    else -> "cada $days días"
+                }
+            }
+            else -> {
+                when (days) {
+                    7 -> "cada semana"
+                    15 -> "cada 15 días"
+                    30 -> "cada mes"
+                    else -> "cada $days días"
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -104,7 +212,7 @@ sealed class NotificationState {
 }
 
 /**
- * Periodicidad disponible para cuestionarios
+ * Periodicidad disponible para cuestionarios regulares
  *
  * @property days Número de días entre cuestionarios
  * @property displayName Nombre para mostrar al usuario
@@ -145,7 +253,7 @@ enum class QuestionnaireFrequency(
 }
 
 /**
- * ✅ NUEVO: Configuración de hora preferida para notificaciones
+ * Configuración de hora preferida para notificaciones
  */
 data class PreferredTimeConfig(
     val hour: Int = 9, // 0-23
@@ -177,7 +285,7 @@ data class PreferredTimeConfig(
 }
 
 /**
- * ✅ NUEVO: Evento de notificación para logging
+ * Evento de notificación para logging
  */
 sealed class NotificationEvent {
     data class Created(val type: QuestionnaireType, val dueDate: Long) : NotificationEvent()
@@ -189,7 +297,7 @@ sealed class NotificationEvent {
 }
 
 /**
- * ✅ NUEVO: Resultado de operación de notificación
+ * Resultado de operación de notificación
  */
 sealed class NotificationResult<out T> {
     data class Success<T>(val data: T) : NotificationResult<T>()
@@ -198,7 +306,7 @@ sealed class NotificationResult<out T> {
 }
 
 /**
- * ✅ NUEVO: Filtro de notificaciones
+ * Filtro de notificaciones
  */
 enum class NotificationFilter {
     ALL,        // Todas las notificaciones

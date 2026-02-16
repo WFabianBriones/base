@@ -170,6 +170,9 @@ class AuthRepository {
                 .update("hasCompletedQuestionnaire", true)
                 .await()
 
+            // ✅ AGREGAR ESTA LÍNEA:
+            updateLastCompletedDate(questionnaire.userId, "SALUD_GENERAL")
+
             android.util.Log.d("AuthRepository", "✅ Cuestionario inicial guardado con timestamp")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -600,6 +603,47 @@ class AuthRepository {
             Result.success(Unit)
         } catch (e: Exception) {
             android.util.Log.e("AuthRepository", "❌ Error guardando balance", e)
+            Result.failure(e)
+        }
+    }
+    /**
+     * Eliminar un cuestionario completado (permite volver a completarlo)
+     */
+    suspend fun deleteQuestionnaire(userId: String, questionnaireType: String): Result<Unit> {
+        return try {
+            // Eliminar documento del cuestionario
+            firestore.collection("users")
+                .document(userId)
+                .collection("questionnaires")
+                .document(questionnaireType)
+                .delete()
+                .await()
+
+            // Eliminar lastCompletedDate de settings/notifications
+            val configRef = firestore.collection("users")
+                .document(userId)
+                .collection("settings")
+                .document("notifications")
+
+            try {
+                val configDoc = configRef.get().await()
+                if (configDoc.exists()) {
+                    val lastCompletedDates = configDoc.get("lastCompletedDates") as? Map<String, Long> ?: emptyMap()
+                    val questionnaireTypeName = questionnaireType.uppercase().replace("_", "_")
+
+                    val updatedDates = lastCompletedDates.toMutableMap()
+                    updatedDates.remove(questionnaireTypeName)
+
+                    configRef.update("lastCompletedDates", updatedDates).await()
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("AuthRepository", "⚠️ No se pudo actualizar lastCompletedDates", e)
+            }
+
+            android.util.Log.d("AuthRepository", "✅ Cuestionario $questionnaireType eliminado")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error eliminando cuestionario $questionnaireType", e)
             Result.failure(e)
         }
     }

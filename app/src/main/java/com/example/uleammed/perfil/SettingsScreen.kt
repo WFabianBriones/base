@@ -25,6 +25,7 @@ import com.example.uleammed.notifications.NotificationPermissionStatus
 import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.PreferredTimeConfig
 import com.example.uleammed.notifications.QuestionnaireFrequency
+import com.example.uleammed.notifications.SaludGeneralFrequency // ✅ NUEVO
 import com.example.uleammed.notifications.TestNotificationHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +43,13 @@ fun SettingsScreen(
         )
     }
 
+    // ✅ NUEVO: Estado para salud general
+    var selectedSaludGeneralFrequency by remember {
+        mutableStateOf(
+            SaludGeneralFrequency.fromDays(scheduleConfig?.saludGeneralPeriodDays ?: 90)
+        )
+    }
+
     var selectedHour by remember {
         mutableIntStateOf(scheduleConfig?.preferredHour ?: 9)
     }
@@ -53,6 +61,11 @@ fun SettingsScreen(
     var showFrequencyDialog by remember { mutableStateOf(false) }
     var showTimeDialog by remember { mutableStateOf(false) }
     var pendingFrequency by remember { mutableStateOf<QuestionnaireFrequency?>(null) }
+
+    // ✅ NUEVO: Estados para dialog de salud general
+    var showSaludGeneralDialog by remember { mutableStateOf(false) }
+    var pendingSaludGeneralFrequency by remember { mutableStateOf<SaludGeneralFrequency?>(null) }
+
     var showPermissionHandler by remember { mutableStateOf(false) }
     var showRemindersInApp by remember {
         mutableStateOf(scheduleConfig?.showRemindersInApp ?: true)
@@ -64,6 +77,11 @@ fun SettingsScreen(
             selectedHour = config.preferredHour
             selectedMinute = config.preferredMinute
             showRemindersInApp = config.showRemindersInApp
+
+            // ✅ NUEVO: Sincronizar salud general
+            selectedSaludGeneralFrequency = SaludGeneralFrequency.fromDays(
+                config.saludGeneralPeriodDays
+            )
         }
     }
 
@@ -84,12 +102,12 @@ fun SettingsScreen(
             icon = { Icon(Icons.Filled.Schedule, contentDescription = null) },
             title = { Text("Cambiar periodicidad") },
             text = {
-                Text("¿Deseas cambiar la periodicidad de los cuestionarios a ${pendingFrequency!!.displayName}? Esto regenerará las notificaciones pendientes.")
+                Text("¿Deseas cambiar la periodicidad de los cuestionarios regulares a ${pendingFrequency!!.displayName}? Esto regenerará las notificaciones pendientes.")
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.updatePeriodDays(pendingFrequency!!.days)  // ✅ Esto está correcto
+                        viewModel.updatePeriodDays(pendingFrequency!!.days)
                         selectedFrequency = pendingFrequency!!
                         showFrequencyDialog = false
                         pendingFrequency = null
@@ -103,6 +121,53 @@ fun SettingsScreen(
                     onClick = {
                         showFrequencyDialog = false
                         pendingFrequency = null
+                    }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ✅ NUEVO: Dialog para salud general
+    if (showSaludGeneralDialog && pendingSaludGeneralFrequency != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showSaludGeneralDialog = false
+                pendingSaludGeneralFrequency = null
+            },
+            icon = {
+                Icon(
+                    Icons.Filled.HealthAndSafety,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("Cambiar periodicidad de Salud General") },
+            text = {
+                Text(
+                    "¿Deseas cambiar la periodicidad del cuestionario de salud general " +
+                            "a ${pendingSaludGeneralFrequency!!.displayName}?\n\n" +
+                            "Esto regenerará las notificaciones pendientes."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.updateSaludGeneralPeriodDays(pendingSaludGeneralFrequency!!.days)
+                        selectedSaludGeneralFrequency = pendingSaludGeneralFrequency!!
+                        showSaludGeneralDialog = false
+                        pendingSaludGeneralFrequency = null
+                    }
+                ) {
+                    Text("Confirmar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showSaludGeneralDialog = false
+                        pendingSaludGeneralFrequency = null
                     }
                 ) {
                     Text("Cancelar")
@@ -193,6 +258,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ✅ MODIFICADO: Card de cuestionarios regulares
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -204,10 +270,28 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Assignment,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Text(
+                            text = "Cuestionarios Regulares",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
-                        text = "Periodicidad de Cuestionarios",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = "Ergonomía, Síntomas Musculares, Visuales, Carga de Trabajo, Estrés, Sueño, Actividad Física, Balance Vida-Trabajo",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -225,6 +309,66 @@ fun SettingsScreen(
                                 }
                             )
                             if (frequency != QuestionnaireFrequency.values().last()) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ✅ NUEVO: Card de cuestionario de salud general
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.HealthAndSafety,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Text(
+                            text = "Cuestionario de Salud General",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Reevaluación de tu estado de salud base y condiciones preexistentes",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Column(modifier = Modifier.selectableGroup()) {
+                        SaludGeneralFrequency.values().forEach { frequency ->
+                            SaludGeneralFrequencyOption(
+                                frequency = frequency,
+                                selected = selectedSaludGeneralFrequency == frequency,
+                                onSelect = {
+                                    if (selectedSaludGeneralFrequency != frequency) {
+                                        pendingSaludGeneralFrequency = frequency
+                                        showSaludGeneralDialog = true
+                                    }
+                                }
+                            )
+                            if (frequency != SaludGeneralFrequency.values().last()) {
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             }
                         }
@@ -477,10 +621,11 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    ConfigItem("Periodicidad", selectedFrequency.displayName)
+                    ConfigItem("Periodicidad regular", selectedFrequency.displayName)
+                    ConfigItem("Periodicidad salud general", selectedSaludGeneralFrequency.displayName)
                     ConfigItem("Hora preferida", PreferredTimeConfig(selectedHour, selectedMinute).formatReadable())
                     ConfigItem("Recordatorios previos", if (showRemindersInApp) "Habilitados" else "Deshabilitados")
-                    ConfigItem("Cuestionarios activos", "${scheduleConfig?.enabledQuestionnaires?.size ?: 8}")
+                    ConfigItem("Cuestionarios activos", "${scheduleConfig?.enabledQuestionnaires?.size ?: 9}")
                 }
             }
         }
@@ -511,6 +656,52 @@ private fun ConfigItem(label: String, value: String) {
 @Composable
 fun FrequencyOption(
     frequency: QuestionnaireFrequency,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                onClick = onSelect,
+                role = Role.RadioButton
+            )
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = frequency.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
+            Text(
+                text = frequency.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+// ✅ NUEVO: Componente para opciones de salud general
+@Composable
+fun SaludGeneralFrequencyOption(
+    frequency: SaludGeneralFrequency,
     selected: Boolean,
     onSelect: () -> Unit
 ) {

@@ -29,6 +29,8 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.alpha
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 
 /**
  * Función principal HomeScreen
@@ -450,17 +452,31 @@ fun ExploreContent(
                         repository = repository,
                         periodDays = periodDays,
                         onClick = {
-                            val route = when (questionnaire.type) {
-                                QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
-                                QuestionnaireType.SINTOMAS_MUSCULARES -> Screen.SintomasMuscularesQuestionnaire.route
-                                QuestionnaireType.SINTOMAS_VISUALES -> Screen.SintomasVisualesQuestionnaire.route
-                                QuestionnaireType.CARGA_TRABAJO -> Screen.CargaTrabajoQuestionnaire.route
-                                QuestionnaireType.ESTRES_SALUD_MENTAL -> Screen.EstresSaludMentalQuestionnaire.route
-                                QuestionnaireType.HABITOS_SUENO -> Screen.HabitosSuenoQuestionnaire.route
-                                QuestionnaireType.ACTIVIDAD_FISICA -> Screen.ActividadFisicaQuestionnaire.route
-                                QuestionnaireType.BALANCE_VIDA_TRABAJO -> Screen.BalanceVidaTrabajoQuestionnaire.route
+                            // Si el cuestionario está disponible, navegar
+                            if (!completedQuestionnaires.contains(questionnaire.firestoreId)) {
+                                val route = when (questionnaire.type) {
+                                    QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
+                                    QuestionnaireType.SINTOMAS_MUSCULARES -> Screen.SintomasMuscularesQuestionnaire.route
+                                    QuestionnaireType.SINTOMAS_VISUALES -> Screen.SintomasVisualesQuestionnaire.route
+                                    QuestionnaireType.CARGA_TRABAJO -> Screen.CargaTrabajoQuestionnaire.route
+                                    QuestionnaireType.ESTRES_SALUD_MENTAL -> Screen.EstresSaludMentalQuestionnaire.route
+                                    QuestionnaireType.HABITOS_SUENO -> Screen.HabitosSuenoQuestionnaire.route
+                                    QuestionnaireType.ACTIVIDAD_FISICA -> Screen.ActividadFisicaQuestionnaire.route
+                                    QuestionnaireType.BALANCE_VIDA_TRABAJO -> Screen.BalanceVidaTrabajoQuestionnaire.route
+                                    else -> return@QuestionnaireCardDynamic
+                                }
+                                onNavigateToQuestionnaire(route)
+                            } else {
+                                // Si fue eliminado, recargar la lista
+                                scope.launch {
+                                    if (userId != null) {
+                                        val result = repository.getCompletedQuestionnaires(userId, periodDays)
+                                        result.onSuccess { completed ->
+                                            completedQuestionnaires = completed
+                                        }
+                                    }
+                                }
                             }
-                            onNavigateToQuestionnaire(route)
                         }
                     )
                 }
@@ -472,29 +488,31 @@ fun ExploreContent(
 /**
  * Card de cuestionario con umbrales dinámicos
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)  // ✅ Agregar ExperimentalFoundationApi
 @Composable
 fun QuestionnaireCardDynamic(
     questionnaire: QuestionnaireInfo,
     isCompleted: Boolean,
     userId: String,
     repository: AuthRepository,
-    periodDays: Int,  // ✅ Este valor ya llega actualizado
+    periodDays: Int,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
     var status by remember { mutableStateOf<QuestionnaireStatus?>(null) }
     val scope = rememberCoroutineScope()
 
-    // ✅ CRÍTICO: Agregar periodDays como dependencia Y pasarlo al repository
+    // ✅ NUEVO: Estados para el diálogo de eliminación
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
+
     LaunchedEffect(isCompleted, periodDays) {
         if (isCompleted && userId.isNotEmpty()) {
             scope.launch {
-                // ✅ CAMBIO IMPORTANTE: Pasar periodDays como tercer parámetro
                 val result = repository.getQuestionnaireStatus(
                     userId,
                     questionnaire.firestoreId,
-                    periodDays  // ✅ Usar el valor actualizado
+                    periodDays
                 )
                 result.onSuccess { s ->
                     status = s
@@ -507,14 +525,11 @@ fun QuestionnaireCardDynamic(
         }
     }
 
-    // Calcular umbrales dinámicamente basados en el período configurado
     val criticalThreshold = (periodDays * 0.3).toInt().coerceAtLeast(1)
     val warningThreshold = (periodDays * 0.5).toInt().coerceAtLeast(2)
 
-    // ✅ Determinar si está bloqueado
     val isLocked = isCompleted && status is QuestionnaireStatus.Completed
 
-    // Colores dinámicos según estado y tiempo restante
     val cardColor = when {
         !isCompleted -> MaterialTheme.colorScheme.surface
         status is QuestionnaireStatus.Completed -> {
@@ -541,43 +556,122 @@ fun QuestionnaireCardDynamic(
         else -> MaterialTheme.colorScheme.primaryContainer
     }
 
+    // ✅ NUEVO: Diálogo de confirmación para eliminar
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            icon = {
+                Icon(
+                    Icons.Filled.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = { Text("¿Eliminar cuestionario?") },
+            text = {
+                Column {
+                    Text("¿Deseas eliminar el cuestionario \"${questionnaire.title}\"?")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Esto te permitirá completarlo nuevamente.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            isDeleting = true
+                            val result = repository.deleteQuestionnaire(userId, questionnaire.firestoreId)
+                            result.onSuccess {
+                                Toast.makeText(
+                                    context,
+                                    "Cuestionario eliminado. Ahora puedes completarlo nuevamente.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                showDeleteDialog = false
+                                // Recargar para actualizar la UI
+                                onClick()
+                            }.onFailure { error ->
+                                Toast.makeText(
+                                    context,
+                                    "Error al eliminar: ${error.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            isDeleting = false
+                        }
+                    },
+                    enabled = !isDeleting
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    enabled = !isDeleting
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (isLocked) 0.6f else 1f), // Opacidad reducida cuando está bloqueado
-        onClick = {
-            if (isLocked && status is QuestionnaireStatus.Completed) {
-                // Mostrar mensaje informativo
-                val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
-                val periodText = when (periodDays) {
-                    7 -> "semanal"
-                    15 -> "quincenal"
-                    30 -> "mensual"
-                    else -> "de $periodDays días"
+            .alpha(if (isLocked) 0.6f else 1f)
+            // ✅ NUEVO: Combinador de gestos para click y long press
+            .combinedClickable(
+                onClick = {
+                    if (isLocked && status is QuestionnaireStatus.Completed) {
+                        val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
+                        val periodText = when (periodDays) {
+                            7 -> "semanal"
+                            15 -> "quincenal"
+                            30 -> "mensual"
+                            else -> "de $periodDays días"
+                        }
+
+                        val mensaje = when {
+                            daysRemaining <= 0 -> "Este cuestionario estará disponible mañana. Recibirás una notificación."
+                            daysRemaining == 1 -> "Este cuestionario ($periodText) estará disponible en 1 día. Recibirás una notificación."
+                            else -> "Este cuestionario ($periodText) estará disponible en $daysRemaining días. Recibirás una notificación."
+                        }
+
+                        Toast.makeText(context, mensaje, Toast.LENGTH_LONG).show()
+
+                        android.util.Log.d("QuestionnaireCard",
+                            "🔒 Intento de abrir cuestionario bloqueado: ${questionnaire.title} (disponible en $daysRemaining días)")
+                    } else {
+                        onClick()
+                        android.util.Log.d("QuestionnaireCard",
+                            "✅ Navegando a cuestionario: ${questionnaire.title}")
+                    }
+                },
+                onLongClick = {
+                    // ✅ NUEVO: Long press solo funciona si está completado
+                    if (isCompleted) {
+                        showDeleteDialog = true
+                        android.util.Log.d("QuestionnaireCard",
+                            "🗑️ Long press en cuestionario completado: ${questionnaire.title}")
+                    }
                 }
-
-                val mensaje = when {
-                    daysRemaining <= 0 -> "Este cuestionario estará disponible mañana. Recibirás una notificación."
-                    daysRemaining == 1 -> "Este cuestionario ($periodText) estará disponible en 1 día. Recibirás una notificación."
-                    else -> "Este cuestionario ($periodText) estará disponible en $daysRemaining días. Recibirás una notificación."
-                }
-
-                Toast.makeText(context, mensaje, Toast.LENGTH_LONG).show()
-
-                android.util.Log.d("QuestionnaireCard",
-                    "🔒 Intento de abrir cuestionario bloqueado: ${questionnaire.title} (disponible en $daysRemaining días)")
-            } else {
-                // Navegar normalmente
-                onClick()
-                android.util.Log.d("QuestionnaireCard",
-                    "✅ Navegando a cuestionario: ${questionnaire.title}")
-            }
-        },
+            ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isLocked) 0.dp else 2.dp
         ),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        enabled = !isLocked // Deshabilitar cuando está bloqueado
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -628,7 +722,6 @@ fun QuestionnaireCardDynamic(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // Info de tiempo y preguntas
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -660,7 +753,34 @@ fun QuestionnaireCardDynamic(
                     )
                 }
 
-                // ✅ Indicador de bloqueo (muestra el período configurado)
+                // ✅ NUEVO: Hint de long press para cuestionarios completados
+                if (isCompleted) {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.TouchApp,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = "Mantén presionado para eliminar",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+
                 if (isLocked && status is QuestionnaireStatus.Completed) {
                     val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
                     val periodText = when (periodDays) {
@@ -700,7 +820,6 @@ fun QuestionnaireCardDynamic(
                     }
                 }
 
-                // Estado de completado con indicador visual
                 if (isCompleted && status is QuestionnaireStatus.Completed) {
                     val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
 
@@ -749,7 +868,6 @@ fun QuestionnaireCardDynamic(
                 }
             }
 
-            // ✅ Solo mostrar flecha si NO está bloqueado
             if (!isLocked) {
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,

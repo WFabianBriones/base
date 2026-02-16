@@ -55,6 +55,7 @@ enum class ResourceCategory(
     companion object {
         fun fromQuestionnaireType(type: QuestionnaireType): ResourceCategory {
             return when (type) {
+                QuestionnaireType.SALUD_GENERAL -> GENERAL
                 QuestionnaireType.ERGONOMIA -> ERGONOMICS
                 QuestionnaireType.SINTOMAS_MUSCULARES -> MUSCULOSKELETAL
                 QuestionnaireType.SINTOMAS_VISUALES -> VISUAL

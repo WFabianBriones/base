@@ -16,9 +16,11 @@ import kotlinx.coroutines.withContext
 /**
  * ViewModel mejorado para gestión de notificaciones con soporte para
  * configuración de hora preferida y recordatorios
+ *
+ * ✅ ACTUALIZADO: Ahora incluye soporte para períodos diferenciados
  */
 class NotificationViewModel(application: Application) : AndroidViewModel(application) {
-    private val notificationManager = QuestionnaireNotificationManager(application)
+    val notificationManager = QuestionnaireNotificationManager(application) // ✅ CAMBIO: Public para acceso desde Settings
     private val auth = FirebaseAuth.getInstance()
 
     private val _notifications = MutableStateFlow<List<QuestionnaireNotification>>(emptyList())
@@ -142,7 +144,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * Actualizar período de días entre cuestionarios
+     * Actualizar período de días entre cuestionarios regulares
      */
     fun updatePeriodDays(days: Int) {
         viewModelScope.launch {
@@ -173,7 +175,48 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * ✅ NUEVO: Actualizar hora preferida para notificaciones
+     * ✅ NUEVO: Actualizar período del cuestionario de salud general
+     *
+     * Este método actualiza solo el período de reevaluación de salud general
+     * sin afectar los períodos de los otros 8 cuestionarios regulares
+     *
+     * @param days Nuevo período en días (30, 90 o 180)
+     */
+    fun updateSaludGeneralPeriodDays(days: Int) {
+        viewModelScope.launch {
+            try {
+                val userId = auth.currentUser?.uid ?: return@launch
+
+                // ✅ Actualizar StateFlow inmediatamente
+                val currentConfig = _scheduleConfig.value
+                if (currentConfig != null) {
+                    _scheduleConfig.value = currentConfig.copy(
+                        saludGeneralPeriodDays = days,
+                        lastModified = System.currentTimeMillis()
+                    )
+                    Log.d("NotificationViewModel",
+                        "✅ StateFlow salud general actualizado inmediatamente a $days días")
+                }
+
+                // Actualizar en backend
+                withContext(Dispatchers.IO) {
+                    notificationManager.updateSaludGeneralPeriodDays(userId, days)
+                }
+
+                // Recargar para sincronizar
+                loadNotifications()
+
+                Log.d("NotificationViewModel",
+                    "✅ Período de salud general actualizado exitosamente a $days días")
+            } catch (e: Exception) {
+                _error.value = "Error al actualizar período de salud general: ${e.message}"
+                Log.e("NotificationViewModel", "❌ Error updating salud general period", e)
+            }
+        }
+    }
+
+    /**
+     * Actualizar hora preferida para notificaciones
      */
     fun updatePreferredTime(hour: Int, minute: Int) {
         viewModelScope.launch {
@@ -199,7 +242,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * ✅ NUEVO: Actualizar si mostrar recordatorios en la app
+     * Actualizar si mostrar recordatorios en la app
      */
     fun updateRemindersInApp(show: Boolean) {
         viewModelScope.launch {
@@ -303,7 +346,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * ✅ NUEVO: Obtener estadísticas de un cuestionario
+     * Obtener estadísticas de un cuestionario
      */
     fun getQuestionnaireSummary(questionnaireType: QuestionnaireType): QuestionnaireStatsSummary? {
         return try {
@@ -317,7 +360,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * ✅ NUEVO: Obtener estadísticas globales
+     * Obtener estadísticas globales
      */
     fun getGlobalSummary(): GlobalStatsSummary? {
         return try {
@@ -330,7 +373,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * ✅ NUEVO: Filtrar notificaciones
+     * Filtrar notificaciones
      */
     fun filterNotifications(filter: NotificationFilter): List<QuestionnaireNotification> {
         return filter.apply(_notifications.value)
