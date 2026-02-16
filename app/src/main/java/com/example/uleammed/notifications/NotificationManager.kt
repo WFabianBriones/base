@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
+
 class QuestionnaireNotificationManager(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(
         "questionnaire_notifications",
@@ -205,46 +206,14 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val updatedConfig = config.copy(saludGeneralPeriodDays = days)
             saveScheduleConfig(updatedConfig)
 
-            // Reprogramar solo el cuestionario de salud general
-            config.lastCompletedDates["SALUD_GENERAL"]?.let { completedAt ->
-                val newDueDate = calculateNextDueDate(
-                    completedAt,
-                    days,
-                    config.preferredHour,
-                    config.preferredMinute
-                )
-
-                LocalNotificationScheduler.cancelNotification(QuestionnaireType.SALUD_GENERAL)
-
-                // ✅ CAMBIO: NO crear notificación in-app, solo notificación push
-                if (newDueDate > System.currentTimeMillis()) {
-                    if (days > 1) {
-                        val reminderDate = newDueDate - TimeUnit.DAYS.toMillis(1)
-                        LocalNotificationScheduler.scheduleNotification(
-                            questionnaireType = QuestionnaireType.SALUD_GENERAL,
-                            dueDate = reminderDate,
-                            title = "📅 Recordatorio: Cuestionario de Salud General",
-                            message = "Mañana es el día de reevaluar tu salud general",
-                            isReminder = true,
-                            createInAppNotification = false // ✅ No crear en Avisos
-                        )
-                    }
-
-                    LocalNotificationScheduler.scheduleNotification(
-                        questionnaireType = QuestionnaireType.SALUD_GENERAL,
-                        dueDate = newDueDate,
-                        title = "⏰ Cuestionario de Salud General",
-                        message = "Es momento de reevaluar tu estado de salud base",
-                        isReminder = false,
-                        createInAppNotification = false // ✅ No crear en Avisos
-                    )
-                }
-            }
+            // ✅ SALUD_GENERAL: NO programar notificaciones push
+            // Solo se actualiza la configuración, el dialog se mostrará automáticamente
 
             logDebug("updateSaludGeneralPeriodDays", mapOf(
                 "userId" to userId,
                 "oldPeriod" to config.saludGeneralPeriodDays,
-                "newPeriod" to days
+                "newPeriod" to days,
+                "note" to "SALUD_GENERAL se maneja solo como dialog, no push"
             ))
 
             checkAndGenerateNotifications(userId)
@@ -340,47 +309,61 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 "daysUntilNext" to TimeUnit.MILLISECONDS.toDays(nextDueDate - now)
             ))
 
-            // ✅ CAMBIO: SALUD_GENERAL no crea notificaciones in-app
-            val createInAppNotification = questionnaireType != QuestionnaireType.SALUD_GENERAL
+            // ✅ CRÍTICO: Solo programar notificaciones push para los 8 cuestionarios regulares
+            if (questionnaireType != QuestionnaireType.SALUD_GENERAL) {
 
-            // ✅ CAMBIO: Usar periodDays para programar notificaciones
-            if (periodDays > 1) {
-                val reminderDate = nextDueDate - TimeUnit.DAYS.toMillis(1)
-                if (reminderDate > now) {
+                // Programar recordatorio (1 día antes)
+                if (periodDays > 1) {
+                    val reminderDate = nextDueDate - TimeUnit.DAYS.toMillis(1)
+
+                    if (reminderDate > now) {
+                        LocalNotificationScheduler.scheduleNotification(
+                            questionnaireType = questionnaireType,
+                            dueDate = reminderDate,
+                            title = "📅 Recordatorio: ${getQuestionnaireInfo(questionnaireType).title}",
+                            message = "Mañana es el día de completar tu cuestionario ${getPeriodText(periodDays)}. ¡Prepárate!",
+                            isReminder = true,
+                            createInAppNotification = config.showRemindersInApp
+                        )
+
+                        logDebug("scheduleReminder", mapOf(
+                            "type" to questionnaireType.name,
+                            "reminderDate" to formatDate(reminderDate),
+                            "daysUntilReminder" to TimeUnit.MILLISECONDS.toDays(reminderDate - now)
+                        ))
+                    }
+                }
+
+                // Programar notificación principal
+                if (nextDueDate > now) {
                     LocalNotificationScheduler.scheduleNotification(
                         questionnaireType = questionnaireType,
-                        dueDate = reminderDate,
-                        title = "📅 Recordatorio: ${getQuestionnaireInfo(questionnaireType).title}",
-                        message = "Mañana es el día de completar tu cuestionario ${getPeriodText(periodDays)}. ¡Prepárate!",
-                        isReminder = true,
-                        createInAppNotification = if (questionnaireType == QuestionnaireType.SALUD_GENERAL) false else config.showRemindersInApp
+                        dueDate = nextDueDate,
+                        title = "⏰ Cuestionario pendiente: ${getQuestionnaireInfo(questionnaireType).title}",
+                        message = "Es momento de completar tu cuestionario ${getPeriodText(periodDays)}. ${getQuestionnaireInfo(questionnaireType).estimatedTime}",
+                        isReminder = false,
+                        createInAppNotification = true
                     )
-                    logDebug("scheduleReminder", mapOf(
-                        "type" to questionnaireType.name,
-                        "reminderDate" to formatDate(reminderDate),
-                        "daysUntilReminder" to TimeUnit.MILLISECONDS.toDays(reminderDate - now),
-                        "createInApp" to createInAppNotification
-                    ))
+                } else {
+                    logWarning("markQuestionnaireCompleted", "Fecha de vencimiento en el pasado ignorada")
                 }
-            }
 
-            if (nextDueDate > now) {
-                LocalNotificationScheduler.scheduleNotification(
-                    questionnaireType = questionnaireType,
-                    dueDate = nextDueDate,
-                    title = "⏰ Cuestionario pendiente: ${getQuestionnaireInfo(questionnaireType).title}",
-                    message = "Es momento de completar tu cuestionario ${getPeriodText(periodDays)}.",
-                    isReminder = false,
-                    createInAppNotification = createInAppNotification
-                )
             } else {
-                logWarning("markQuestionnaireCompleted", "Fecha de vencimiento en el pasado ignorada")
+                // SALUD_GENERAL: No programar notificaciones push
+                Log.d(TAG, """
+                    ℹ️ SALUD_GENERAL completado
+                    - Próxima evaluación: ${formatDate(nextDueDate)}
+                    - Período: $periodDays días
+                    - NO se programan notificaciones push
+                    - Se mostrará como dialog automático cuando expire
+                """.trimIndent())
             }
 
             checkAndGenerateNotifications(userId)
         }
     }
 
+    // ✅ CORRECCIÓN: NO es suspend, se mantiene como función normal
     fun checkAndGenerateNotifications(userId: String) {
         synchronized(lock) {
             val config = getScheduleConfig(userId)
@@ -574,6 +557,84 @@ class QuestionnaireNotificationManager(private val context: Context) {
         }
 
         return shouldShow
+    }
+
+    /**
+     * ✅ NUEVO: Sincroniza notificaciones con Firebase
+     * Se llama DESDE FUERA de synchronized para evitar deadlock
+     */
+    suspend fun syncWithFirebase(userId: String) {
+        try {
+            Log.d(TAG, "🔄 Sincronizando con Firebase para userId: $userId")
+
+            val firestore = FirebaseFirestore.getInstance()
+
+            // 1. Obtener configuración de Firebase (FUERA de synchronized)
+            val configDoc = firestore.collection("users")
+                .document(userId)
+                .collection("settings")
+                .document("notifications")
+                .get()
+                .await()
+
+            if (!configDoc.exists()) {
+                Log.w(TAG, "⚠️ No existe configuración en Firebase")
+                return
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            val lastCompletedDates = configDoc.get("lastCompletedDates") as? Map<String, Long>
+                ?: emptyMap()
+
+            val periodDays = configDoc.getLong("periodDays")?.toInt() ?: 7
+            val now = System.currentTimeMillis()
+
+            // 2. Actualizar notificaciones (DENTRO de synchronized)
+            synchronized(lock) {
+                val currentNotifications = getNotifications().toMutableList()
+                val initialCount = currentNotifications.size
+
+                // Filtrar: Eliminar notificaciones de cuestionarios completados y vigentes
+                val filteredNotifications = currentNotifications.filter { notification ->
+                    val type = notification.questionnaireType
+                    val lastCompleted = lastCompletedDates[type.name] ?: 0L
+
+                    if (lastCompleted == 0L) {
+                        // Nunca completado -> mantener notificación
+                        return@filter true
+                    }
+
+                    // Calcular si está vigente
+                    val validityPeriod = TimeUnit.DAYS.toMillis(periodDays.toLong())
+                    val expirationDate = lastCompleted + validityPeriod
+                    val isValid = now < expirationDate
+
+                    if (isValid) {
+                        // Completado y vigente -> ELIMINAR notificación
+                        Log.d(TAG, "  - ${type.name}: ELIMINAR (completado y vigente)")
+                        LocalNotificationScheduler.cancelNotification(type)
+                        return@filter false
+                    } else {
+                        // Completado pero expirado -> mantener notificación
+                        return@filter true
+                    }
+                }
+
+                // Guardar notificaciones actualizadas
+                saveNotifications(filteredNotifications)
+
+                val removedCount = initialCount - filteredNotifications.size
+
+                Log.d(TAG, """
+                    ✅ Sincronización completada
+                    - Eliminadas: $removedCount
+                    - Restantes: ${filteredNotifications.size}
+                """.trimIndent())
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error sincronizando con Firebase", e)
+        }
     }
 
     private fun calculateNextDueDate(

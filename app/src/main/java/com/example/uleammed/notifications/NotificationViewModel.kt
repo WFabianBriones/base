@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
 class NotificationViewModel(application: Application) : AndroidViewModel(application) {
     val notificationManager = QuestionnaireNotificationManager(application)
     private val auth = FirebaseAuth.getInstance()
@@ -79,36 +80,29 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             try {
                 _isLoading.value = true
 
-                val notifications = withContext(Dispatchers.IO) {
-                    notificationManager.getNotifications()
-                        .sortedByDescending { it.createdAt }
-                }
-
-                val unread = withContext(Dispatchers.IO) {
-                    notificationManager.getUnreadCount()
-                }
-
-                _notifications.value = notifications
-                _unreadCount.value = unread
-
                 val userId = auth.currentUser?.uid
-                if (userId != null) {
-                    val config = withContext(Dispatchers.IO) {
-                        notificationManager.getScheduleConfig(userId)
-                    }
-                    _scheduleConfig.value = config
+                if (userId == null) {
+                    _error.value = "Usuario no autenticado"
+                    _isLoading.value = false
+                    return@launch
                 }
 
-                Log.d("NotificationViewModel", """
-                    ✅ Notificaciones cargadas
-                    - Total: ${notifications.size}
-                    - No leídas: $unread
-                """.trimIndent())
+                _scheduleConfig.value = notificationManager.getScheduleConfig(userId)
 
-                _error.value = null
+                // ✅ Sincronizar con Firebase (elimina notificaciones obsoletas)
+                withContext(Dispatchers.IO) {
+                    notificationManager.syncWithFirebase(userId)
+                }
+
+                // ✅ Actualizar UI
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
+
+                Log.d("NotificationViewModel", "✅ Notificaciones cargadas y sincronizadas")
+
             } catch (e: Exception) {
                 _error.value = "Error al cargar notificaciones: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error loading notifications", e)
+                Log.e("NotificationViewModel", "❌ Error", e)
             } finally {
                 _isLoading.value = false
             }
@@ -118,34 +112,39 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     fun checkForNewNotifications() {
         viewModelScope.launch {
             try {
-                val userId = auth.currentUser?.uid
-                if (userId == null) {
-                    Log.w("NotificationViewModel", "⚠️ Usuario no autenticado")
-                    return@launch
-                }
-
-                Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones para userId: $userId")
+                val userId = auth.currentUser?.uid ?: return@launch
+                Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones")
 
                 withContext(Dispatchers.IO) {
-                    notificationManager.checkAndGenerateNotifications(userId)
+                    notificationManager.syncWithFirebase(userId)
                 }
 
-                loadNotifications()
+                // ✅ Solo actualiza el estado local
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
+
+                Log.d("NotificationViewModel", "✅ Notificaciones verificadas sin recargar todo")
+
             } catch (e: Exception) {
                 _error.value = "Error al verificar notificaciones: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error checking notifications", e)
+                Log.e("NotificationViewModel", "❌ Error", e)
             }
         }
     }
 
-    // ... resto de funciones (mantener sin cambios)
+
     fun markAsRead(notificationId: String) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     notificationManager.markAsRead(notificationId)
                 }
-                loadNotifications()
+
+                // ✅ Actualiza solo el estado local, sin recargar todo
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
+
+                Log.d("NotificationViewModel", "📩 Notificación marcada como leída: $notificationId")
             } catch (e: Exception) {
                 _error.value = "Error al marcar como leída: ${e.message}"
                 Log.e("NotificationViewModel", "Error marking as read", e)
@@ -153,19 +152,26 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+
     fun deleteNotification(notificationId: String) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     notificationManager.deleteNotification(notificationId)
                 }
-                loadNotifications()
+
+                // ✅ Igual: solo refresca el flujo local
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
+
+                Log.d("NotificationViewModel", "🗑️ Notificación eliminada: $notificationId")
             } catch (e: Exception) {
                 _error.value = "Error al eliminar notificación: ${e.message}"
                 Log.e("NotificationViewModel", "Error deleting notification", e)
             }
         }
     }
+
 
     fun updatePeriodDays(days: Int) {
         viewModelScope.launch {

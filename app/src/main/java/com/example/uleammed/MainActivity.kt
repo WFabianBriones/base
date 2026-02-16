@@ -45,6 +45,12 @@ import com.example.uleammed.burnoutprediction.model.QuestionnaireData
 import com.example.uleammed.burnoutprediction.presentation.screen.BurnoutAnalysisScreen
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutAnalysisViewModel
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutViewModelFactory
+// ✅ CORREGIDO: Agregar imports para coroutines y Firebase
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
 
@@ -115,64 +121,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * ✅ CORREGIDO: Sincroniza notificaciones con Firebase
+     *
+     * Cambios:
+     * 1. Llamar a syncWithFirebase() PRIMERO (suspend)
+     * 2. Luego llamar a checkAndGenerateNotifications() (NO suspend)
+     */
     private fun syncNotificationsOnResume() {
-        try {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                android.util.Log.d(TAG, "⚠️ API < 23, sincronización no disponible")
-                return
-            }
+        lifecycleScope.launch {
+            try {
+                val appNotificationManager = QuestionnaireNotificationManager(this@MainActivity)
+                val userId = FirebaseAuth.getInstance().currentUser?.uid
 
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-
-            if (notificationManager == null) {
-                android.util.Log.e(TAG, "❌ NotificationManager no disponible")
-                return
-            }
-
-            val activeNotifications = notificationManager.activeNotifications
-            val activeIds = activeNotifications.map { it.id }.toSet()
-
-            android.util.Log.d(TAG, """
-                🔄 Sincronizando notificaciones
-                - Activas en sistema: ${activeIds.size}
-                - IDs: $activeIds
-            """.trimIndent())
-
-            val appNotificationManager = QuestionnaireNotificationManager(this)
-            val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-
-            if (userId != null) {
-                val inAppNotifications = appNotificationManager.getNotifications()
-                    .filter { !it.isRead && !it.isCompleted }
-
-                inAppNotifications.forEach { notification ->
-                    val notificationId = 1000 + notification.questionnaireType.ordinal
-
-                    if (!activeIds.contains(notificationId)) {
-                        android.util.Log.d(TAG, """
-                            ⚠️ Notificación push descartada, marcando in-app como leída
-                            - Tipo: ${notification.questionnaireType}
-                            - ID: $notificationId
-                        """.trimIndent())
-
-                        appNotificationManager.markAsRead(notification.id)
-                    } else {
-                        android.util.Log.d(TAG, """
-                            ✅ Notificación push activa, manteniendo in-app sin leer
-                            - Tipo: ${notification.questionnaireType}
-                            - ID: $notificationId
-                        """.trimIndent())
+                if (userId != null) {
+                    // ✅ Sincronizar con Firebase (elimina notificaciones obsoletas)
+                    withContext(Dispatchers.IO) {
+                        appNotificationManager.syncWithFirebase(userId)
                     }
-                }
 
-                android.util.Log.d(TAG, "✅ Sincronización completada")
-            } else {
-                android.util.Log.w(TAG, "⚠️ Usuario no autenticado, no se puede sincronizar")
+                    android.util.Log.d(TAG, "✅ Sincronización completada")
+                } else {
+                    android.util.Log.w(TAG, "⚠️ Usuario no autenticado")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "❌ Error sincronizando", e)
             }
-        } catch (e: SecurityException) {
-            android.util.Log.e(TAG, "❌ Permiso denegado para acceder a notificaciones", e)
-        } catch (e: Exception) {
-            android.util.Log.e(TAG, "❌ Error sincronizando notificaciones", e)
         }
     }
 }
