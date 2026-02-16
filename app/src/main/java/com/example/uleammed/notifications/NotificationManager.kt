@@ -33,19 +33,25 @@ class QuestionnaireNotificationManager(private val context: Context) {
         private const val KEY_SCHEDULE_CONFIG = "schedule_config"
         private const val KEY_LAST_CHECK = "last_check"
         private const val TAG = "NotificationManager"
+
+        // Control de verbosidad de logs
+        private const val ENABLE_VERBOSE_LOGS = false  // Cambiar a true para debugging
+        private const val ENABLE_EVENT_LOGS = false     // Logs de eventos detallados
+        private const val ENABLE_STORAGE_LOGS = false   // Logs de lectura/escritura
     }
 
     fun getNotifications(): List<QuestionnaireNotification> {
         val json = prefs.getString(KEY_NOTIFICATIONS, null)
 
-        Log.d(TAG, """
-        📂 Leyendo notificaciones de SharedPreferences
-        - JSON existe: ${json != null}
-        - Tamaño JSON: ${json?.length ?: 0} caracteres
-    """.trimIndent())
+        // ✅ OPTIMIZADO: Solo log si storage logs está habilitado
+        if (ENABLE_STORAGE_LOGS) {
+            Log.d(TAG, "📂 Leyendo: ${json?.length ?: 0} chars")
+        }
 
         if (json == null) {
-            Log.w(TAG, "⚠️ No hay notificaciones guardadas en SharedPreferences")
+            if (ENABLE_STORAGE_LOGS) {
+                Log.w(TAG, "⚠️ No hay notificaciones guardadas en SharedPreferences")
+            }
             return emptyList()
         }
 
@@ -53,12 +59,8 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val type = object : TypeToken<List<QuestionnaireNotification>>() {}.type
             val notifications = gson.fromJson<List<QuestionnaireNotification>>(json, type)
 
-            Log.d(TAG, """
-            ✅ Notificaciones parseadas
-            - Total: ${notifications.size}
-            - No leídas: ${notifications.count { !it.isRead }}
-            - Pendientes (no completadas): ${notifications.count { !it.isCompleted }}
-        """.trimIndent())
+            // ✅ OPTIMIZADO: Log compacto, siempre visible
+            Log.d(TAG, "✅ Cargadas: ${notifications.size} (${notifications.count { !it.isRead }} no leídas)")
 
             notifications
         } catch (e: Exception) {
@@ -72,13 +74,10 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val json = gson.toJson(notifications)
             val success = prefs.edit().putString(KEY_NOTIFICATIONS, json).commit()
 
-            Log.d(TAG, """
-            💾 Guardando notificaciones
-            - Total: ${notifications.size}
-            - No leídas: ${notifications.count { !it.isRead }}
-            - Pendientes: ${notifications.count { !it.isCompleted }}
-            - Guardado exitoso: $success
-        """.trimIndent())
+            // ✅ OPTIMIZADO: Solo log si storage logs está habilitado
+            if (ENABLE_STORAGE_LOGS) {
+                Log.d(TAG, "💾 Saving: ${notifications.size} notifications (success: $success)")
+            }
 
             if (!success) {
                 Log.e(TAG, "❌ ERROR: No se pudo guardar en SharedPreferences")
@@ -100,12 +99,15 @@ class QuestionnaireNotificationManager(private val context: Context) {
 
                 if (needsMigration) {
                     val newTypes = allTypes - loadedConfig.enabledQuestionnaires
-                    Log.d(TAG, """
+
+                    if (ENABLE_VERBOSE_LOGS) {
+                        Log.d(TAG, """
                     🔄 Migrando configuración automáticamente
                     - Tipos anteriores: ${loadedConfig.enabledQuestionnaires.size}
                     - Tipos actuales: ${allTypes.size}
                     - Nuevos agregados: $newTypes
                 """.trimIndent())
+                    }
 
                     val migratedConfig = loadedConfig.copy(enabledQuestionnaires = allTypes)
                     // Guardar inmediatamente la versión migrada
@@ -129,12 +131,15 @@ class QuestionnaireNotificationManager(private val context: Context) {
         try {
             val json = gson.toJson(config)
             prefs.edit().putString("${KEY_SCHEDULE_CONFIG}_${config.userId}", json).apply()
-            logDebug("saveScheduleConfig", mapOf(
-                "userId" to config.userId,
-                "periodDays" to config.periodDays,
-                "saludGeneralPeriodDays" to config.saludGeneralPeriodDays,
-                "preferredHour" to config.preferredHour
-            ))
+
+            if (ENABLE_VERBOSE_LOGS) {
+                logDebug("saveScheduleConfig", mapOf(
+                    "userId" to config.userId,
+                    "periodDays" to config.periodDays,
+                    "saludGeneralPeriodDays" to config.saludGeneralPeriodDays,
+                    "preferredHour" to config.preferredHour
+                ))
+            }
         } catch (e: Exception) {
             logError("saveScheduleConfig", e)
         }
@@ -186,14 +191,16 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 }
             }
 
-            logDebug("updatePeriodDays", mapOf(
-                "userId" to userId,
-                "oldPeriod" to config.periodDays,
-                "newPeriod" to days,
-                "reprogrammedCount" to config.lastCompletedDates.filter {
-                    QuestionnaireType.valueOf(it.key) != QuestionnaireType.SALUD_GENERAL
-                }.size
-            ))
+            if (ENABLE_VERBOSE_LOGS) {
+                logDebug("updatePeriodDays", mapOf(
+                    "userId" to userId,
+                    "oldPeriod" to config.periodDays,
+                    "newPeriod" to days,
+                    "reprogrammedCount" to config.lastCompletedDates.filter {
+                        QuestionnaireType.valueOf(it.key) != QuestionnaireType.SALUD_GENERAL
+                    }.size
+                ))
+            }
 
             checkAndGenerateNotifications(userId)
         }
@@ -209,12 +216,14 @@ class QuestionnaireNotificationManager(private val context: Context) {
             // ✅ SALUD_GENERAL: NO programar notificaciones push
             // Solo se actualiza la configuración, el dialog se mostrará automáticamente
 
-            logDebug("updateSaludGeneralPeriodDays", mapOf(
-                "userId" to userId,
-                "oldPeriod" to config.saludGeneralPeriodDays,
-                "newPeriod" to days,
-                "note" to "SALUD_GENERAL se maneja solo como dialog, no push"
-            ))
+            if (ENABLE_VERBOSE_LOGS) {
+                logDebug("updateSaludGeneralPeriodDays", mapOf(
+                    "userId" to userId,
+                    "oldPeriod" to config.saludGeneralPeriodDays,
+                    "newPeriod" to days,
+                    "note" to "SALUD_GENERAL se maneja solo como dialog, no push"
+                ))
+            }
 
             checkAndGenerateNotifications(userId)
         }
@@ -230,10 +239,14 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 preferredMinute = minute
             )
             saveScheduleConfig(updatedConfig)
-            logDebug("updatePreferredTime", mapOf(
-                "userId" to userId,
-                "time" to "$hour:${minute.toString().padStart(2, '0')}"
-            ))
+
+            if (ENABLE_VERBOSE_LOGS) {
+                logDebug("updatePreferredTime", mapOf(
+                    "userId" to userId,
+                    "time" to "$hour:${minute.toString().padStart(2, '0')}"
+                ))
+            }
+
             checkAndGenerateNotifications(userId)
         }
     }
@@ -282,15 +295,13 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 notifications.remove(notificationToRemove)
                 saveNotifications(notifications)
 
-                Log.d(TAG, """
-        🗑️ Notificación eliminada
-        - Tipo: ${questionnaireType.name}
-        - ID: ${notificationToRemove.id}
-        - Total restantes: ${notifications.size}
-        - Pendientes: ${notifications.count { !it.isCompleted }}
-    """.trimIndent())
+                if (ENABLE_EVENT_LOGS) {
+                    Log.d(TAG, "🗑️ Eliminada: ${questionnaireType.name} (${notifications.size} restantes)")
+                }
             } else {
-                Log.w(TAG, "⚠️ No se encontró notificación pendiente para eliminar: ${questionnaireType.name}")
+                if (ENABLE_EVENT_LOGS) {
+                    Log.w(TAG, "⚠️ No se encontró notificación pendiente para eliminar: ${questionnaireType.name}")
+                }
             }
 
             // ✅ CAMBIO: Usar periodDays ya calculado
@@ -301,13 +312,15 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 config.preferredMinute
             )
 
-            logDebug("markQuestionnaireCompleted", mapOf(
-                "type" to questionnaireType.name,
-                "completedAt" to formatDate(now),
-                "periodDays" to periodDays,
-                "nextDueDate" to formatDate(nextDueDate),
-                "daysUntilNext" to TimeUnit.MILLISECONDS.toDays(nextDueDate - now)
-            ))
+            if (ENABLE_VERBOSE_LOGS) {
+                logDebug("markQuestionnaireCompleted", mapOf(
+                    "type" to questionnaireType.name,
+                    "completedAt" to formatDate(now),
+                    "periodDays" to periodDays,
+                    "nextDueDate" to formatDate(nextDueDate),
+                    "daysUntilNext" to TimeUnit.MILLISECONDS.toDays(nextDueDate - now)
+                ))
+            }
 
             // ✅ CRÍTICO: Solo programar notificaciones push para los 8 cuestionarios regulares
             if (questionnaireType != QuestionnaireType.SALUD_GENERAL) {
@@ -326,11 +339,13 @@ class QuestionnaireNotificationManager(private val context: Context) {
                             createInAppNotification = config.showRemindersInApp
                         )
 
-                        logDebug("scheduleReminder", mapOf(
-                            "type" to questionnaireType.name,
-                            "reminderDate" to formatDate(reminderDate),
-                            "daysUntilReminder" to TimeUnit.MILLISECONDS.toDays(reminderDate - now)
-                        ))
+                        if (ENABLE_EVENT_LOGS) {
+                            logDebug("scheduleReminder", mapOf(
+                                "type" to questionnaireType.name,
+                                "reminderDate" to formatDate(reminderDate),
+                                "daysUntilReminder" to TimeUnit.MILLISECONDS.toDays(reminderDate - now)
+                            ))
+                        }
                     }
                 }
 
@@ -345,18 +360,22 @@ class QuestionnaireNotificationManager(private val context: Context) {
                         createInAppNotification = true
                     )
                 } else {
-                    logWarning("markQuestionnaireCompleted", "Fecha de vencimiento en el pasado ignorada")
+                    if (ENABLE_EVENT_LOGS) {
+                        logWarning("markQuestionnaireCompleted", "Fecha de vencimiento en el pasado ignorada")
+                    }
                 }
 
             } else {
                 // SALUD_GENERAL: No programar notificaciones push
-                Log.d(TAG, """
+                if (ENABLE_EVENT_LOGS) {
+                    Log.d(TAG, """
                     ℹ️ SALUD_GENERAL completado
                     - Próxima evaluación: ${formatDate(nextDueDate)}
                     - Período: $periodDays días
                     - NO se programan notificaciones push
                     - Se mostrará como dialog automático cuando expire
                 """.trimIndent())
+                }
             }
 
             checkAndGenerateNotifications(userId)
@@ -370,24 +389,25 @@ class QuestionnaireNotificationManager(private val context: Context) {
             val currentNotifications = getNotifications().toMutableList()
             val now = System.currentTimeMillis()
             var generatedCount = 0
+            var skippedCount = 0
 
-            logDebug("checkAndGenerateNotifications", mapOf(
-                "userId" to userId,
-                "existingNotifications" to currentNotifications.size,
-                "completedCount" to config.lastCompletedDates.size
-            ))
+            // ✅ OPTIMIZADO: Log compacto
+            Log.d(TAG, "🔍 Check&Gen: ${currentNotifications.size} existing, ${config.lastCompletedDates.size} completed")
 
             QuestionnaireType.values().forEach { type ->
                 // ✅ SKIP SALUD_GENERAL - Se maneja como dialog automático obligatorio
                 if (type == QuestionnaireType.SALUD_GENERAL) {
-                    logDebug("skipSaludGeneral", mapOf(
-                        "reason" to "Se muestra como dialog obligatorio, no como notificación en Avisos"
-                    ))
+                    if (ENABLE_EVENT_LOGS) {
+                        Log.d(TAG, "⏭️ Skip: SALUD_GENERAL (dialog)")
+                    }
                     return@forEach
                 }
 
                 if (!config.enabledQuestionnaires.contains(type.name)) {
-                    logDebug("skipDisabled", mapOf("type" to type.name))
+                    skippedCount++
+                    if (ENABLE_EVENT_LOGS) {
+                        Log.d(TAG, "⏭️ Skip: ${type.name} (disabled)")
+                    }
                     return@forEach
                 }
 
@@ -397,10 +417,10 @@ class QuestionnaireNotificationManager(private val context: Context) {
                 }
 
                 if (existingNotification != null) {
-                    logDebug("skipExisting", mapOf(
-                        "type" to type.name,
-                        "existingId" to existingNotification.id
-                    ))
+                    skippedCount++
+                    if (ENABLE_EVENT_LOGS) {
+                        Log.d(TAG, "⏭️ Skip: ${type.name} (exists)")
+                    }
                     return@forEach
                 }
 
@@ -442,16 +462,12 @@ class QuestionnaireNotificationManager(private val context: Context) {
                     currentNotifications.add(notification)
                     generatedCount++
 
-                    logDebug("✅ notificationGenerated", mapOf(
-                        "type" to type.name,
-                        "periodDays" to periodDays,
-                        "dueDate" to formatDate(nextDueDate),
-                        "isFirstTime" to (lastCompleted == 0L),
-                        "isAvailableNow" to (nextDueDate <= now),
-                        "reason" to if (lastCompleted == 0L) "Primera vez - disponible ahora" else "Período vencido"
-                    ))
+                    if (ENABLE_EVENT_LOGS) {
+                        Log.d(TAG, "✅ Gen: ${type.name} (period: $periodDays days)")
+                    }
                 } else {
-                    if (lastCompleted > 0L) {
+                    skippedCount++
+                    if (ENABLE_EVENT_LOGS && lastCompleted > 0L) {
                         val nextDueDate = calculateNextDueDate(
                             lastCompleted,
                             periodDays,
@@ -459,12 +475,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
                             config.preferredMinute
                         )
                         val daysRemaining = TimeUnit.MILLISECONDS.toDays(nextDueDate - now)
-                        logDebug("notificationNotDue", mapOf(
-                            "type" to type.name,
-                            "periodDays" to periodDays,
-                            "daysRemaining" to daysRemaining,
-                            "nextDueDate" to formatDate(nextDueDate)
-                        ))
+                        Log.d(TAG, "⏭️ Skip: ${type.name} (not due, $daysRemaining days remaining)")
                     }
                 }
             }
@@ -472,12 +483,8 @@ class QuestionnaireNotificationManager(private val context: Context) {
             prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
             saveNotifications(currentNotifications)
 
-            logDebug("✅ checkComplete", mapOf(
-                "generatedCount" to generatedCount,
-                "totalNotifications" to currentNotifications.size,
-                "unreadCount" to currentNotifications.count { !it.isRead },
-                "pendingCount" to currentNotifications.count { !it.isCompleted }
-            ))
+            // ✅ OPTIMIZADO: Log resumen compacto (una línea)
+            Log.d(TAG, "✅ Check complete: +$generatedCount gen, $skippedCount skip → ${currentNotifications.size} total")
         }
     }
 
@@ -488,11 +495,8 @@ class QuestionnaireNotificationManager(private val context: Context) {
      * @return true si debe mostrarse el dialog ahora, false si aún no
      */
     suspend fun shouldShowSaludGeneralDialog(userId: String): Boolean {
-        // ✅ AGREGAR ESTE LOG AL INICIO
-        Log.d(TAG, """
-        🔍 Verificando dialog de Salud General
-        - userId: $userId
-    """.trimIndent())
+        // ✅ OPTIMIZADO: Log compacto
+        Log.d(TAG, "🔍 Verificando dialog de Salud General (userId: $userId)")
 
         val config = getScheduleConfig(userId)
 
@@ -516,13 +520,14 @@ class QuestionnaireNotificationManager(private val context: Context) {
             0L
         }
 
-        // ✅ AGREGAR LOG DESPUÉS DE OBTENER DE FIREBASE
-        Log.d(TAG, """
+        if (ENABLE_VERBOSE_LOGS) {
+            Log.d(TAG, """
         📊 Estado de Salud General
         - lastCompleted: ${if (lastCompleted > 0) formatDate(lastCompleted) else "Nunca completado"}
         - Firebase doc existe: ${lastCompleted > 0}
         - periodDays: ${config.saludGeneralPeriodDays}
     """.trimIndent())
+        }
 
         if (lastCompleted == 0L) {
             Log.d(TAG, "⏭️ Primera vez - no mostrar dialog (se maneja en onboarding)")
@@ -540,14 +545,10 @@ class QuestionnaireNotificationManager(private val context: Context) {
         val now = System.currentTimeMillis()
         val shouldShow = now >= nextDueDate
 
-        Log.d(TAG, """
-        🎯 Decisión final
-        - shouldShow: $shouldShow
-        - nextDueDate: ${formatDate(nextDueDate)}
-        - daysOverdue: ${TimeUnit.MILLISECONDS.toDays(now - nextDueDate)}
-    """.trimIndent())
+        // ✅ OPTIMIZADO: Log compacto
+        Log.d(TAG, "🎯 Decisión: shouldShow=$shouldShow (nextDue: ${formatDate(nextDueDate)}, overdue: ${TimeUnit.MILLISECONDS.toDays(now - nextDueDate)} days)")
 
-        if (shouldShow) {
+        if (shouldShow && ENABLE_VERBOSE_LOGS) {
             logDebug("saludGeneralDue", mapOf(
                 "lastCompleted" to formatDate(lastCompleted),
                 "periodDays" to periodDays,
@@ -565,7 +566,8 @@ class QuestionnaireNotificationManager(private val context: Context) {
      */
     suspend fun syncWithFirebase(userId: String) {
         try {
-            Log.d(TAG, "🔄 Sincronizando con Firebase para userId: $userId")
+            // ✅ OPTIMIZADO: Log compacto
+            Log.d(TAG, "🔄 Sync start")
 
             val firestore = FirebaseFirestore.getInstance()
 
@@ -611,7 +613,9 @@ class QuestionnaireNotificationManager(private val context: Context) {
 
                     if (isValid) {
                         // Completado y vigente -> ELIMINAR notificación
-                        Log.d(TAG, "  - ${type.name}: ELIMINAR (completado y vigente)")
+                        if (ENABLE_EVENT_LOGS) {
+                            Log.d(TAG, "  - ${type.name}: ELIMINAR (completado y vigente)")
+                        }
                         LocalNotificationScheduler.cancelNotification(type)
                         return@filter false
                     } else {
@@ -625,11 +629,8 @@ class QuestionnaireNotificationManager(private val context: Context) {
 
                 val removedCount = initialCount - filteredNotifications.size
 
-                Log.d(TAG, """
-                    ✅ Sincronización completada
-                    - Eliminadas: $removedCount
-                    - Restantes: ${filteredNotifications.size}
-                """.trimIndent())
+                // ✅ OPTIMIZADO: Log compacto (una línea)
+                Log.d(TAG, "✅ Sync done: -$removedCount deleted, ${filteredNotifications.size} remain")
             }
 
         } catch (e: Exception) {
@@ -686,7 +687,10 @@ class QuestionnaireNotificationManager(private val context: Context) {
             if (index != -1) {
                 notifications[index] = notifications[index].copy(isRead = true)
                 saveNotifications(notifications)
-                logDebug("markAsRead", mapOf("notificationId" to notificationId))
+
+                if (ENABLE_EVENT_LOGS) {
+                    logDebug("markAsRead", mapOf("notificationId" to notificationId))
+                }
             }
         }
     }
@@ -707,11 +711,14 @@ class QuestionnaireNotificationManager(private val context: Context) {
 
             if (markedCount > 0) {
                 saveNotifications(notifications)
-                logDebug("markAsReadByType", mapOf(
-                    "userId" to userId,
-                    "type" to questionnaireType.name,
-                    "markedCount" to markedCount
-                ))
+
+                if (ENABLE_EVENT_LOGS) {
+                    logDebug("markAsReadByType", mapOf(
+                        "userId" to userId,
+                        "type" to questionnaireType.name,
+                        "markedCount" to markedCount
+                    ))
+                }
             }
         }
     }
@@ -732,16 +739,10 @@ class QuestionnaireNotificationManager(private val context: Context) {
         val notifications = getNotifications()
         val count = notifications.count { !it.isCompleted }
 
-        Log.d(TAG, """
-            📊 Badge Count (PERSISTENTE)
-            - Total pendientes: $count
-            - Fuente: SharedPreferences (sobrevive al cierre de app)
-            - Lógica: Cuenta notificaciones NO completadas
-            - Detalle:
-              * Total notificaciones: ${notifications.size}
-              * Completadas: ${notifications.count { it.isCompleted }}
-              * Pendientes: $count
-        """.trimIndent())
+        // ✅ OPTIMIZADO: Solo log si verbose está habilitado
+        if (ENABLE_VERBOSE_LOGS) {
+            Log.d(TAG, "📊 Badge: $count pendientes de ${notifications.size} totales")
+        }
 
         return count
     }
@@ -865,7 +866,7 @@ class QuestionnaireNotificationManager(private val context: Context) {
     }
 
     private fun logDebug(event: String, data: Map<String, Any>) {
-        if (BuildConfig.DEBUG) {
+        if (BuildConfig.DEBUG && ENABLE_VERBOSE_LOGS) {
             Log.d(TAG, """
                 ┌────────────────────────────────
                 │ Event: $event

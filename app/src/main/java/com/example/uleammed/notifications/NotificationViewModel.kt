@@ -43,7 +43,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     init {
         Log.d("NotificationViewModel", "🚀 ViewModel inicializado")
         loadNotifications()
-        checkForNewNotifications()
+        //checkForNewNotifications()
     }
 
     // ✅ NUEVA FUNCIÓN: Verificar si debe mostrar el dialog de Salud General
