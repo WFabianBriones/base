@@ -26,6 +26,7 @@ fun NotificationsContent(
 ) {
     val notifications by viewModel.notifications.collectAsState()
     val unreadCount by viewModel.unreadCount.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()  // ✅ YA PRESENTE
 
     var showClearDialog by remember { mutableStateOf(false) }
     var clearDialogType by remember { mutableStateOf(ClearType.READ) }
@@ -106,11 +107,27 @@ fun NotificationsContent(
             }
 
             Row {
-                IconButton(onClick = { viewModel.checkForNewNotifications() }) {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = "Actualizar"
-                    )
+                // ✅ MODIFICADO: Botón de refresh con loading state
+                IconButton(
+                    onClick = {
+                        if (!isLoading) {
+                            viewModel.checkForNewNotifications()
+                        }
+                    },
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Actualizar"
+                        )
+                    }
                 }
                 // Menú de opciones de limpieza
                 var showMenu by remember { mutableStateOf(false) }

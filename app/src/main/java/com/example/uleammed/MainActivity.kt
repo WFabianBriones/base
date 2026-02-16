@@ -135,17 +135,20 @@ class MainActivity : ComponentActivity() {
                 val userId = FirebaseAuth.getInstance().currentUser?.uid
 
                 if (userId != null) {
-                    // ✅ Sincronizar con Firebase (elimina notificaciones obsoletas)
+                    android.util.Log.d(TAG, "📱 App abierta, sincronizando notificaciones...")  // ← Mejorado
+                    // Paso 1: Sincronizar con Firebase (elimina notificaciones obsoletas)
                     withContext(Dispatchers.IO) {
                         appNotificationManager.syncWithFirebase(userId)
                     }
+                    // Paso 2: 🆕 NUEVO - Generar notificaciones faltantes
+                    appNotificationManager.checkAndGenerateNotifications(userId)  // ← NUEVA LÍNEA
 
                     android.util.Log.d(TAG, "✅ Sincronización completada")
                 } else {
                     android.util.Log.w(TAG, "⚠️ Usuario no autenticado")
                 }
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "❌ Error sincronizando", e)
+                android.util.Log.e(TAG, "❌ Error sincronizando notificaciones", e)  // ← Mejorado
             }
         }
     }

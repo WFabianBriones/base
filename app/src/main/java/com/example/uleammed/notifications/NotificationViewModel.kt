@@ -89,12 +89,15 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
                 _scheduleConfig.value = notificationManager.getScheduleConfig(userId)
 
-                // ✅ Sincronizar con Firebase (elimina notificaciones obsoletas)
+                // Paso 1: Sincronizar con Firebase (elimina notificaciones obsoletas)
                 withContext(Dispatchers.IO) {
                     notificationManager.syncWithFirebase(userId)
                 }
 
-                // ✅ Actualizar UI
+                // Paso 2: Generar notificaciones faltantes
+                notificationManager.checkAndGenerateNotifications(userId)
+
+                // Paso 3: Actualizar UI
                 _notifications.value = notificationManager.getNotifications()
                 _unreadCount.value = notificationManager.getUnreadCount()
 
@@ -112,14 +115,20 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     fun checkForNewNotifications() {
         viewModelScope.launch {
             try {
+                _isLoading.value = true
+
                 val userId = auth.currentUser?.uid ?: return@launch
                 Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones")
 
+                // Paso 1: Sincronizar con Firebase
                 withContext(Dispatchers.IO) {
                     notificationManager.syncWithFirebase(userId)
                 }
 
-                // ✅ Solo actualiza el estado local
+                // Paso 2: Generar notificaciones faltantes
+                notificationManager.checkAndGenerateNotifications(userId)
+
+                // Paso 3: Actualizar estado local
                 _notifications.value = notificationManager.getNotifications()
                 _unreadCount.value = notificationManager.getUnreadCount()
 
@@ -128,6 +137,8 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             } catch (e: Exception) {
                 _error.value = "Error al verificar notificaciones: ${e.message}"
                 Log.e("NotificationViewModel", "❌ Error", e)
+            } finally {
+                _isLoading.value = false
             }
         }
     }
