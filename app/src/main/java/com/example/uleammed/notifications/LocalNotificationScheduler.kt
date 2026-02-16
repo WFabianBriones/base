@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Programador de notificaciones push locales usando WorkManager
- * OPTIMIZADO para evitar operaciones pesadas innecesarias
+ * con manejo mejorado de errores y logging
  */
 object LocalNotificationScheduler {
 
@@ -57,6 +57,13 @@ object LocalNotificationScheduler {
 
     /**
      * Programar una notificación para un cuestionario específico
+     *
+     * @param questionnaireType Tipo de cuestionario
+     * @param dueDate Timestamp de cuando debe mostrarse (debe ser futuro)
+     * @param title Título de la notificación
+     * @param message Mensaje de la notificación
+     * @param isReminder Si es un recordatorio previo
+     * @param createInAppNotification Si debe crear notificación en la app también
      */
     fun scheduleNotification(
         questionnaireType: QuestionnaireType,
@@ -109,8 +116,8 @@ object LocalNotificationScheduler {
                 .build()
 
             val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
-                .setRequiresBatteryNotLow(false)
+                .setRequiredNetworkType(NetworkType.NOT_REQUIRED) // No requiere red
+                .setRequiresBatteryNotLow(false) // Puede ejecutarse con batería baja
                 .build()
 
             val notificationWork = OneTimeWorkRequestBuilder<NotificationWorker>()
@@ -176,16 +183,30 @@ object LocalNotificationScheduler {
     }
 
     /**
-     * ✅ OPTIMIZADO: Programar verificación periódica (SOLO reprograma WorkManager)
-     * NO regenera notificaciones aquí (muy pesado)
+     * Programar verificación periódica diaria
      */
     fun schedulePeriodicCheck(context: Context) {
         try {
-            // ✅ NOTA: Este worker está deshabilitado porque es innecesario
-            // Las notificaciones ya están programadas individualmente con WorkManager
-            // Solo lo mantenemos por compatibilidad pero no hace nada pesado
+            val checkRequest = PeriodicWorkRequestBuilder<NotificationCheckWorker>(
+                1, TimeUnit.DAYS // Verificar una vez al día
+            )
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+                        .setRequiresBatteryNotLow(false)
+                        .build()
+                )
+                .setInitialDelay(1, TimeUnit.HOURS) // Primera verificación en 1 hora
+                .addTag("periodic_notification_check")
+                .build()
 
-            Log.d(TAG, "✅ Verificación periódica programada (lightweight)")
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                "daily_notification_check",
+                ExistingPeriodicWorkPolicy.KEEP,
+                checkRequest
+            )
+
+            Log.d(TAG, "✅ Verificación periódica programada (cada 24 horas)")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error programando verificación periódica", e)
         }
@@ -224,8 +245,8 @@ object LocalNotificationScheduler {
 }
 
 /**
- * ✅ OPTIMIZADO: Worker que ejecuta la notificación en el momento programado
- * SIN llamar a checkAndGenerateNotifications (muy pesado)
+ * Worker que ejecuta la notificación en el momento programado
+ * con manejo robusto de errores
  */
 class NotificationWorker(
     private val context: Context,
@@ -257,11 +278,12 @@ class NotificationWorker(
             // ✅ Mostrar notificación push
             showNotification(type, title, message, isReminder)
 
-            // ✅ OPTIMIZADO: NO crear notificación in-app aquí
-            // La notificación in-app ya existe en SharedPreferences
-            // Solo necesitamos mostrar la push notification
+            // ✅ Crear notificación en la app si está configurado
+            if (createInAppNotification && !isReminder) {
+                createInAppNotification(type)
+            }
 
-            Log.d(TAG, "✅ Notificación push ejecutada exitosamente: $type")
+            Log.d(TAG, "✅ Notificación ejecutada exitosamente: $type")
             Result.success()
 
         } catch (e: SecurityException) {
@@ -272,6 +294,7 @@ class NotificationWorker(
             Result.failure()
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error inesperado en notificación", e)
+            // ✅ Reintentar en caso de error temporal
             if (runAttemptCount < 3) {
                 Log.d(TAG, "🔄 Reintentando... (intento ${runAttemptCount + 1}/3)")
                 Result.retry()
@@ -357,6 +380,24 @@ class NotificationWorker(
         }
     }
 
+    private fun createInAppNotification(typeString: String) {
+        try {
+            val questionnaireType = QuestionnaireType.valueOf(typeString)
+            val notificationManager = QuestionnaireNotificationManager(context)
+            val auth = FirebaseAuth.getInstance()
+            val userId = auth.currentUser?.uid
+
+            if (userId != null) {
+                notificationManager.checkAndGenerateNotifications(userId)
+                Log.d(TAG, "✅ Notificación in-app creada para $typeString")
+            } else {
+                Log.w(TAG, "⚠️ Usuario no autenticado, no se puede crear notificación in-app")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error creando notificación in-app", e)
+        }
+    }
+
     private fun formatDate(timestamp: Long): String {
         if (timestamp == 0L) return "N/A"
         val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
@@ -365,17 +406,51 @@ class NotificationWorker(
 }
 
 /**
- * ✅ ELIMINADO: NotificationCheckWorker
- * No es necesario porque:
- * 1. Las notificaciones ya están programadas individualmente con WorkManager
- * 2. checkAndGenerateNotifications es muy pesado para ejecutarse diariamente
- * 3. La app ya sincroniza al abrirse con performInitialSync()
+ * Worker para verificación periódica diaria
  */
+class NotificationCheckWorker(
+    private val context: Context,
+    params: WorkerParameters
+) : Worker(context, params) {
+
+    companion object {
+        private const val TAG = "NotificationCheckWorker"
+    }
+
+    override fun doWork(): Result {
+        return try {
+            val auth = FirebaseAuth.getInstance()
+            val userId = auth.currentUser?.uid
+
+            if (userId != null) {
+                Log.d(TAG, "🔍 Iniciando verificación periódica")
+
+                val manager = QuestionnaireNotificationManager(applicationContext)
+                manager.checkAndGenerateNotifications(userId)
+
+                Log.d(TAG, "✅ Verificación completada exitosamente")
+                Result.success()
+            } else {
+                Log.w(TAG, "⚠️ Usuario no autenticado")
+                Result.failure()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error en verificación periódica", e)
+
+            // ✅ Reintentar hasta 3 veces
+            if (runAttemptCount < 3) {
+                Log.d(TAG, "🔄 Reintentando verificación... (intento ${runAttemptCount + 1}/3)")
+                Result.retry()
+            } else {
+                Log.e(TAG, "❌ Máximo de reintentos alcanzado en verificación")
+                Result.failure()
+            }
+        }
+    }
+}
 
 /**
- * ✅ OPTIMIZADO: Receiver para reinicio del dispositivo
- * SOLO reprograma el periodic check del sistema
- * NO llama a checkAndGenerateNotifications (muy pesado)
+ * Receiver para reiniciar notificaciones después de reiniciar el dispositivo
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -386,16 +461,21 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             try {
-                Log.d(TAG, "📱 Dispositivo reiniciado")
+                Log.d(TAG, "📱 Dispositivo reiniciado, reprogramando notificaciones")
 
-                // ✅ OPTIMIZADO: Solo reprogramar el periodic check del sistema
-                // NO llamar a checkAndGenerateNotifications (muy pesado)
-                // Las notificaciones individuales de WorkManager sobreviven al reinicio
-                LocalNotificationScheduler.schedulePeriodicCheck(context)
+                val notificationManager = QuestionnaireNotificationManager(context)
+                val userId = FirebaseAuth.getInstance().currentUser?.uid
 
-                Log.d(TAG, "✅ Sistema de notificaciones reiniciado")
+                if (userId != null) {
+                    notificationManager.checkAndGenerateNotifications(userId)
+                    LocalNotificationScheduler.schedulePeriodicCheck(context)
+
+                    Log.d(TAG, "✅ Notificaciones reprogramadas exitosamente")
+                } else {
+                    Log.w(TAG, "⚠️ Usuario no autenticado tras reinicio")
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error reiniciando sistema de notificaciones", e)
+                Log.e(TAG, "❌ Error reprogramando notificaciones tras reinicio", e)
             }
         }
     }

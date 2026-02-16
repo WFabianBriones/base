@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.uleammed.BuildConfig
 import com.example.uleammed.notifications.DebugNotificationHelper
 import com.example.uleammed.notifications.NotificationPermissionHandler
@@ -24,17 +25,17 @@ import com.example.uleammed.notifications.NotificationPermissionStatus
 import com.example.uleammed.notifications.NotificationViewModel
 import com.example.uleammed.notifications.PreferredTimeConfig
 import com.example.uleammed.notifications.QuestionnaireFrequency
-import com.example.uleammed.notifications.SaludGeneralFrequency
+import com.example.uleammed.notifications.SaludGeneralFrequency // ✅ NUEVO
 import com.example.uleammed.notifications.TestNotificationHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    notificationViewModel: NotificationViewModel, // ✅ REQUERIDO, sin valor por defecto
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: NotificationViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val scheduleConfig by notificationViewModel.scheduleConfig.collectAsState()
+    val scheduleConfig by viewModel.scheduleConfig.collectAsState()
 
     var selectedFrequency by remember {
         mutableStateOf(
@@ -42,6 +43,7 @@ fun SettingsScreen(
         )
     }
 
+    // ✅ NUEVO: Estado para salud general
     var selectedSaludGeneralFrequency by remember {
         mutableStateOf(
             SaludGeneralFrequency.fromDays(scheduleConfig?.saludGeneralPeriodDays ?: 90)
@@ -60,6 +62,7 @@ fun SettingsScreen(
     var showTimeDialog by remember { mutableStateOf(false) }
     var pendingFrequency by remember { mutableStateOf<QuestionnaireFrequency?>(null) }
 
+    // ✅ NUEVO: Estados para dialog de salud general
     var showSaludGeneralDialog by remember { mutableStateOf(false) }
     var pendingSaludGeneralFrequency by remember { mutableStateOf<SaludGeneralFrequency?>(null) }
 
@@ -74,6 +77,8 @@ fun SettingsScreen(
             selectedHour = config.preferredHour
             selectedMinute = config.preferredMinute
             showRemindersInApp = config.showRemindersInApp
+
+            // ✅ NUEVO: Sincronizar salud general
             selectedSaludGeneralFrequency = SaludGeneralFrequency.fromDays(
                 config.saludGeneralPeriodDays
             )
@@ -102,7 +107,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        notificationViewModel.updatePeriodDays(pendingFrequency!!.days)
+                        viewModel.updatePeriodDays(pendingFrequency!!.days)
                         selectedFrequency = pendingFrequency!!
                         showFrequencyDialog = false
                         pendingFrequency = null
@@ -124,6 +129,7 @@ fun SettingsScreen(
         )
     }
 
+    // ✅ NUEVO: Dialog para salud general
     if (showSaludGeneralDialog && pendingSaludGeneralFrequency != null) {
         AlertDialog(
             onDismissRequest = {
@@ -148,7 +154,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        notificationViewModel.updateSaludGeneralPeriodDays(pendingSaludGeneralFrequency!!.days)
+                        viewModel.updateSaludGeneralPeriodDays(pendingSaludGeneralFrequency!!.days)
                         selectedSaludGeneralFrequency = pendingSaludGeneralFrequency!!
                         showSaludGeneralDialog = false
                         pendingSaludGeneralFrequency = null
@@ -177,7 +183,7 @@ fun SettingsScreen(
             onConfirm = { hour, minute ->
                 selectedHour = hour
                 selectedMinute = minute
-                notificationViewModel.updatePreferredTime(hour, minute)
+                viewModel.updatePreferredTime(hour, minute)
                 showTimeDialog = false
             },
             onDismiss = {
@@ -252,6 +258,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // ✅ MODIFICADO: Card de cuestionarios regulares
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -311,6 +318,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // ✅ NUEVO: Card de cuestionario de salud general
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -450,7 +458,7 @@ fun SettingsScreen(
                         checked = showRemindersInApp,
                         onCheckedChange = { isEnabled ->
                             showRemindersInApp = isEnabled
-                            notificationViewModel.updateRemindersInApp(isEnabled)
+                            viewModel.updateRemindersInApp(isEnabled)
                         }
                     )
                 }
@@ -690,6 +698,7 @@ fun FrequencyOption(
     }
 }
 
+// ✅ NUEVO: Componente para opciones de salud general
 @Composable
 fun SaludGeneralFrequencyOption(
     frequency: SaludGeneralFrequency,

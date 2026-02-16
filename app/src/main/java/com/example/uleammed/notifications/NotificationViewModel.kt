@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
 class NotificationViewModel(application: Application) : AndroidViewModel(application) {
     val notificationManager = QuestionnaireNotificationManager(application)
     private val auth = FirebaseAuth.getInstance()
@@ -32,6 +33,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // ✅ NUEVO: Estado para el dialog de Salud General
     private val _shouldShowSaludGeneralDialog = MutableStateFlow(false)
     val shouldShowSaludGeneralDialog: StateFlow<Boolean> = _shouldShowSaludGeneralDialog.asStateFlow()
 
@@ -40,10 +42,11 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
     init {
         Log.d("NotificationViewModel", "🚀 ViewModel inicializado")
-        // ✅ SOLO UNA CARGA INICIAL
         loadNotifications()
+        checkForNewNotifications()
     }
 
+    // ✅ NUEVA FUNCIÓN: Verificar si debe mostrar el dialog de Salud General
     fun checkShouldShowSaludGeneralDialog(userId: String) {
         viewModelScope.launch {
             try {
@@ -66,12 +69,12 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    // ✅ NUEVA FUNCIÓN: Cerrar el dialog de Salud General
     fun dismissSaludGeneralDialog() {
         Log.d("NotificationViewModel", "🚪 Dialog de Salud General cerrado")
         _shouldShowSaludGeneralDialog.value = false
     }
 
-    // ✅ OPTIMIZADO: Solo para carga inicial o refresh manual
     fun loadNotifications() {
         viewModelScope.launch {
             try {
@@ -84,16 +87,16 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     return@launch
                 }
 
-                // Cargar config
                 _scheduleConfig.value = notificationManager.getScheduleConfig(userId)
 
-                // Sincronizar con Firebase
+                // ✅ Sincronizar con Firebase (elimina notificaciones obsoletas)
                 withContext(Dispatchers.IO) {
                     notificationManager.syncWithFirebase(userId)
                 }
 
-                // Actualizar UI
-                refreshLocalState()
+                // ✅ Actualizar UI
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
 
                 Log.d("NotificationViewModel", "✅ Notificaciones cargadas y sincronizadas")
 
@@ -106,33 +109,29 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    // ✅ NUEVO: Método interno para actualizar solo el estado local (sin sync)
-    private fun refreshLocalState() {
-        _notifications.value = notificationManager.getNotifications()
-        _unreadCount.value = notificationManager.getUnreadCount()
-    }
-
-    // ✅ OPTIMIZADO: Verifica nuevas notificaciones en background
     fun checkForNewNotifications() {
         viewModelScope.launch {
             try {
                 val userId = auth.currentUser?.uid ?: return@launch
-                Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones en background")
+                Log.d("NotificationViewModel", "🔍 Verificando nuevas notificaciones")
 
                 withContext(Dispatchers.IO) {
                     notificationManager.syncWithFirebase(userId)
                 }
 
-                refreshLocalState()
+                // ✅ Solo actualiza el estado local
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
 
-                Log.d("NotificationViewModel", "✅ Notificaciones verificadas")
+                Log.d("NotificationViewModel", "✅ Notificaciones verificadas sin recargar todo")
 
             } catch (e: Exception) {
-                Log.e("NotificationViewModel", "❌ Error verificando notificaciones", e)
-                // No mostrar error al usuario para verificaciones en background
+                _error.value = "Error al verificar notificaciones: ${e.message}"
+                Log.e("NotificationViewModel", "❌ Error", e)
             }
         }
     }
+
 
     fun markAsRead(notificationId: String) {
         viewModelScope.launch {
@@ -141,15 +140,18 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     notificationManager.markAsRead(notificationId)
                 }
 
-                refreshLocalState()
+                // ✅ Actualiza solo el estado local, sin recargar todo
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
 
                 Log.d("NotificationViewModel", "📩 Notificación marcada como leída: $notificationId")
             } catch (e: Exception) {
                 _error.value = "Error al marcar como leída: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error marking as read", e)
+                Log.e("NotificationViewModel", "Error marking as read", e)
             }
         }
     }
+
 
     fun deleteNotification(notificationId: String) {
         viewModelScope.launch {
@@ -158,86 +160,74 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     notificationManager.deleteNotification(notificationId)
                 }
 
-                refreshLocalState()
+                // ✅ Igual: solo refresca el flujo local
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
 
                 Log.d("NotificationViewModel", "🗑️ Notificación eliminada: $notificationId")
             } catch (e: Exception) {
                 _error.value = "Error al eliminar notificación: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error deleting notification", e)
+                Log.e("NotificationViewModel", "Error deleting notification", e)
             }
         }
     }
 
-    // ✅ OPTIMIZADO: Sin loadNotifications() al final
+
     fun updatePeriodDays(days: Int) {
         viewModelScope.launch {
             try {
                 val userId = auth.currentUser?.uid ?: return@launch
 
-                // Actualización optimista de UI
                 val currentConfig = _scheduleConfig.value
                 if (currentConfig != null) {
-                    _scheduleConfig.value = currentConfig.copy(
-                        periodDays = days,
-                        lastModified = System.currentTimeMillis()
-                    )
-                    Log.d("NotificationViewModel", "✅ UI actualizada inmediatamente a $days días")
+                    _scheduleConfig.value = currentConfig.copy(periodDays = days)
+                    Log.d("NotificationViewModel", "✅ StateFlow actualizado inmediatamente a $days días")
                 }
 
-                // Guardar en background
                 withContext(Dispatchers.IO) {
                     notificationManager.updatePeriodDays(userId, days)
                 }
 
-                // Solo refrescar el estado local (sin sync Firebase)
-                refreshLocalState()
+                loadNotifications()
 
-                Log.d("NotificationViewModel", "✅ Período actualizado a $days días")
+                Log.d("NotificationViewModel", "✅ Período completamente actualizado a $days días")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar período: ${e.message}"
                 Log.e("NotificationViewModel", "❌ Error updating period", e)
-
-                // Revertir cambio optimista si falla
-                loadNotifications()
             }
         }
     }
 
-    // ✅ OPTIMIZADO: Sin loadNotifications() al final
     fun updateSaludGeneralPeriodDays(days: Int) {
         viewModelScope.launch {
             try {
                 val userId = auth.currentUser?.uid ?: return@launch
 
-                // Actualización optimista
                 val currentConfig = _scheduleConfig.value
                 if (currentConfig != null) {
                     _scheduleConfig.value = currentConfig.copy(
                         saludGeneralPeriodDays = days,
                         lastModified = System.currentTimeMillis()
                     )
-                    Log.d("NotificationViewModel", "✅ UI salud general actualizada a $days días")
+                    Log.d("NotificationViewModel",
+                        "✅ StateFlow salud general actualizado inmediatamente a $days días")
                 }
 
-                // Guardar en background
                 withContext(Dispatchers.IO) {
                     notificationManager.updateSaludGeneralPeriodDays(userId, days)
                 }
 
-                refreshLocalState()
+                loadNotifications()
 
-                Log.d("NotificationViewModel", "✅ Período de salud general actualizado a $days días")
+                Log.d("NotificationViewModel",
+                    "✅ Período de salud general actualizado exitosamente a $days días")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar período de salud general: ${e.message}"
                 Log.e("NotificationViewModel", "❌ Error updating salud general period", e)
-
-                // Revertir cambio optimista si falla
-                loadNotifications()
             }
         }
     }
 
-    // ✅ OPTIMIZADO: Sin loadNotifications() al final
     fun updatePreferredTime(hour: Int, minute: Int) {
         viewModelScope.launch {
             try {
@@ -246,28 +236,17 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
                 val userId = auth.currentUser?.uid ?: return@launch
 
-                // Actualización optimista
-                val currentConfig = _scheduleConfig.value
-                if (currentConfig != null) {
-                    _scheduleConfig.value = currentConfig.copy(
-                        preferredHour = hour,
-                        preferredMinute = minute,
-                        lastModified = System.currentTimeMillis()
-                    )
-                }
-
-                // Guardar en background
                 withContext(Dispatchers.IO) {
                     notificationManager.updatePreferredTime(userId, hour, minute)
                 }
 
+                loadNotifications()
+
                 val config = PreferredTimeConfig(hour, minute)
-                Log.d("NotificationViewModel", "✅ Hora preferida actualizada a ${config.formatReadable()}")
+                Log.d("NotificationViewModel", "Hora preferida actualizada a ${config.formatReadable()}")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar hora: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error updating preferred time", e)
-
-                loadNotifications()
+                Log.e("NotificationViewModel", "Error updating preferred time", e)
             }
         }
     }
@@ -278,30 +257,22 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                 val userId = auth.currentUser?.uid ?: return@launch
                 val config = _scheduleConfig.value ?: return@launch
 
-                val updatedConfig = config.copy(
-                    showRemindersInApp = show,
-                    lastModified = System.currentTimeMillis()
-                )
+                val updatedConfig = config.copy(showRemindersInApp = show)
 
-                // Actualización optimista
-                _scheduleConfig.value = updatedConfig
-
-                // Guardar en background
                 withContext(Dispatchers.IO) {
                     notificationManager.saveScheduleConfig(updatedConfig)
                 }
 
-                Log.d("NotificationViewModel", "✅ Recordatorios in-app: ${if (show) "habilitados" else "deshabilitados"}")
+                _scheduleConfig.value = updatedConfig
+
+                Log.d("NotificationViewModel", "Recordatorios in-app: ${if (show) "habilitados" else "deshabilitados"}")
             } catch (e: Exception) {
                 _error.value = "Error al actualizar configuración: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error updating reminders config", e)
-
-                loadNotifications()
+                Log.e("NotificationViewModel", "Error updating reminders config", e)
             }
         }
     }
 
-    // ✅ OPTIMIZADO: Sin loadNotifications()
     fun markQuestionnaireCompleted(questionnaireType: QuestionnaireType) {
         viewModelScope.launch {
             try {
@@ -311,66 +282,60 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     notificationManager.markQuestionnaireCompleted(userId, questionnaireType)
                 }
 
-                refreshLocalState()
+                loadNotifications()
 
-                Log.d("NotificationViewModel", "✅ Cuestionario $questionnaireType completado")
+                Log.d("NotificationViewModel", "Cuestionario $questionnaireType completado")
             } catch (e: Exception) {
                 _error.value = "Error al marcar cuestionario: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error marking questionnaire completed", e)
+                Log.e("NotificationViewModel", "Error marking questionnaire completed", e)
             }
         }
     }
 
-    // ✅ OPTIMIZADO: Sin loadNotifications()
     fun cleanupOldNotifications() {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     notificationManager.cleanupOldNotifications()
                 }
+                loadNotifications()
 
-                refreshLocalState()
-
-                Log.d("NotificationViewModel", "✅ Notificaciones antiguas eliminadas")
+                Log.d("NotificationViewModel", "Notificaciones antiguas eliminadas")
             } catch (e: Exception) {
                 _error.value = "Error al limpiar notificaciones: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error cleaning up notifications", e)
+                Log.e("NotificationViewModel", "Error cleaning up notifications", e)
             }
         }
     }
 
-    // ✅ OPTIMIZADO: Sin loadNotifications()
     fun clearReadNotifications() {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     notificationManager.clearReadNotifications()
                 }
+                loadNotifications()
 
-                refreshLocalState()
-
-                Log.d("NotificationViewModel", "✅ Notificaciones leídas eliminadas")
+                Log.d("NotificationViewModel", "Notificaciones leídas eliminadas")
             } catch (e: Exception) {
                 _error.value = "Error al limpiar notificaciones leídas: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error clearing read notifications", e)
+                Log.e("NotificationViewModel", "Error clearing read notifications", e)
             }
         }
     }
 
-    // ✅ OPTIMIZADO: Sin loadNotifications()
     fun clearAllNotifications() {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     notificationManager.clearAllNotifications()
                 }
+                loadNotifications()
 
-                refreshLocalState()
-
-                Log.d("NotificationViewModel", "✅ Todas las notificaciones eliminadas")
+                Log.d("NotificationViewModel", "Todas las notificaciones eliminadas")
             } catch (e: Exception) {
                 _error.value = "Error al limpiar todas las notificaciones: ${e.message}"
-                Log.e("NotificationViewModel", "❌ Error clearing all notifications", e)
+                Log.e("NotificationViewModel", "Error clearing all notifications", e)
             }
         }
     }
@@ -381,7 +346,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             notificationManager.getStatsManager()
                 .getQuestionnaireSummary(userId, questionnaireType, notificationManager)
         } catch (e: Exception) {
-            Log.e("NotificationViewModel", "❌ Error getting stats summary", e)
+            Log.e("NotificationViewModel", "Error getting stats summary", e)
             null
         }
     }
@@ -391,7 +356,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             val userId = auth.currentUser?.uid ?: return null
             notificationManager.getStatsManager().getGlobalSummary(userId)
         } catch (e: Exception) {
-            Log.e("NotificationViewModel", "❌ Error getting global summary", e)
+            Log.e("NotificationViewModel", "Error getting global summary", e)
             null
         }
     }
@@ -406,6 +371,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         super.onCleared()
-        Log.d("NotificationViewModel", "🧹 ViewModel cleared")
+        Log.d("NotificationViewModel", "ViewModel cleared")
     }
 }
