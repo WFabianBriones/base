@@ -321,8 +321,8 @@ fun ExploreContent(
     val userId = FirebaseAuth.getInstance().currentUser?.uid
 
     // ✅ Obtener periodDays del ViewModel
-    val scheduleConfig by notificationViewModel.scheduleConfig.collectAsState()
-    val periodDays = scheduleConfig?.periodDays ?: 7
+    val scheduleConfig = notificationViewModel.scheduleConfig.collectAsState()
+    val periodDays = scheduleConfig.value?.periodDays ?: 7
 
     var completedQuestionnaires by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -479,6 +479,7 @@ fun ExploreContent(
                         userId = userId ?: "",
                         repository = repository,
                         periodDays = periodDays,
+                        notificationViewModel = notificationViewModel,
                         onClick = {
                             // Si el cuestionario está disponible, navegar
                             if (!completedQuestionnaires.contains(questionnaire.firestoreId)) {
@@ -524,7 +525,8 @@ fun QuestionnaireCardDynamic(
     userId: String,
     repository: AuthRepository,
     periodDays: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    notificationViewModel: NotificationViewModel
 ) {
     val context = LocalContext.current
     var status by remember { mutableStateOf<QuestionnaireStatus?>(null) }
@@ -614,12 +616,34 @@ fun QuestionnaireCardDynamic(
                             isDeleting = true
                             val result = repository.deleteQuestionnaire(userId, questionnaire.firestoreId)
                             result.onSuccess {
+                                // ✅ NUEVO: Regenerar notificaciones después de eliminar
+                                try {
+                                    Log.d("QuestionnaireCard", "🔄 Regenerando notificaciones después de eliminar...")
+
+                                    // Sincronizar con Firebase (elimina notificaciones obsoletas)
+                                    withContext(Dispatchers.IO) {
+                                        val notificationManager = com.example.uleammed.notifications.QuestionnaireNotificationManager(context)
+                                        notificationManager.syncWithFirebase(userId)
+                                    }
+
+                                    // Generar nuevas notificaciones
+                                    notificationViewModel.checkAndGenerateNotifications()
+
+                                    // Recargar notificaciones en el ViewModel
+                                    notificationViewModel.loadNotifications()
+
+                                    Log.d("QuestionnaireCard", "✅ Notificaciones regeneradas exitosamente")
+                                } catch (e: Exception) {
+                                    Log.e("QuestionnaireCard", "❌ Error regenerando notificaciones", e)
+                                }
+
                                 Toast.makeText(
                                     context,
-                                    "Cuestionario eliminado. Ahora puedes completarlo nuevamente.",
+                                    "Cuestionario eliminado. Nuevas notificaciones programadas.",
                                     Toast.LENGTH_LONG
                                 ).show()
                                 showDeleteDialog = false
+
                                 // Recargar para actualizar la UI
                                 onClick()
                             }.onFailure { error ->

@@ -6,15 +6,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.uleammed.questionnaires.QuestionnaireType
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-
 class NotificationViewModel(application: Application) : AndroidViewModel(application) {
+
     val notificationManager = QuestionnaireNotificationManager(application)
     private val auth = FirebaseAuth.getInstance()
 
@@ -43,7 +45,87 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     init {
         Log.d("NotificationViewModel", "🚀 ViewModel inicializado")
         loadNotifications()
-        //checkForNewNotifications()
+    }
+
+    /**
+     * ✅ NUEVO: Función para regenerar notificaciones después de eliminar un cuestionario
+     *
+     * Esta función se debe llamar después de:
+     * 1. Eliminar un cuestionario completado
+     * 2. Cambiar la configuración de periodicidad
+     * 3. Habilitar/deshabilitar cuestionarios
+     *
+     * Lo que hace:
+     * 1. **Fuerza recarga de configuración desde Firebase**
+     * 2. Verifica qué cuestionarios necesitan notificaciones
+     * 3. Genera notificaciones para cuestionarios sin notificaciones pendientes
+     * 4. Actualiza el estado local con las nuevas notificaciones
+     */
+    fun checkAndGenerateNotifications() {
+        viewModelScope.launch {
+            try {
+                val userId = auth.currentUser?.uid ?: return@launch
+
+                Log.d("NotificationViewModel", "🔄 Verificando y generando notificaciones...")
+
+                withContext(Dispatchers.IO) {
+                    // ✅ CRÍTICO: Primero forzar recarga de configuración desde Firebase
+                    try {
+                        val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                        val configDoc = firestore.collection("users")
+                            .document(userId)
+                            .collection("settings")
+                            .document("notifications")
+                            .get()
+                            .await()
+
+                        if (configDoc.exists()) {
+                            // Convertir a QuestionnaireScheduleConfig y guardar en SharedPreferences
+                            @Suppress("UNCHECKED_CAST")
+                            val lastCompletedDates = configDoc.get("lastCompletedDates") as? Map<String, Long> ?: emptyMap()
+                            val periodDays = configDoc.getLong("periodDays")?.toInt() ?: 7
+                            val preferredHour = configDoc.getLong("preferredHour")?.toInt() ?: 9
+                            val preferredMinute = configDoc.getLong("preferredMinute")?.toInt() ?: 0
+                            val saludGeneralPeriodDays = configDoc.getLong("saludGeneralPeriodDays")?.toInt() ?: 90
+                            val showRemindersInApp = configDoc.getBoolean("showRemindersInApp") ?: true
+                            @Suppress("UNCHECKED_CAST")
+                            val enabledQuestionnaires = (configDoc.get("enabledQuestionnaires") as? List<String>)?.toSet()
+                                ?: com.example.uleammed.questionnaires.QuestionnaireType.values().map { it.name }.toSet()
+
+                            val freshConfig = com.example.uleammed.notifications.QuestionnaireScheduleConfig(
+                                userId = userId,
+                                periodDays = periodDays,
+                                preferredHour = preferredHour,
+                                preferredMinute = preferredMinute,
+                                lastCompletedDates = lastCompletedDates,
+                                enabledQuestionnaires = enabledQuestionnaires,
+                                showRemindersInApp = showRemindersInApp,
+                                saludGeneralPeriodDays = saludGeneralPeriodDays,
+                                lastModified = System.currentTimeMillis()
+                            )
+
+                            // Guardar en caché local
+                            notificationManager.saveScheduleConfig(freshConfig)
+                            Log.d("NotificationViewModel", "✅ Configuración recargada desde Firebase")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("NotificationViewModel", "⚠️ Error recargando config desde Firebase", e)
+                    }
+
+                    // Ahora sí, verificar y generar con la configuración actualizada
+                    notificationManager.checkAndGenerateNotifications(userId)
+                }
+
+                // Actualizar el estado local con las nuevas notificaciones
+                _notifications.value = notificationManager.getNotifications()
+                _unreadCount.value = notificationManager.getUnreadCount()
+
+                Log.d("NotificationViewModel", "✅ Notificaciones verificadas y generadas")
+            } catch (e: Exception) {
+                Log.e("NotificationViewModel", "❌ Error generando notificaciones", e)
+                _error.value = "Error al generar notificaciones: ${e.message}"
+            }
+        }
     }
 
     // ✅ NUEVA FUNCIÓN: Verificar si debe mostrar el dialog de Salud General
@@ -143,7 +225,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-
     fun markAsRead(notificationId: String) {
         viewModelScope.launch {
             try {
@@ -151,7 +232,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     notificationManager.markAsRead(notificationId)
                 }
 
-                // ✅ Actualiza solo el estado local, sin recargar todo
                 _notifications.value = notificationManager.getNotifications()
                 _unreadCount.value = notificationManager.getUnreadCount()
 
@@ -163,7 +243,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-
     fun deleteNotification(notificationId: String) {
         viewModelScope.launch {
             try {
@@ -171,7 +250,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
                     notificationManager.deleteNotification(notificationId)
                 }
 
-                // ✅ Igual: solo refresca el flujo local
                 _notifications.value = notificationManager.getNotifications()
                 _unreadCount.value = notificationManager.getUnreadCount()
 
@@ -183,6 +261,24 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun markQuestionnaireCompleted(questionnaireType: QuestionnaireType) {
+        viewModelScope.launch {
+            try {
+                val userId = auth.currentUser?.uid ?: return@launch
+
+                withContext(Dispatchers.IO) {
+                    notificationManager.markQuestionnaireCompleted(userId, questionnaireType)
+                }
+
+                loadNotifications()
+
+                Log.d("NotificationViewModel", "Cuestionario $questionnaireType completado")
+            } catch (e: Exception) {
+                _error.value = "Error al marcar cuestionario: ${e.message}"
+                Log.e("NotificationViewModel", "Error marking questionnaire completed", e)
+            }
+        }
+    }
 
     fun updatePeriodDays(days: Int) {
         viewModelScope.launch {
@@ -280,25 +376,6 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
             } catch (e: Exception) {
                 _error.value = "Error al actualizar configuración: ${e.message}"
                 Log.e("NotificationViewModel", "Error updating reminders config", e)
-            }
-        }
-    }
-
-    fun markQuestionnaireCompleted(questionnaireType: QuestionnaireType) {
-        viewModelScope.launch {
-            try {
-                val userId = auth.currentUser?.uid ?: return@launch
-
-                withContext(Dispatchers.IO) {
-                    notificationManager.markQuestionnaireCompleted(userId, questionnaireType)
-                }
-
-                loadNotifications()
-
-                Log.d("NotificationViewModel", "Cuestionario $questionnaireType completado")
-            } catch (e: Exception) {
-                _error.value = "Error al marcar cuestionario: ${e.message}"
-                Log.e("NotificationViewModel", "Error marking questionnaire completed", e)
             }
         }
     }
