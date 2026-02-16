@@ -1,10 +1,7 @@
 package com.example.uleammed
 
 import android.app.Application
-import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -40,12 +37,10 @@ import com.example.uleammed.perfil.SettingsScreen
 import com.example.uleammed.questionnaires.*
 import com.example.uleammed.scoring.ScoringViewModel
 import com.example.uleammed.ui.UleamAppTheme
-// ⭐ AGREGAR: Importaciones para análisis de burnout
 import com.example.uleammed.burnoutprediction.model.QuestionnaireData
 import com.example.uleammed.burnoutprediction.presentation.screen.BurnoutAnalysisScreen
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutAnalysisViewModel
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutViewModelFactory
-// ✅ CORREGIDO: Agregar imports para coroutines y Firebase
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -58,6 +53,8 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
     }
 
+    private var hasPerformedInitialSync = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -68,8 +65,8 @@ class MainActivity : ComponentActivity() {
         // Iniciar verificación periódica automática
         LocalNotificationScheduler.schedulePeriodicCheck(this)
 
-        // Sincronizar notificaciones al abrir la app
-        syncNotificationsOnResume()
+        // ✅ OPTIMIZADO: Solo sincroniza con Firebase (NO regenera todas)
+        performInitialSync()
 
         setContent {
             UleamAppTheme {
@@ -91,19 +88,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        syncNotificationsOnResume()
+
+        // ✅ Solo sincronizar si la app ya fue inicializada
+        if (hasPerformedInitialSync) {
+            quickSyncWithFirebase()
+        }
     }
 
-    /**
-     * ⚠️ CRÍTICO: Manejar deep links cuando la app ya está abierta
-     *
-     * Este método se llama cuando el usuario toca una notificación
-     * y la app ya está en memoria (no se vuelve a llamar onCreate)
-     */
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-
-        // Actualizar el intent de la actividad
         setIntent(intent)
 
         val openFromNotification = intent?.getBooleanExtra("open_from_notification", false) ?: false
@@ -113,39 +106,61 @@ class MainActivity : ComponentActivity() {
             android.util.Log.d(TAG, """
                 📱 Navegación desde notificación (app ya abierta)
                 - Tipo de cuestionario: $questionnaireType
-                - Intent actualizado correctamente
             """.trimIndent())
-
-            // TODO: Si necesitas navegar programáticamente al cuestionario, hazlo aquí
-            // Ejemplo: navigationController.navigate("questionnaire/$questionnaireType")
         }
     }
 
     /**
-     * ✅ CORREGIDO: Sincroniza notificaciones con Firebase
-     *
-     * Cambios:
-     * 1. Llamar a syncWithFirebase() PRIMERO (suspend)
-     * 2. Luego llamar a checkAndGenerateNotifications() (NO suspend)
+     * ✅ OPTIMIZADO: Solo sincroniza con Firebase (NO regenera notificaciones)
+     * Las notificaciones ya existen en SharedPreferences
      */
-    private fun syncNotificationsOnResume() {
+    private fun performInitialSync() {
         lifecycleScope.launch {
             try {
                 val appNotificationManager = QuestionnaireNotificationManager(this@MainActivity)
                 val userId = FirebaseAuth.getInstance().currentUser?.uid
 
                 if (userId != null) {
-                    // ✅ Sincronizar con Firebase (elimina notificaciones obsoletas)
+                    android.util.Log.d(TAG, "🚀 Sincronización inicial")
+
+                    // Solo sincronizar con Firebase (elimina obsoletas)
                     withContext(Dispatchers.IO) {
                         appNotificationManager.syncWithFirebase(userId)
                     }
 
-                    android.util.Log.d(TAG, "✅ Sincronización completada")
+                    // ✅ ELIMINADO: checkAndGenerateNotifications
+                    // Las notificaciones ya están en SharedPreferences
+                    // Solo necesitamos limpiar las obsoletas
+
+                    hasPerformedInitialSync = true
+                    android.util.Log.d(TAG, "✅ Sincronización inicial completada")
                 } else {
                     android.util.Log.w(TAG, "⚠️ Usuario no autenticado")
                 }
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "❌ Error sincronizando", e)
+                android.util.Log.e(TAG, "❌ Error en sincronización inicial", e)
+            }
+        }
+    }
+
+    /**
+     * ✅ Sincronización rápida (solo Firebase, sin regenerar)
+     */
+    private fun quickSyncWithFirebase() {
+        lifecycleScope.launch {
+            try {
+                val appNotificationManager = QuestionnaireNotificationManager(this@MainActivity)
+                val userId = FirebaseAuth.getInstance().currentUser?.uid
+
+                if (userId != null) {
+                    withContext(Dispatchers.IO) {
+                        appNotificationManager.syncWithFirebase(userId)
+                    }
+
+                    android.util.Log.d(TAG, "✅ Sincronización rápida completada")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "❌ Error en sincronización rápida", e)
             }
         }
     }
@@ -158,11 +173,13 @@ fun UleamApp(
 ) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
-    val notificationViewModel: NotificationViewModel = viewModel()
-    val context = LocalContext.current
-    val application = context.applicationContext as Application // Obtenido para el factory de ScoringViewModel
 
-    val authState by authViewModel.authState.collectAsState()
+    // ✅ CRÍTICO: Crear NotificationViewModel UNA SOLA VEZ aquí
+    val notificationViewModel: NotificationViewModel = viewModel()
+
+    val context = LocalContext.current
+    val application = context.applicationContext as Application
+
     val currentUser by authViewModel.currentUser.collectAsState()
 
     var permissionGranted by remember { mutableStateOf(context.hasNotificationPermission()) }
@@ -187,12 +204,7 @@ fun UleamApp(
         }
     }
 
-    LaunchedEffect(currentUser) {
-        if (currentUser != null) {
-            notificationViewModel.checkForNewNotifications()
-        }
-    }
-
+    // ✅ Navegación desde notificaciones
     LaunchedEffect(openFromNotification, questionnaireType, currentUser) {
         if (openFromNotification && questionnaireType != null && currentUser != null) {
             try {
@@ -264,9 +276,7 @@ fun UleamApp(
             )
         }
 
-        // ✅ CUESTIONARIO INICIAL: Mantiene el recálculo de scores
         composable(Screen.Questionnaire.route) {
-            // ✅ CORRECCIÓN: Inicializar el ViewModel DENTRO del contexto Composable
             val scoringViewModel: ScoringViewModel = viewModel(
                 factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -278,7 +288,6 @@ fun UleamApp(
 
             QuestionnaireScreen(
                 onComplete = {
-                    // ✅ Usar la instancia ya creada (sin llamar a viewModel() de nuevo)
                     scoringViewModel.recalculateScores()
 
                     navController.navigate(Screen.Home.route) {
@@ -290,7 +299,10 @@ fun UleamApp(
         }
 
         composable(Screen.Home.route) {
+            // ✅ PASAR el ViewModel compartido
             HomeScreen(
+                notificationViewModel = notificationViewModel,
+                authViewModel = authViewModel,
                 onLogout = {
                     authViewModel.signOut()
                     navController.navigate(Screen.Login.route) {
@@ -314,7 +326,6 @@ fun UleamApp(
                     }
                 },
                 mainNavController = navController,
-                // ⭐ AGREGAR: Callback para análisis de burnout
                 onNavigateToBurnoutAnalysis = { indices ->
                     android.util.Log.d("MainActivity", "🎯 Iniciando análisis de burnout con IA")
 
@@ -339,7 +350,9 @@ fun UleamApp(
         }
 
         composable(Screen.Settings.route) {
+            // ✅ PASAR el ViewModel compartido
             SettingsScreen(
+                notificationViewModel = notificationViewModel,
                 onBack = {
                     navController.popBackStack()
                 }
@@ -355,18 +368,17 @@ fun UleamApp(
             )
         }
 
-        // --- CUESTIONARIOS ESPECÍFICOS: OPTIMIZADOS (SIN RECÁLCULO DE SCORES) ---
+        // --- CUESTIONARIOS ESPECÍFICOS ---
 
-        // ===== CUESTIONARIO 1: Ergonomía =====
         composable(Screen.ErgonomiaQuestionnaire.route) {
             ErgonomiaQuestionnaireScreen(
                 onComplete = {
+                    // ✅ Usar el ViewModel compartido
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ERGONOMIA)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
-                        "✅ Cuestionario de Ergonomía completado. El análisis se actualizará automáticamente.",
+                        "✅ Cuestionario de Ergonomía completado.",
                         Toast.LENGTH_SHORT
                     ).show()
                     navController.popBackStack()
@@ -377,13 +389,11 @@ fun UleamApp(
             )
         }
 
-        // ===== CUESTIONARIO 2: Estrés y Salud Mental =====
         composable(Screen.EstresSaludMentalQuestionnaire.route) {
             EstresSaludMentalQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ESTRES_SALUD_MENTAL)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
                         "✅ Cuestionario de Estrés completado.",
@@ -397,13 +407,11 @@ fun UleamApp(
             )
         }
 
-        // ===== CUESTIONARIO 3: Síntomas Musculares =====
         composable(Screen.SintomasMuscularesQuestionnaire.route) {
             SintomasMuscularesQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_MUSCULARES)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
                         "✅ Cuestionario completado.",
@@ -417,13 +425,11 @@ fun UleamApp(
             )
         }
 
-        // ===== CUESTIONARIO 4: Carga de Trabajo =====
         composable(Screen.CargaTrabajoQuestionnaire.route) {
             CargaTrabajoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.CARGA_TRABAJO)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
                         "✅ Cuestionario completado.",
@@ -437,13 +443,11 @@ fun UleamApp(
             )
         }
 
-        // ===== CUESTIONARIO 5: Síntomas Visuales =====
         composable(Screen.SintomasVisualesQuestionnaire.route) {
             SintomasVisualesQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_VISUALES)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
                         "✅ Cuestionario completado.",
@@ -457,13 +461,11 @@ fun UleamApp(
             )
         }
 
-        // ===== CUESTIONARIO 6: Actividad Física =====
         composable(Screen.ActividadFisicaQuestionnaire.route) {
             ActividadFisicaQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ACTIVIDAD_FISICA)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
                         "✅ Cuestionario completado.",
@@ -477,13 +479,11 @@ fun UleamApp(
             )
         }
 
-        // ===== CUESTIONARIO 7: Hábitos de Sueño =====
         composable(Screen.HabitosSuenoQuestionnaire.route) {
             HabitosSuenoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.HABITOS_SUENO)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
                         "✅ Cuestionario completado.",
@@ -497,13 +497,11 @@ fun UleamApp(
             )
         }
 
-        // ===== CUESTIONARIO 8: Balance Vida-Trabajo =====
         composable(Screen.BalanceVidaTrabajoQuestionnaire.route) {
             BalanceVidaTrabajoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.BALANCE_VIDA_TRABAJO)
 
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
                     Toast.makeText(
                         context,
                         "✅ Cuestionario completado.",
@@ -517,7 +515,7 @@ fun UleamApp(
             )
         }
 
-        // ===== OTRAS PANTALLAS (se mantienen igual) =====
+        // --- OTRAS PANTALLAS (sin cambios) ---
 
         composable(
             route = Screen.ResourceDetail.route,

@@ -31,32 +31,31 @@ import androidx.compose.ui.draw.alpha
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-// ✅ NUEVOS IMPORTS para el dialog de Salud General
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
 
 /**
- * Función principal HomeScreen
+ * ✅ OPTIMIZADO: Función principal HomeScreen
+ * Recibe ViewModels REQUERIDOS (sin valores por defecto)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    notificationViewModel: NotificationViewModel, // ✅ REQUERIDO
+    authViewModel: AuthViewModel, // ✅ REQUERIDO
     onLogout: () -> Unit,
     onNavigateToQuestionnaire: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToResourceDetail: (String) -> Unit,
     mainNavController: NavHostController,
-    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit = {},
-    authViewModel: AuthViewModel = viewModel(),
-    notificationViewModel: NotificationViewModel = viewModel()
+    onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit = {}
 ) {
     val navController = rememberNavController()
     val currentUser by authViewModel.currentUser.collectAsState()
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
-    // ✅ OBSERVAR el estado del dialog desde el ViewModel
     val shouldShowDialog by notificationViewModel.shouldShowSaludGeneralDialog.collectAsState()
     val isCheckingDialog by notificationViewModel.isCheckingSaludGeneral.collectAsState()
 
@@ -66,7 +65,6 @@ fun HomeScreen(
             Log.d("HomeScreen", "👤 Usuario detectado: ${user.uid}")
             Log.d("HomeScreen", "🔍 Verificando Salud General para: ${user.uid}")
 
-            // Llamar la verificación en el ViewModel
             notificationViewModel.checkShouldShowSaludGeneralDialog(user.uid)
         }
     }
@@ -84,12 +82,11 @@ fun HomeScreen(
         )
     }
 
-    // ✅ Cargar notificaciones al iniciar
-    LaunchedEffect(Unit) {
-        Log.d("HomeScreen", "🔄 Recargando notificaciones...")
-        notificationViewModel.loadNotifications()
-        notificationViewModel.checkForNewNotifications()
-    }
+    // ✅ ELIMINADO: LaunchedEffect que llamaba a loadNotifications + checkForNewNotifications
+    // Ya no es necesario porque:
+    // 1. performInitialSync() en MainActivity ya cargó todo
+    // 2. El ViewModel ya tiene los datos en caché
+    // 3. Esto causaba sincronizaciones duplicadas
 
     Scaffold(
         topBar = {
@@ -119,20 +116,22 @@ fun HomeScreen(
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Home.route) {
-                // ✅ ELIMINADA la verificación duplicada aquí
                 HomeContent(
                     userName = currentUser?.displayName ?: "Usuario",
                     onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
                 )
             }
             composable(Screen.Explore.route) {
+                // ✅ PASAR el ViewModel compartido
                 ExploreContent(
-                    onNavigateToQuestionnaire = onNavigateToQuestionnaire,
-                    notificationViewModel = notificationViewModel
+                    notificationViewModel = notificationViewModel,
+                    onNavigateToQuestionnaire = onNavigateToQuestionnaire
                 )
             }
             composable(Screen.Notifications.route) {
-                NotificationsContent(onNavigateToQuestionnaire = onNavigateToQuestionnaire)
+                NotificationsContent(
+                    onNavigateToQuestionnaire = onNavigateToQuestionnaire
+                )
             }
             composable(Screen.Resources.route) {
                 com.example.uleammed.resources.ResourcesContentNew(
@@ -309,18 +308,18 @@ fun HomeContent(
 }
 
 /**
- * Contenido de la pestaña Explorar con sistema de expiración integrado
+ * ✅ OPTIMIZADO: Contenido de la pestaña Explorar
+ * Recibe NotificationViewModel REQUERIDO (sin valor por defecto)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreContent(
-    onNavigateToQuestionnaire: (String) -> Unit,
-    notificationViewModel: NotificationViewModel = viewModel()
+    notificationViewModel: NotificationViewModel, // ✅ REQUERIDO
+    onNavigateToQuestionnaire: (String) -> Unit
 ) {
     val repository = remember { AuthRepository() }
     val userId = FirebaseAuth.getInstance().currentUser?.uid
 
-    // ✅ Obtener periodDays del ViewModel
     val scheduleConfig by notificationViewModel.scheduleConfig.collectAsState()
     val periodDays = scheduleConfig?.periodDays ?: 7
 
@@ -328,12 +327,10 @@ fun ExploreContent(
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
-    // ✅ CRÍTICO: Recargar cuando cambia el período Y pasar periodDays al repository
     LaunchedEffect(periodDays, userId) {
         scope.launch {
             if (userId != null) {
                 isLoading = true
-                // ✅ CAMBIO IMPORTANTE: Pasar periodDays como segundo parámetro
                 val result = repository.getCompletedQuestionnaires(userId, periodDays)
                 result.onSuccess { completed ->
                     completedQuestionnaires = completed
@@ -350,7 +347,6 @@ fun ExploreContent(
         }
     }
 
-    // ✅ LISTA COMPLETA CON LOS 8 CUESTIONARIOS (sin SALUD_GENERAL)
     val questionnaireList = remember {
         listOf(
             QuestionnaireInfo(
@@ -480,7 +476,6 @@ fun ExploreContent(
                         repository = repository,
                         periodDays = periodDays,
                         onClick = {
-                            // Si el cuestionario está disponible, navegar
                             if (!completedQuestionnaires.contains(questionnaire.firestoreId)) {
                                 val route = when (questionnaire.type) {
                                     QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
@@ -495,7 +490,6 @@ fun ExploreContent(
                                 }
                                 onNavigateToQuestionnaire(route)
                             } else {
-                                // Si fue eliminado, recargar la lista
                                 scope.launch {
                                     if (userId != null) {
                                         val result = repository.getCompletedQuestionnaires(userId, periodDays)
@@ -512,6 +506,8 @@ fun ExploreContent(
         }
     }
 }
+
+// ... (resto del código sin cambios: QuestionnaireCardDynamic, QuestionnaireInfo, ResourcesContent, SaludGeneralDialog)
 
 /**
  * Card de cuestionario con umbrales dinámicos
@@ -530,7 +526,6 @@ fun QuestionnaireCardDynamic(
     var status by remember { mutableStateOf<QuestionnaireStatus?>(null) }
     val scope = rememberCoroutineScope()
 
-    // ✅ NUEVO: Estados para el diálogo de eliminación
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
@@ -584,7 +579,6 @@ fun QuestionnaireCardDynamic(
         else -> MaterialTheme.colorScheme.primaryContainer
     }
 
-    // ✅ NUEVO: Diálogo de confirmación para eliminar
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -620,7 +614,6 @@ fun QuestionnaireCardDynamic(
                                     Toast.LENGTH_LONG
                                 ).show()
                                 showDeleteDialog = false
-                                // Recargar para actualizar la UI
                                 onClick()
                             }.onFailure { error ->
                                 Toast.makeText(
@@ -659,7 +652,6 @@ fun QuestionnaireCardDynamic(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (isLocked) 0.6f else 1f)
-            // ✅ Combinador de gestos para click y long press
             .combinedClickable(
                 onClick = {
                     if (isLocked && status is QuestionnaireStatus.Completed) {
@@ -688,7 +680,6 @@ fun QuestionnaireCardDynamic(
                     }
                 },
                 onLongClick = {
-                    // ✅ Long press solo funciona si está completado
                     if (isCompleted) {
                         showDeleteDialog = true
                         android.util.Log.d("QuestionnaireCard",
@@ -706,7 +697,6 @@ fun QuestionnaireCardDynamic(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono del cuestionario
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = iconColor,
@@ -733,7 +723,6 @@ fun QuestionnaireCardDynamic(
                 }
             }
 
-            // Contenido principal
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -781,7 +770,6 @@ fun QuestionnaireCardDynamic(
                     )
                 }
 
-                // ✅ Hint de long press para cuestionarios completados
                 if (isCompleted) {
                     Surface(
                         shape = MaterialTheme.shapes.small,
@@ -907,9 +895,6 @@ fun QuestionnaireCardDynamic(
     }
 }
 
-/**
- * Data class para información de cuestionarios
- */
 data class QuestionnaireInfo(
     val type: QuestionnaireType,
     val title: String,
@@ -920,9 +905,6 @@ data class QuestionnaireInfo(
     val firestoreId: String
 )
 
-/**
- * Contenido de la pestaña Recursos
- */
 @Composable
 fun ResourcesContent(
     onNavigateToResourceDetail: (String) -> Unit
@@ -932,12 +914,6 @@ fun ResourcesContent(
     )
 }
 
-/**
- * ✅ NUEVO: Dialog obligatorio de Salud General
- *
- * Se muestra automáticamente cuando el período de reevaluación ha vencido.
- * El usuario no puede cerrar el dialog sin completar el cuestionario.
- */
 @Composable
 fun SaludGeneralDialog(
     onStart: () -> Unit
