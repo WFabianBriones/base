@@ -191,7 +191,7 @@ class ScoringViewModel(application: Application) : AndroidViewModel(application)
             score.habitosSuenoScore,
             score.actividadFisicaScore,
             score.balanceVidaTrabajoScore
-        ).count { it > 0 }
+        ).count { it > -1 }
 
         return completedAreas >= 3
     }

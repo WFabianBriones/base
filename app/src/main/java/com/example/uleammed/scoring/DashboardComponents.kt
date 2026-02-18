@@ -172,7 +172,7 @@ fun DashboardContent(
         item {
             SurveyProgressCard(
                 completedCount = completedSurveys.size,
-                totalCount = 8
+                totalCount = 9  // Bug fix: salud_general es la 9ª encuesta, faltaba en el conteo
             )
         }
 
@@ -202,6 +202,10 @@ fun DashboardContent(
  */
 @Composable
 fun OverallScoreCard(healthScore: HealthScore) {
+    // overallScore está en escala "mayor = mayor riesgo" (0 = sin riesgo, 100 = crítico)
+    // Se usa directamente: arco más lleno = más riesgo, coherente con la etiqueta.
+    val riskScore = healthScore.overallScore.coerceIn(0, 100)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -216,33 +220,31 @@ fun OverallScoreCard(healthScore: HealthScore) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Tu Salud Laboral",
+                text = "Riesgo en Salud Laboral",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
 
-            // Gráfico circular animado
             CircularScoreIndicator(
-                score = healthScore.overallScore,
+                score = riskScore,
                 risk = healthScore.overallRisk,
                 size = 180.dp
             )
 
-            // Nivel de riesgo
+            // Badge: fondo semitransparente, texto del color del riesgo
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = Color(healthScore.overallRisk.color)
+                color = Color(healthScore.overallRisk.color).copy(alpha = 0.15f)
             ) {
                 Text(
-                    text = healthScore.overallRisk.displayName.uppercase(),
+                    text = healthScore.overallRisk.displayName,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = Color(healthScore.overallRisk.color)
                 )
             }
 
-            // Mensaje
             Text(
                 text = when (healthScore.overallRisk) {
                     RiskLevel.BAJO -> "¡Excelente! Mantén tus hábitos saludables"
@@ -253,6 +255,13 @@ fun OverallScoreCard(healthScore: HealthScore) {
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Text(
+                text = "Índice de riesgo (0 = sin riesgo · 100 = crítico)",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -427,6 +436,15 @@ fun RadarChartCard(healthScore: HealthScore) {
                 fontWeight = FontWeight.Bold
             )
 
+            // Nota de convención: mayor área = mayor riesgo (polígono crece con problemas)
+            Text(
+                text = "Área mayor = mayor riesgo   ·   Centro = sin riesgo",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             RadarChart(
                 healthScore = healthScore,
                 modifier = Modifier
@@ -442,16 +460,22 @@ fun RadarChart(
     healthScore: HealthScore,
     modifier: Modifier = Modifier
 ) {
-    // Etiquetas simplificadas
+    // Convención: todos los valores en escala "mayor = más riesgo" (0 = sin riesgo, 100 = crítico).
+    // Así el polígono CRECE cuando hay problemas, coherente con el gráfico circular.
+    //
+    // Casos especiales:
+    //   • ergonomiaScore: escala invertida (mayor = mejor) → se usa (100 - score).
+    //     Si score == -1 (no completado) → se trata como 0 riesgo, NO como 100.
+    //   • cualquier otro score == -1 → coerceAtLeast(0) → punto en el centro (sin dato).
     val dataPoints = listOf(
-        "Ergonomía" to healthScore.ergonomiaScore,
-        "Síntomas Musculares" to (100 - healthScore.sintomasMuscularesScore),
-        "Síntomas Visuales" to (100 - healthScore.sintomasVisualesScore),
-        "Carga Trabajo" to (100 - healthScore.cargaTrabajoScore),
-        "Estrés" to (100 - healthScore.estresSaludMentalScore),
-        "Sueño" to (100 - healthScore.habitosSuenoScore),
-        "Actividad Física" to (100 - healthScore.actividadFisicaScore),
-        "Balance" to (100 - healthScore.balanceVidaTrabajoScore)
+        "Ergonomía"         to (if (healthScore.ergonomiaScore == -1) 0 else (100 - healthScore.ergonomiaScore).coerceIn(0, 100)),
+        "Sint. Musculares"  to healthScore.sintomasMuscularesScore.coerceAtLeast(0),
+        "Sint. Visuales"    to healthScore.sintomasVisualesScore.coerceAtLeast(0),
+        "Carga Trabajo"     to healthScore.cargaTrabajoScore.coerceAtLeast(0),
+        "Estrés"            to healthScore.estresSaludMentalScore.coerceAtLeast(0),
+        "Sueño"             to healthScore.habitosSuenoScore.coerceAtLeast(0),
+        "Act. Física"       to healthScore.actividadFisicaScore.coerceAtLeast(0),
+        "Balance"           to healthScore.balanceVidaTrabajoScore.coerceAtLeast(0)
     )
 
     val riskColor = Color(healthScore.overallRisk.color)
@@ -461,41 +485,41 @@ fun RadarChart(
         val centerY = size.height / 2
         val center = Offset(centerX, centerY)
 
-        val radius = size.minDimension / 3.0f
-        val labelRadius = radius * 1.18f // ✅ Etiquetas AÚN más cerca
+        // Radio del área de datos. Deja margen suficiente para las etiquetas en todos los lados.
+        val radius = size.minDimension / 3.2f
+        // Bug B fix: labelRadius debe alejarse lo suficiente del borde del polígono.
+        // Con 1.40f hay margen incluso cuando el vértice está en radio=1.0 (score 100).
+        val labelRadius = radius * 1.42f
 
         val angleStep = 360f / dataPoints.size
 
-        // Configuración de texto
         val textPaint = android.graphics.Paint().apply {
             color = android.graphics.Color.parseColor("#424242")
-            textSize = 30f
+            textSize = 28f
             textAlign = android.graphics.Paint.Align.CENTER
             isAntiAlias = true
         }
 
-        // 1. Dibujar círculos de fondo (telaraña)
+        // 1. Círculos de fondo (telaraña)
         for (i in 1..5) {
-            val currentRadius = radius * (i / 5f)
             drawCircle(
                 color = Color.Gray.copy(alpha = 0.15f),
-                radius = currentRadius,
+                radius = radius * (i / 5f),
                 center = center,
                 style = Stroke(width = 1.5.dp.toPx())
             )
         }
 
-        // 2. Dibujar líneas radiales
+        // 2. Líneas radiales
         dataPoints.forEachIndexed { index, _ ->
             val angle = Math.toRadians((angleStep * index - 90).toDouble())
-            val end = Offset(
-                centerX + (radius * cos(angle)).toFloat(),
-                centerY + (radius * sin(angle)).toFloat()
-            )
             drawLine(
                 color = Color.Gray.copy(alpha = 0.25f),
                 start = center,
-                end = end,
+                end = Offset(
+                    centerX + (radius * cos(angle)).toFloat(),
+                    centerY + (radius * sin(angle)).toFloat()
+                ),
                 strokeWidth = 1.5.dp.toPx()
             )
         }
@@ -510,7 +534,7 @@ fun RadarChart(
             )
         }
 
-        // 4. Dibujar polígono con relleno
+        // 4. Polígono con relleno
         val path = androidx.compose.ui.graphics.Path().apply {
             if (points.isNotEmpty()) {
                 moveTo(points[0].x, points[0].y)
@@ -518,78 +542,39 @@ fun RadarChart(
                 close()
             }
         }
+        drawPath(path = path, color = riskColor.copy(alpha = 0.25f))
+        drawPath(path = path, color = riskColor, style = Stroke(width = 3.dp.toPx()))
 
-        drawPath(
-            path = path,
-            color = riskColor.copy(alpha = 0.25f)
-        )
-
-        drawPath(
-            path = path,
-            color = riskColor,
-            style = Stroke(width = 3.dp.toPx())
-        )
-
-        // 5. Puntos en los vértices
+        // 5. Puntos en vértices
         points.forEach { point ->
-            drawCircle(
-                color = riskColor,
-                radius = 6.dp.toPx(),
-                center = point
-            )
-            drawCircle(
-                color = Color.White,
-                radius = 3.dp.toPx(),
-                center = point
-            )
+            drawCircle(color = riskColor, radius = 6.dp.toPx(), center = point)
+            drawCircle(color = Color.White, radius = 3.dp.toPx(), center = point)
         }
 
-        // 6. DIBUJAR ETIQUETAS ALREDEDOR DEL RADAR (CORREGIDO)
-        dataPoints.forEachIndexed { index, (label, _) ->
-            val angle = Math.toRadians((angleStep * index - 90).toDouble())
+        // 6. Etiquetas — Bug B fix: drawIntoCanvas se llama UNA SOLA VEZ fuera del bucle.
+        // Llamarlo dentro del forEach creaba un wrapper canvas por iteración innecesariamente.
+        drawIntoCanvas { canvas ->
+            dataPoints.forEachIndexed { index, (label, _) ->
+                val angle = Math.toRadians((angleStep * index - 90).toDouble())
+                val labelX = centerX + (labelRadius * cos(angle)).toFloat()
+                val labelY = centerY + (labelRadius * sin(angle)).toFloat()
 
-            val labelX = centerX + (labelRadius * cos(angle)).toFloat()
-            val labelY = centerY + (labelRadius * sin(angle)).toFloat()
-
-            // Ajustar alineación según posición
-            val adjustedTextPaint = android.graphics.Paint(textPaint).apply {
-                when {
-                    labelX < centerX - 30 -> textAlign = android.graphics.Paint.Align.RIGHT
-                    labelX > centerX + 30 -> textAlign = android.graphics.Paint.Align.LEFT
-                    else -> textAlign = android.graphics.Paint.Align.CENTER
+                val paint = android.graphics.Paint(textPaint).apply {
+                    textAlign = when {
+                        labelX < centerX - 20f -> android.graphics.Paint.Align.RIGHT
+                        labelX > centerX + 20f -> android.graphics.Paint.Align.LEFT
+                        else                   -> android.graphics.Paint.Align.CENTER
+                    }
                 }
-            }
 
-            // Dividir etiqueta en palabras
-            val words = label.split(" ")
-
-            // ✅ CORRECCIÓN: Usar drawIntoCanvas
-            drawIntoCanvas { canvas ->
+                val words = label.split(" ")
                 if (words.size > 1) {
-                    // Etiqueta de dos líneas
-                    val line1 = words[0]
-                    val line2 = words.drop(1).joinToString(" ")
-
+                    canvas.nativeCanvas.drawText(words[0], labelX, labelY - 10f, paint)
                     canvas.nativeCanvas.drawText(
-                        line1,
-                        labelX,
-                        labelY - 8f,
-                        adjustedTextPaint
-                    )
-                    canvas.nativeCanvas.drawText(
-                        line2,
-                        labelX,
-                        labelY + 22f,
-                        adjustedTextPaint
+                        words.drop(1).joinToString(" "), labelX, labelY + 20f, paint
                     )
                 } else {
-                    // Etiqueta de una línea
-                    canvas.nativeCanvas.drawText(
-                        label,
-                        labelX,
-                        labelY + 8f,
-                        adjustedTextPaint
-                    )
+                    canvas.nativeCanvas.drawText(label, labelX, labelY + 8f, paint)
                 }
             }
         }
@@ -605,9 +590,7 @@ fun ProgressBarsCard(
     healthScore: HealthScore,
     completedSurveys: List<String>
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -618,78 +601,110 @@ fun ProgressBarsCard(
                 fontWeight = FontWeight.Bold
             )
 
-            // Solo mostrar áreas completadas (Se añaden iconos de tendencia de EJEMPLO)
+            // Bug fix: salud_general ahora aparece si fue completada.
+            // Bug fix: se eliminaron los trendIcon hardcodeados ("de EJEMPLO").
+            //          El ícono de estado se deriva del RiskLevel real de cada área.
+            // Bug fix: higherIsBetter=true solo en ergonomía (mayor score = mejor ergonomía).
+            if (completedSurveys.contains("salud_general")) {
+                ProgressBarItem("Salud General", healthScore.saludGeneralScore, healthScore.saludGeneralRisk, higherIsBetter = false)
+            }
             if (completedSurveys.contains("ergonomia")) {
-                ProgressBarItem("Ergonomía", healthScore.ergonomiaScore, healthScore.ergonomiaRisk, true, Icons.Filled.ArrowUpward)
+                ProgressBarItem("Ergonomía", healthScore.ergonomiaScore, healthScore.ergonomiaRisk, higherIsBetter = true)
             }
             if (completedSurveys.contains("sintomas_musculares")) {
-                ProgressBarItem("Síntomas Musculares", healthScore.sintomasMuscularesScore, healthScore.sintomasMuscularesRisk, false, Icons.Filled.ArrowDownward)
+                ProgressBarItem("Síntomas Musculares", healthScore.sintomasMuscularesScore, healthScore.sintomasMuscularesRisk, higherIsBetter = false)
             }
             if (completedSurveys.contains("sintomas_visuales")) {
-                ProgressBarItem("Síntomas Visuales", healthScore.sintomasVisualesScore, healthScore.sintomasVisualesRisk, false, Icons.Filled.HorizontalRule)
+                ProgressBarItem("Síntomas Visuales", healthScore.sintomasVisualesScore, healthScore.sintomasVisualesRisk, higherIsBetter = false)
             }
             if (completedSurveys.contains("carga_trabajo")) {
-                ProgressBarItem("Carga de Trabajo", healthScore.cargaTrabajoScore, healthScore.cargaTrabajoRisk, false, Icons.Filled.ArrowUpward)
+                ProgressBarItem("Carga de Trabajo", healthScore.cargaTrabajoScore, healthScore.cargaTrabajoRisk, higherIsBetter = false)
             }
             if (completedSurveys.contains("estres")) {
-                ProgressBarItem("Estrés y Salud Mental", healthScore.estresSaludMentalScore, healthScore.estresSaludMentalRisk, false, Icons.Filled.ArrowDownward)
+                ProgressBarItem("Estrés y Salud Mental", healthScore.estresSaludMentalScore, healthScore.estresSaludMentalRisk, higherIsBetter = false)
             }
             if (completedSurveys.contains("sueno")) {
-                ProgressBarItem("Calidad del Sueño", healthScore.habitosSuenoScore, healthScore.habitosSuenoRisk, false, Icons.Filled.ArrowUpward)
+                ProgressBarItem("Calidad del Sueño", healthScore.habitosSuenoScore, healthScore.habitosSuenoRisk, higherIsBetter = false)
             }
             if (completedSurveys.contains("actividad_fisica")) {
-                ProgressBarItem("Actividad Física", healthScore.actividadFisicaScore, healthScore.actividadFisicaRisk, false, Icons.Filled.HorizontalRule)
+                ProgressBarItem("Actividad Física", healthScore.actividadFisicaScore, healthScore.actividadFisicaRisk, higherIsBetter = false)
             }
             if (completedSurveys.contains("balance")) {
-                ProgressBarItem("Balance Vida-Trabajo", healthScore.balanceVidaTrabajoScore, healthScore.balanceVidaTrabajoRisk, false, Icons.Filled.ArrowUpward)
+                ProgressBarItem("Balance Vida-Trabajo", healthScore.balanceVidaTrabajoScore, healthScore.balanceVidaTrabajoRisk, higherIsBetter = false)
+            }
+
+            // Leyenda de lectura
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Barra más llena = mayor riesgo en esa área",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
-// --- FUNCIÓN MODIFICADA: Ahora incluye trendIcon ---
 @Composable
 fun ProgressBarItem(
     label: String,
     score: Int,
     risk: RiskLevel,
-    higherIsBetter: Boolean,
-    trendIcon: androidx.compose.ui.graphics.vector.ImageVector? = null // NUEVO PARAMETRO
+    higherIsBetter: Boolean
 ) {
+    // Bug fix: normalizar SIEMPRE a escala "mayor = más riesgo" antes de mostrar.
+    // Con higherIsBetter=true (ergonomía: 85 = muy buena), el riskScore = 100-85 = 15.
+    // Así el badge y la barra muestran el mismo valor y ambos son coherentes:
+    // barra corta + número bajo = área en buen estado.
+    val riskScore = if (higherIsBetter) (100 - score).coerceIn(0, 100) else score.coerceIn(0, 100)
+
+    // Ícono derivado del RiskLevel real del área (no hardcodeado).
+    val statusIcon = when (risk) {
+        RiskLevel.BAJO     -> Icons.Filled.CheckCircle
+        RiskLevel.MODERADO -> Icons.Filled.Warning
+        RiskLevel.ALTO     -> Icons.Filled.Error
+        RiskLevel.MUY_ALTO -> Icons.Filled.Error
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Ícono de estado a la izquierda del label
+            Icon(
+                imageVector = statusIcon,
+                contentDescription = risk.displayName,
+                tint = Color(risk.color),
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f)
             )
 
-            // ✅ LÓGICA DE ICONO DE TENDENCIA
-            trendIcon?.let { icon ->
-                val trendColor = when (icon) {
-                    Icons.Filled.ArrowUpward -> Color(RiskLevel.BAJO.color)
-                    Icons.Filled.ArrowDownward -> Color(RiskLevel.ALTO.color)
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                }
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = trendColor,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-
+            // Badge: muestra el riskScore normalizado + nivel de riesgo.
+            // Bug fix: antes mostraba el score raw de ergonomía (85) mientras la barra
+            // estaba al 15%. Ahora ambos muestran el mismo índice de riesgo.
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = Color(risk.color).copy(alpha = 0.2f)
+                color = Color(risk.color).copy(alpha = 0.15f)
             ) {
                 Text(
-                    text = "$score",
+                    text = "$riskScore  ·  ${risk.displayName}",
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
@@ -699,7 +714,7 @@ fun ProgressBarItem(
         }
 
         LinearProgressIndicator(
-            progress = { score / 100f },
+            progress = { riskScore / 100f },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
@@ -714,7 +729,7 @@ fun ProgressBarItem(
  * 5. Áreas críticas
  */
 @Composable
-fun TopConcernsCard(concerns: List<String>) {
+fun TopConcernsCard(concerns: List<AreaConcern>) {
     if (concerns.isEmpty()) return
 
     Card(
@@ -744,13 +759,20 @@ fun TopConcernsCard(concerns: List<String>) {
             }
 
             concerns.forEachIndexed { index, concern ->
+                // Bug fix: antes todos los badges eran el mismo color rojo (error).
+                // Ahora cada fila usa el color real de su RiskLevel:
+                // MUY_ALTO = rojo, ALTO = naranja, MODERADO = amarillo.
+                val riskColor = Color(concern.risk.color)
+
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Número de orden con color del nivel de riesgo
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.error,
+                        color = riskColor,
                         modifier = Modifier.size(24.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -762,10 +784,27 @@ fun TopConcernsCard(concerns: List<String>) {
                             )
                         }
                     }
+
+                    // Nombre del área
                     Text(
-                        text = concern,
-                        style = MaterialTheme.typography.bodyMedium
+                        text = concern.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
                     )
+
+                    // Badge del nivel de riesgo
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = riskColor.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = concern.risk.displayName,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = riskColor
+                        )
+                    }
                 }
             }
         }
@@ -776,7 +815,7 @@ fun TopConcernsCard(concerns: List<String>) {
  * 6. Recomendaciones
  */
 @Composable
-fun RecommendationsCard(recommendations: List<String>) {
+fun RecommendationsCard(recommendations: List<Recommendation>) {
     if (recommendations.isEmpty()) return
 
     Card(
@@ -806,17 +845,34 @@ fun RecommendationsCard(recommendations: List<String>) {
             }
 
             recommendations.forEach { recommendation ->
+                // Bug fix: antes todas las recomendaciones usaban el mismo ArrowRight azul.
+                // Ahora el ícono y el color reflejan la urgencia real:
+                //   MUY_ALTO → Error (rojo)
+                //   ALTO     → Warning (naranja)
+                //   MODERADO → ArrowRight (azul, sugerencia)
+                //   BAJO     → CheckCircle (verde, estado positivo)
+                val (icon, tint) = when (recommendation.urgency) {
+                    RiskLevel.MUY_ALTO -> Icons.Filled.Error to Color(RiskLevel.MUY_ALTO.color)
+                    RiskLevel.ALTO     -> Icons.Filled.Warning to Color(RiskLevel.ALTO.color)
+                    RiskLevel.MODERADO -> Icons.Filled.ArrowRight to MaterialTheme.colorScheme.primary
+                    RiskLevel.BAJO     -> Icons.Filled.CheckCircle to Color(RiskLevel.BAJO.color)
+                }
+
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.ArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        imageVector = icon,
+                        contentDescription = recommendation.urgency.displayName,
+                        tint = tint,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .padding(top = 2.dp)
                     )
                     Text(
-                        text = recommendation,
+                        text = recommendation.text,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )
@@ -868,19 +924,22 @@ fun ErrorView(
     }
 }
 
-// Función helper
+// Bug fix: solo contar áreas cuya encuesta fue completada (score != -1).
+// Antes, los Risk defaultean a RiskLevel.BAJO aunque el score sea -1,
+// lo que hacía que todas las áreas sin datos aparecieran como "Áreas OK".
 private fun countByRisk(healthScore: HealthScore, targetRisk: RiskLevel): Int {
-    val risks = listOf(
-        healthScore.ergonomiaRisk,
-        healthScore.sintomasMuscularesRisk,
-        healthScore.sintomasVisualesRisk,
-        healthScore.cargaTrabajoRisk,
-        healthScore.estresSaludMentalRisk,
-        healthScore.habitosSuenoRisk,
-        healthScore.actividadFisicaRisk,
-        healthScore.balanceVidaTrabajoRisk
-    )
-    return risks.count { it == targetRisk }
+    val completedAreaRisks = buildList {
+        if (healthScore.saludGeneralScore != -1)        add(healthScore.saludGeneralRisk)
+        if (healthScore.ergonomiaScore != -1)           add(healthScore.ergonomiaRisk)
+        if (healthScore.sintomasMuscularesScore != -1)  add(healthScore.sintomasMuscularesRisk)
+        if (healthScore.sintomasVisualesScore != -1)    add(healthScore.sintomasVisualesRisk)
+        if (healthScore.cargaTrabajoScore != -1)        add(healthScore.cargaTrabajoRisk)
+        if (healthScore.estresSaludMentalScore != -1)   add(healthScore.estresSaludMentalRisk)
+        if (healthScore.habitosSuenoScore != -1)        add(healthScore.habitosSuenoRisk)
+        if (healthScore.actividadFisicaScore != -1)     add(healthScore.actividadFisicaRisk)
+        if (healthScore.balanceVidaTrabajoScore != -1)  add(healthScore.balanceVidaTrabajoRisk)
+    }
+    return completedAreaRisks.count { it == targetRisk }
 }
 
 /**
@@ -889,14 +948,16 @@ private fun countByRisk(healthScore: HealthScore, targetRisk: RiskLevel): Int {
 private fun getCompletedSurveys(healthScore: HealthScore): List<String> {
     val completed = mutableListOf<String>()
 
-    if (healthScore.ergonomiaScore > 0) completed.add("ergonomia")
-    if (healthScore.sintomasMuscularesScore > 0) completed.add("sintomas_musculares")
-    if (healthScore.sintomasVisualesScore > 0) completed.add("sintomas_visuales")
-    if (healthScore.cargaTrabajoScore > 0) completed.add("carga_trabajo")
-    if (healthScore.estresSaludMentalScore > 0) completed.add("estres")
-    if (healthScore.habitosSuenoScore > 0) completed.add("sueno")
-    if (healthScore.actividadFisicaScore > 0) completed.add("actividad_fisica")
-    if (healthScore.balanceVidaTrabajoScore > 0) completed.add("balance")
+    // Bug fix: salud_general faltaba aunque se calcula y guarda en HealthScore
+    if (healthScore.saludGeneralScore != -1) completed.add("salud_general")
+    if (healthScore.ergonomiaScore != -1) completed.add("ergonomia")
+    if (healthScore.sintomasMuscularesScore != -1) completed.add("sintomas_musculares")
+    if (healthScore.sintomasVisualesScore != -1) completed.add("sintomas_visuales")
+    if (healthScore.cargaTrabajoScore != -1) completed.add("carga_trabajo")
+    if (healthScore.estresSaludMentalScore != -1) completed.add("estres")
+    if (healthScore.habitosSuenoScore != -1) completed.add("sueno")
+    if (healthScore.actividadFisicaScore != -1) completed.add("actividad_fisica")
+    if (healthScore.balanceVidaTrabajoScore != -1) completed.add("balance")
 
     return completed
 }
@@ -1057,10 +1118,10 @@ fun BurnoutAIAnalysisCard(
 ) {
     Card(
         onClick = {
-            // Convertir scores a índices 0-10
             val indices = mapOf(
                 "estres" to (healthScore.estresSaludMentalScore / 100f * 10f),
-                "ergonomia" to (healthScore.ergonomiaScore / 100f * 10f),
+                // ergonomiaScore es mayor=mejor → invertir para que el índice sea mayor=peor
+                "ergonomia" to ((100 - healthScore.ergonomiaScore) / 100f * 10f),
                 "carga_trabajo" to (healthScore.cargaTrabajoScore / 100f * 10f),
                 "calidad_sueno" to (healthScore.habitosSuenoScore / 100f * 10f),
                 "actividad_fisica" to (healthScore.actividadFisicaScore / 100f * 10f),
@@ -1072,9 +1133,8 @@ fun BurnoutAIAnalysisCard(
         },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -1083,15 +1143,13 @@ fun BurnoutAIAnalysisCard(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono principal
             Icon(
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
                 modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.tertiary
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Contenido
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1113,14 +1171,14 @@ fun BurnoutAIAnalysisCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                     ) {
                         Text(
                             text = "BETA",
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     Text(
@@ -1131,12 +1189,11 @@ fun BurnoutAIAnalysisCard(
                 }
             }
 
-            // Flecha
             Icon(
                 imageVector = Icons.Filled.ArrowForward,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.tertiary
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

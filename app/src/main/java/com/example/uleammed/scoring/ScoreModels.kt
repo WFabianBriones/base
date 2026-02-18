@@ -21,6 +21,24 @@ data class ValidationResult(
     val errors: List<String> = emptyList()
 )
 
+/**
+ * Área prioritaria con su nivel de riesgo.
+ * Permite a la UI colorear y distinguir MODERADO/ALTO/MUY_ALTO por área.
+ */
+data class AreaConcern(
+    val name: String = "",
+    val risk: RiskLevel = RiskLevel.MODERADO
+)
+
+/**
+ * Recomendación con nivel de urgencia derivado del RiskLevel del área.
+ * Permite a la UI mostrar iconos y colores distintos según criticidad.
+ */
+data class Recommendation(
+    val text: String = "",
+    val urgency: RiskLevel = RiskLevel.MODERADO
+)
+
 // ==================== RESULTADO GENERAL ====================
 data class HealthScore(
     val userId: String = "",
@@ -41,18 +59,18 @@ data class HealthScore(
     ),
 
     // ✅ NUEVO: Salud General (cuestionario inicial)
-    val saludGeneralScore: Int = 0,
+    val saludGeneralScore: Int = -1,
     val saludGeneralRisk: RiskLevel = RiskLevel.BAJO,
 
     // Scores individuales (0-100)
-    val ergonomiaScore: Int = 0,
-    val sintomasMuscularesScore: Int = 0,
-    val sintomasVisualesScore: Int = 0,
-    val cargaTrabajoScore: Int = 0,
-    val estresSaludMentalScore: Int = 0,
-    val habitosSuenoScore: Int = 0,
-    val actividadFisicaScore: Int = 0,
-    val balanceVidaTrabajoScore: Int = 0,
+    val sintomasMuscularesScore: Int = -1,
+    val sintomasVisualesScore: Int = -1,
+    val cargaTrabajoScore: Int = -1,
+    val estresSaludMentalScore: Int = -1,
+    val habitosSuenoScore: Int = -1,
+    val actividadFisicaScore: Int = -1,
+    val balanceVidaTrabajoScore: Int = -1,
+    val ergonomiaScore: Int = -1,
 
     // Niveles de riesgo
     val ergonomiaRisk: RiskLevel = RiskLevel.BAJO,
@@ -68,9 +86,10 @@ data class HealthScore(
     val overallScore: Int = 0,
     val overallRisk: RiskLevel = RiskLevel.BAJO,
 
-    // Áreas de mejora
-    val topConcerns: List<String> = emptyList(),
-    val recommendations: List<String> = emptyList()
+    // Áreas de mejora — cada concern lleva su RiskLevel para que la UI pueda colorearlos
+    val topConcerns: List<AreaConcern> = emptyList(),
+    // Recomendaciones con urgencia — permite a la UI priorizar y colorear
+    val recommendations: List<Recommendation> = emptyList()
 )
 
 // ==================== CALCULADOR DE SCORES ====================
@@ -600,13 +619,21 @@ object ScoreCalculator {
             "actividad_fisica" to 0.04
         )
 
+        // ⚠️ Escalas de scores:
+        // - ergonomia: mayor = MEJOR (100 = ergonomía perfecta, 0 = pésima)
+        // - todos los demás: mayor = PEOR (0 = sin síntomas, 100 = crítico)
+        // → Normalizar TODOS a escala "mayor = peor" antes de promediar
+        val INVERTED_SCORES = setOf("ergonomia")
+
         var weightedSum = 0.0
         var totalWeight = 0.0
         var highestRisk = RiskLevel.BAJO
 
         scores.forEach { (key, pair) ->
             val weight = weights[key] ?: 0.0
-            weightedSum += pair.first * weight
+            // Invertir ergonomía para que esté en la misma escala que el resto
+            val normalizedScore = if (key in INVERTED_SCORES) 100 - pair.first else pair.first
+            weightedSum += normalizedScore * weight
             totalWeight += weight
 
             if (pair.second.value > highestRisk.value) {
@@ -615,7 +642,7 @@ object ScoreCalculator {
         }
 
         val overallScore = if (totalWeight > 0) {
-            (weightedSum / totalWeight).toInt()
+            (weightedSum / totalWeight).toInt().coerceIn(0, 100)
         } else {
             0
         }
@@ -627,6 +654,8 @@ object ScoreCalculator {
             else -> RiskLevel.MUY_ALTO
         }
 
+        // El riesgo final es el mayor entre el calculado por promedio
+        // y el más alto individual (si una sola área es MUY_ALTO, importa)
         val finalRisk = if (highestRisk.value > calculatedRisk.value) highestRisk else calculatedRisk
 
         return Pair(overallScore, finalRisk)

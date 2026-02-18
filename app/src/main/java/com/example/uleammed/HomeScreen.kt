@@ -31,7 +31,6 @@ import androidx.compose.ui.draw.alpha
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-// ✅ NUEVOS IMPORTS para el dialog de Salud General
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -56,25 +55,19 @@ fun HomeScreen(
     val currentUser by authViewModel.currentUser.collectAsState()
     val unreadCount by notificationViewModel.unreadCount.collectAsState()
 
-    // ✅ OBSERVAR el estado del dialog desde el ViewModel
     val shouldShowDialog by notificationViewModel.shouldShowSaludGeneralDialog.collectAsState()
     val isCheckingDialog by notificationViewModel.isCheckingSaludGeneral.collectAsState()
 
-    // ✅ VERIFICACIÓN ÚNICA cuando aparece el usuario
     LaunchedEffect(currentUser) {
         currentUser?.let { user ->
             Log.d("HomeScreen", "👤 Usuario detectado: ${user.uid}")
             Log.d("HomeScreen", "🔍 Verificando Salud General para: ${user.uid}")
-
-            // Llamar la verificación en el ViewModel
             notificationViewModel.checkShouldShowSaludGeneralDialog(user.uid)
         }
     }
 
-    // ✅ MOSTRAR DIALOG cuando el estado cambie a true
     if (shouldShowDialog) {
         Log.d("HomeScreen", "🎨 Mostrando dialog de Salud General")
-
         SaludGeneralDialog(
             onStart = {
                 Log.d("HomeScreen", "➡️ Navegando a cuestionario de Salud General")
@@ -84,7 +77,6 @@ fun HomeScreen(
         )
     }
 
-    // ✅ Cargar notificaciones al iniciar
     LaunchedEffect(Unit) {
         Log.d("HomeScreen", "🔄 Recargando notificaciones...")
         notificationViewModel.loadNotifications()
@@ -119,7 +111,6 @@ fun HomeScreen(
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Home.route) {
-                // ✅ ELIMINADA la verificación duplicada aquí
                 HomeContent(
                     userName = currentUser?.displayName ?: "Usuario",
                     onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
@@ -176,6 +167,10 @@ fun HomeScreen(
 
 /**
  * Bottom Navigation Bar
+ *
+ * 🐛 FIX #2: Cuando el usuario ya está en Inicio y lo vuelve a tocar,
+ * se fuerza una re-navegación con popUpTo inclusive=true para que
+ * HomeContent se recomponga y recargue los datos.
  */
 @Composable
 fun BottomNavigationBar(
@@ -220,12 +215,20 @@ fun BottomNavigationBar(
                 label = { Text(item.title) },
                 selected = currentRoute == item.route,
                 onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(Screen.Home.route) {
-                            saveState = true
+                    // ✅ FIX #2: Si ya estamos en Inicio y se vuelve a tocar,
+                    // forzar recarga destruyendo y recreando el composable
+                    if (currentRoute == item.route && item.route == Screen.Home.route) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
                         }
-                        launchSingleTop = true
-                        restoreState = true
+                    } else {
+                        navController.navigate(item.route) {
+                            popUpTo(Screen.Home.route) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
@@ -241,6 +244,12 @@ fun BottomNavigationBar(
 
 /**
  * Contenido de la pestaña Home
+ *
+ * 🐛 FIX #1: Se crea UN SOLO ScoringViewModel aquí y se pasa a HealthDashboard.
+ * Antes, HomeContent creaba su instancia con factory, pero HealthDashboard
+ * llamaba viewModel() y obtenía una INSTANCIA DIFERENTE → el dashboard
+ * siempre veía datos vacíos aunque loadScoreWithSmartRefresh() había cargado
+ * los datos en otra instancia.
  */
 @Composable
 fun HomeContent(
@@ -248,6 +257,8 @@ fun HomeContent(
     onNavigateToBurnoutAnalysis: (Map<String, Float>) -> Unit
 ) {
     val context = LocalContext.current
+
+    // ✅ FIX #1: Crear el ViewModel UNA SOLA VEZ aquí con el factory correcto
     val scoringViewModel: ScoringViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -302,7 +313,10 @@ fun HomeContent(
             }
         }
 
+        // ✅ FIX #1: Pasar el mismo scoringViewModel al HealthDashboard
+        // para que ambos compartan la misma instancia y los mismos datos
         com.example.uleammed.scoring.HealthDashboard(
+            viewModel = scoringViewModel,
             onNavigateToBurnoutAnalysis = onNavigateToBurnoutAnalysis
         )
     }
@@ -320,7 +334,6 @@ fun ExploreContent(
     val repository = remember { AuthRepository() }
     val userId = FirebaseAuth.getInstance().currentUser?.uid
 
-    // ✅ Obtener periodDays del ViewModel
     val scheduleConfig = notificationViewModel.scheduleConfig.collectAsState()
     val periodDays = scheduleConfig.value?.periodDays ?: 7
 
@@ -328,12 +341,10 @@ fun ExploreContent(
     var isLoading by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
-    // ✅ CRÍTICO: Recargar cuando cambia el período Y pasar periodDays al repository
     LaunchedEffect(periodDays, userId) {
         scope.launch {
             if (userId != null) {
                 isLoading = true
-                // ✅ CAMBIO IMPORTANTE: Pasar periodDays como segundo parámetro
                 val result = repository.getCompletedQuestionnaires(userId, periodDays)
                 result.onSuccess { completed ->
                     completedQuestionnaires = completed
@@ -350,7 +361,6 @@ fun ExploreContent(
         }
     }
 
-    // ✅ LISTA COMPLETA CON LOS 8 CUESTIONARIOS (sin SALUD_GENERAL)
     val questionnaireList = remember {
         listOf(
             QuestionnaireInfo(
@@ -445,7 +455,6 @@ fun ExploreContent(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-
                 Text(
                     text = when (periodDays) {
                         7 -> "Frecuencia: Semanal"
@@ -481,7 +490,6 @@ fun ExploreContent(
                         periodDays = periodDays,
                         notificationViewModel = notificationViewModel,
                         onClick = {
-                            // Si el cuestionario está disponible, navegar
                             if (!completedQuestionnaires.contains(questionnaire.firestoreId)) {
                                 val route = when (questionnaire.type) {
                                     QuestionnaireType.ERGONOMIA -> Screen.ErgonomiaQuestionnaire.route
@@ -496,7 +504,6 @@ fun ExploreContent(
                                 }
                                 onNavigateToQuestionnaire(route)
                             } else {
-                                // Si fue eliminado, recargar la lista
                                 scope.launch {
                                     if (userId != null) {
                                         val result = repository.getCompletedQuestionnaires(userId, periodDays)
@@ -531,8 +538,6 @@ fun QuestionnaireCardDynamic(
     val context = LocalContext.current
     var status by remember { mutableStateOf<QuestionnaireStatus?>(null) }
     val scope = rememberCoroutineScope()
-
-    // ✅ NUEVO: Estados para el diálogo de eliminación
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
 
@@ -557,7 +562,6 @@ fun QuestionnaireCardDynamic(
 
     val criticalThreshold = (periodDays * 0.3).toInt().coerceAtLeast(1)
     val warningThreshold = (periodDays * 0.5).toInt().coerceAtLeast(2)
-
     val isLocked = isCompleted && status is QuestionnaireStatus.Completed
 
     val cardColor = when {
@@ -586,7 +590,6 @@ fun QuestionnaireCardDynamic(
         else -> MaterialTheme.colorScheme.primaryContainer
     }
 
-    // ✅ NUEVO: Diálogo de confirmación para eliminar
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -616,35 +619,24 @@ fun QuestionnaireCardDynamic(
                             isDeleting = true
                             val result = repository.deleteQuestionnaire(userId, questionnaire.firestoreId)
                             result.onSuccess {
-                                // ✅ NUEVO: Regenerar notificaciones después de eliminar
                                 try {
                                     Log.d("QuestionnaireCard", "🔄 Regenerando notificaciones después de eliminar...")
-
-                                    // Sincronizar con Firebase (elimina notificaciones obsoletas)
                                     withContext(Dispatchers.IO) {
                                         val notificationManager = com.example.uleammed.notifications.QuestionnaireNotificationManager(context)
                                         notificationManager.syncWithFirebase(userId)
                                     }
-
-                                    // Generar nuevas notificaciones
                                     notificationViewModel.checkAndGenerateNotifications()
-
-                                    // Recargar notificaciones en el ViewModel
                                     notificationViewModel.loadNotifications()
-
                                     Log.d("QuestionnaireCard", "✅ Notificaciones regeneradas exitosamente")
                                 } catch (e: Exception) {
                                     Log.e("QuestionnaireCard", "❌ Error regenerando notificaciones", e)
                                 }
-
                                 Toast.makeText(
                                     context,
                                     "Cuestionario eliminado. Nuevas notificaciones programadas.",
                                     Toast.LENGTH_LONG
                                 ).show()
                                 showDeleteDialog = false
-
-                                // Recargar para actualizar la UI
                                 onClick()
                             }.onFailure { error ->
                                 Toast.makeText(
@@ -659,20 +651,14 @@ fun QuestionnaireCardDynamic(
                     enabled = !isDeleting
                 ) {
                     if (isDeleting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
                         Text("Eliminar", color = MaterialTheme.colorScheme.error)
                     }
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { showDeleteDialog = false },
-                    enabled = !isDeleting
-                ) {
+                TextButton(onClick = { showDeleteDialog = false }, enabled = !isDeleting) {
                     Text("Cancelar")
                 }
             }
@@ -683,7 +669,6 @@ fun QuestionnaireCardDynamic(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (isLocked) 0.6f else 1f)
-            // ✅ Combinador de gestos para click y long press
             .combinedClickable(
                 onClick = {
                     if (isLocked && status is QuestionnaireStatus.Completed) {
@@ -694,35 +679,23 @@ fun QuestionnaireCardDynamic(
                             30 -> "mensual"
                             else -> "de $periodDays días"
                         }
-
                         val mensaje = when {
                             daysRemaining <= 0 -> "Este cuestionario estará disponible mañana. Recibirás una notificación."
                             daysRemaining == 1 -> "Este cuestionario ($periodText) estará disponible en 1 día. Recibirás una notificación."
                             else -> "Este cuestionario ($periodText) estará disponible en $daysRemaining días. Recibirás una notificación."
                         }
-
                         Toast.makeText(context, mensaje, Toast.LENGTH_LONG).show()
-
-                        android.util.Log.d("QuestionnaireCard",
-                            "🔒 Intento de abrir cuestionario bloqueado: ${questionnaire.title} (disponible en $daysRemaining días)")
                     } else {
                         onClick()
-                        android.util.Log.d("QuestionnaireCard",
-                            "✅ Navegando a cuestionario: ${questionnaire.title}")
                     }
                 },
                 onLongClick = {
-                    // ✅ Long press solo funciona si está completado
                     if (isCompleted) {
                         showDeleteDialog = true
-                        android.util.Log.d("QuestionnaireCard",
-                            "🗑️ Long press en cuestionario completado: ${questionnaire.title}")
                     }
                 }
             ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isLocked) 0.dp else 2.dp
-        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isLocked) 0.dp else 2.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(
@@ -730,7 +703,6 @@ fun QuestionnaireCardDynamic(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono del cuestionario
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = iconColor,
@@ -757,55 +729,24 @@ fun QuestionnaireCardDynamic(
                 }
             }
 
-            // Contenido principal
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = questionnaire.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Text(
-                    text = questionnaire.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = questionnaire.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(text = questionnaire.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.AccessTime,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = questionnaire.estimatedTime,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
+                    Icon(imageVector = Icons.Filled.AccessTime, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = questionnaire.estimatedTime, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.width(4.dp))
-
-                    Icon(
-                        imageVector = Icons.Filled.Assignment,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "${questionnaire.totalQuestions} preguntas",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Icon(imageVector = Icons.Filled.Assignment, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = "${questionnaire.totalQuestions} preguntas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                // ✅ Hint de long press para cuestionarios completados
                 if (isCompleted) {
                     Surface(
                         shape = MaterialTheme.shapes.small,
@@ -817,18 +758,8 @@ fun QuestionnaireCardDynamic(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.TouchApp,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Text(
-                                text = "Mantén presionado para eliminar",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                fontWeight = FontWeight.Normal
-                            )
+                            Icon(imageVector = Icons.Filled.TouchApp, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                            Text(text = "Mantén presionado para eliminar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer, fontWeight = FontWeight.Normal)
                         }
                     }
                 }
@@ -836,28 +767,12 @@ fun QuestionnaireCardDynamic(
                 if (isLocked && status is QuestionnaireStatus.Completed) {
                     val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
                     val periodText = when (periodDays) {
-                        7 -> "Semanal"
-                        15 -> "Quincenal"
-                        30 -> "Mensual"
+                        7 -> "Semanal"; 15 -> "Quincenal"; 30 -> "Mensual"
                         else -> "Cada $periodDays días"
                     }
-
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Lock,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.padding(top = 4.dp)) {
+                        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 text = when {
                                     daysRemaining <= 0 -> "Disponible mañana ($periodText)"
@@ -874,7 +789,6 @@ fun QuestionnaireCardDynamic(
 
                 if (isCompleted && status is QuestionnaireStatus.Completed) {
                     val daysRemaining = (status as QuestionnaireStatus.Completed).daysRemaining
-
                     Surface(
                         shape = MaterialTheme.shapes.small,
                         color = when {
@@ -883,16 +797,9 @@ fun QuestionnaireCardDynamic(
                             else -> MaterialTheme.colorScheme.secondaryContainer
                         }
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = when {
-                                    daysRemaining <= criticalThreshold -> Icons.Filled.Warning
-                                    else -> Icons.Filled.CheckCircle
-                                },
+                                imageVector = if (daysRemaining <= criticalThreshold) Icons.Filled.Warning else Icons.Filled.CheckCircle,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
                                 tint = when {
@@ -921,11 +828,7 @@ fun QuestionnaireCardDynamic(
             }
 
             if (!isLocked) {
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = "Ir al cuestionario",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = "Ir al cuestionario", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -957,10 +860,7 @@ fun ResourcesContent(
 }
 
 /**
- * ✅ NUEVO: Dialog obligatorio de Salud General
- *
- * Se muestra automáticamente cuando el período de reevaluación ha vencido.
- * El usuario no puede cerrar el dialog sin completar el cuestionario.
+ * Dialog obligatorio de Salud General
  */
 @Composable
 fun SaludGeneralDialog(
@@ -977,56 +877,32 @@ fun SaludGeneralDialog(
             )
         },
         title = {
-            Text(
-                "Reevaluación de Salud General",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Reevaluación de Salud General", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         },
         text = {
             Column {
                 Text("Es momento de actualizar tu evaluación de salud base.")
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     "Este cuestionario nos ayuda a monitorear cambios en tu estado de salud general y condiciones preexistentes.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
                 Spacer(modifier = Modifier.height(12.dp))
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.AccessTime,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Tiempo estimado: 5-7 minutos",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Tiempo estimado: 5-7 minutos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = onStart,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.ArrowForward, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Comenzar Ahora")
             }
         },
-        properties = DialogProperties(
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false
-        )
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     )
 }

@@ -64,7 +64,7 @@ class ScoringRepository(private val context: Context) {
             // ===== CALCULAR SCORES INDIVIDUALES =====
 
             // 1. Salud General
-            var saludGeneralScore = 0
+            var saludGeneralScore = -1
             var saludGeneralRisk = RiskLevel.BAJO
             if (saludGeneralDoc.exists()) {
                 val q = saludGeneralDoc.toObject(HealthQuestionnaire::class.java)
@@ -80,7 +80,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 2. Ergonomía
-            var ergonomiaScore = 0
+            var ergonomiaScore = -1
             var ergonomiaRisk = RiskLevel.BAJO
             if (ergonomiaDoc.exists()) {
                 val q = ergonomiaDoc.toObject(ErgonomiaQuestionnaire::class.java)
@@ -94,7 +94,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 3. Síntomas Musculares
-            var sintomasMuscularesScore = 0
+            var sintomasMuscularesScore = -1
             var sintomasMuscularesRisk = RiskLevel.BAJO
             if (muscularesDoc.exists()) {
                 val q = muscularesDoc.toObject(SintomasMuscularesQuestionnaire::class.java)
@@ -108,7 +108,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 4. Síntomas Visuales
-            var sintomasVisualesScore = 0
+            var sintomasVisualesScore = -1
             var sintomasVisualesRisk = RiskLevel.BAJO
             if (visualesDoc.exists()) {
                 val q = visualesDoc.toObject(SintomasVisualesQuestionnaire::class.java)
@@ -122,7 +122,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 5. Carga de Trabajo
-            var cargaTrabajoScore = 0
+            var cargaTrabajoScore = -1
             var cargaTrabajoRisk = RiskLevel.BAJO
             if (cargaDoc.exists()) {
                 val q = cargaDoc.toObject(CargaTrabajoQuestionnaire::class.java)
@@ -136,7 +136,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 6. Estrés y Salud Mental
-            var estresSaludMentalScore = 0
+            var estresSaludMentalScore = -1
             var estresSaludMentalRisk = RiskLevel.BAJO
             if (estresDoc.exists()) {
                 val q = estresDoc.toObject(EstresSaludMentalQuestionnaire::class.java)
@@ -150,7 +150,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 7. Hábitos de Sueño
-            var habitosSuenoScore = 0
+            var habitosSuenoScore = -1
             var habitosSuenoRisk = RiskLevel.BAJO
             if (suenoDoc.exists()) {
                 val q = suenoDoc.toObject(HabitosSuenoQuestionnaire::class.java)
@@ -164,7 +164,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 8. Actividad Física
-            var actividadFisicaScore = 0
+            var actividadFisicaScore = -1
             var actividadFisicaRisk = RiskLevel.BAJO
             if (actividadDoc.exists()) {
                 val q = actividadDoc.toObject(ActividadFisicaQuestionnaire::class.java)
@@ -178,7 +178,7 @@ class ScoringRepository(private val context: Context) {
             }
 
             // 9. Balance Vida-Trabajo
-            var balanceVidaTrabajoScore = 0
+            var balanceVidaTrabajoScore = -1
             var balanceVidaTrabajoRisk = RiskLevel.BAJO
             if (balanceDoc.exists()) {
                 val q = balanceDoc.toObject(BalanceVidaTrabajoQuestionnaire::class.java)
@@ -257,110 +257,158 @@ class ScoringRepository(private val context: Context) {
         }
     }
 
-    private fun identifyTopConcerns(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
-        val concerns = mutableListOf<Pair<String, Int>>()
+    private fun identifyTopConcerns(scores: Map<String, Pair<Int, RiskLevel>>): List<AreaConcern> {
+        val displayName = mapOf(
+            "salud_general"       to "Salud General",
+            "ergonomia"           to "Ergonomía",
+            "sintomas_musculares" to "Síntomas Musculares",
+            "sintomas_visuales"   to "Síntomas Visuales",
+            "carga_trabajo"       to "Carga de Trabajo",
+            "estres"              to "Estrés y Salud Mental",
+            "sueno"               to "Calidad del Sueño",
+            "actividad_fisica"    to "Actividad Física",
+            "balance"             to "Balance Vida-Trabajo"
+        )
+
+        // Bug fix 1: el filtro anterior "normalizedScore > 25" era arbitrario
+        // y no coincidía con los umbrales reales de cada área (que varían entre áreas).
+        // Lo correcto es usar el RiskLevel ya calculado por cada calculador específico.
+        //
+        // Bug fix 2: take(3) ocultaba áreas MUY_ALTO si había más de 3 concerns.
+        // Ahora: se muestran TODAS las ALTO/MUY_ALTO sin límite,
+        // y se añaden MODERADO solo si quedan slots (máximo 5 en total).
+        val INVERTED_SCORES = setOf("ergonomia")
+
+        // Separar por nivel de severidad y ordenar dentro de cada grupo por score
+        val muyAltas = mutableListOf<Pair<String, Int>>()
+        val altas    = mutableListOf<Pair<String, Int>>()
+        val moderadas = mutableListOf<Pair<String, Int>>()
 
         scores.forEach { (key, pair) ->
-            val displayName = when (key) {
-                "salud_general" -> "Salud General"
-                "ergonomia" -> "Ergonomía"
-                "sintomas_musculares" -> "Síntomas Musculares"
-                "sintomas_visuales" -> "Síntomas Visuales"
-                "carga_trabajo" -> "Carga de Trabajo"
-                "estres" -> "Estrés y Salud Mental"
-                "sueno" -> "Calidad del Sueño"
-                "actividad_fisica" -> "Actividad Física"
-                "balance" -> "Balance Vida-Trabajo"
-                else -> key
+            if (pair.second.value < RiskLevel.MODERADO.value) return@forEach // ignorar BAJO
+            val name = displayName[key] ?: key
+            val normalizedScore = if (key in INVERTED_SCORES) 100 - pair.first else pair.first
+            when (pair.second) {
+                RiskLevel.MUY_ALTO -> muyAltas.add(name to normalizedScore)
+                RiskLevel.ALTO     -> altas.add(name to normalizedScore)
+                RiskLevel.MODERADO -> moderadas.add(name to normalizedScore)
+                else -> { /* BAJO ya filtrado */ }
             }
-
-            concerns.add(Pair(displayName, pair.first))
         }
 
-        return concerns
-            .sortedByDescending { it.second }
-            .take(3)
-            .map { it.first }
+        // Ordenar cada grupo de mayor a menor score (más grave primero)
+        muyAltas.sortByDescending { it.second }
+        altas.sortByDescending { it.second }
+        moderadas.sortByDescending { it.second }
+
+        // Construir lista final: MUY_ALTO primero (todos), luego ALTO (todos),
+        // luego MODERADO hasta completar un máximo de 5 ítems en total.
+        val result = mutableListOf<AreaConcern>()
+        muyAltas.forEach  { result.add(AreaConcern(it.first, RiskLevel.MUY_ALTO)) }
+        altas.forEach     { result.add(AreaConcern(it.first, RiskLevel.ALTO)) }
+        val slotsLeft = (5 - result.size).coerceAtLeast(0)
+        moderadas.take(slotsLeft).forEach { result.add(AreaConcern(it.first, RiskLevel.MODERADO)) }
+
+        return result
     }
 
-    private fun generateRecommendations(scores: Map<String, Pair<Int, RiskLevel>>): List<String> {
-        val recommendations = mutableListOf<String>()
+    private fun generateRecommendations(scores: Map<String, Pair<Int, RiskLevel>>): List<Recommendation> {
+        // Acumulamos por nivel de urgencia para poder ordenar y limitar correctamente.
+        // Bug fix 1: take(5) sobre una lista sin orden podía silenciar recomendaciones
+        //            MUY_ALTO que venían "tarde" en el mapa.
+        // Bug fix 2: salud_general faltaba cobertura para MODERADO.
+        // Bug fix 3: el orden del forEach dependía del Map; ahora se ordenan por urgencia.
+        // Bug fix 4: devolvemos List<Recommendation> en lugar de List<String> para
+        //            preservar la urgencia y poder colorear la UI.
+
+        data class Entry(val text: String, val urgency: RiskLevel)
+
+        val muyAltas  = mutableListOf<Entry>()
+        val altas     = mutableListOf<Entry>()
+        val moderadas = mutableListOf<Entry>()
+
+        fun add(text: String, urgency: RiskLevel) = when (urgency) {
+            RiskLevel.MUY_ALTO -> muyAltas.add(Entry(text, urgency))
+            RiskLevel.ALTO     -> altas.add(Entry(text, urgency))
+            else               -> moderadas.add(Entry(text, urgency))
+        }
 
         scores.forEach { (key, pair) ->
             val risk = pair.second
-
             when (key) {
                 "salud_general" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("🏥 Consulta médica general recomendada para evaluación integral")
+                    when {
+                        risk.value >= RiskLevel.ALTO.value     -> add("🏥 Consulta médica general recomendada para evaluación integral", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Revisa con tu médico los indicadores de salud detectados", RiskLevel.MODERADO)
                     }
                 }
                 "ergonomia" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("⚠️ Mejora urgente de tu estación de trabajo ergonómica")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Ajusta tu silla y monitor para mejor postura")
+                    when {
+                        risk.value >= RiskLevel.ALTO.value     -> add("⚠️ Mejora urgente de tu estación de trabajo ergonómica", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Ajusta tu silla y monitor para mejor postura", RiskLevel.MODERADO)
                     }
                 }
                 "sintomas_musculares" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("🚨 Consulta médica recomendada por dolor músculo-esquelético")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Realiza estiramientos cada 30 minutos")
+                    when {
+                        risk.value >= RiskLevel.MUY_ALTO.value -> add("🚨 Consulta médica urgente por dolor músculo-esquelético severo", RiskLevel.MUY_ALTO)
+                        risk.value >= RiskLevel.ALTO.value     -> add("🚨 Consulta médica recomendada por dolor músculo-esquelético", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Realiza estiramientos cada 30 minutos durante la jornada", RiskLevel.MODERADO)
                     }
                 }
                 "sintomas_visuales" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("👁️ Examen visual urgente recomendado")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Aplica la regla 20-20-20 para tus ojos")
+                    when {
+                        risk.value >= RiskLevel.ALTO.value     -> add("👁️ Examen visual urgente recomendado", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Aplica la regla 20-20-20 para reducir fatiga ocular", RiskLevel.MODERADO)
                     }
                 }
                 "carga_trabajo" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("⚡ Tu carga laboral es excesiva - habla con tu supervisor")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Establece límites claros en tu horario laboral")
+                    when {
+                        risk.value >= RiskLevel.MUY_ALTO.value -> add("⚡ Carga laboral crítica - requiere intervención inmediata con tu supervisor", RiskLevel.MUY_ALTO)
+                        risk.value >= RiskLevel.ALTO.value     -> add("⚡ Tu carga laboral es excesiva - habla con tu supervisor", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Establece límites claros en tu horario laboral", RiskLevel.MODERADO)
                     }
                 }
                 "estres" -> {
-                    if (risk.value >= RiskLevel.MUY_ALTO.value) {
-                        recommendations.add("🆘 Riesgo de burnout - busca apoyo profesional inmediatamente")
-                    } else if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("❗ Considera consultar un profesional de salud mental")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Practica técnicas de manejo del estrés diariamente")
+                    when {
+                        risk.value >= RiskLevel.MUY_ALTO.value -> add("🆘 Riesgo de burnout - busca apoyo profesional inmediatamente", RiskLevel.MUY_ALTO)
+                        risk.value >= RiskLevel.ALTO.value     -> add("❗ Considera consultar un profesional de salud mental", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Practica técnicas de manejo del estrés diariamente", RiskLevel.MODERADO)
                     }
                 }
                 "sueno" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("💤 Mejora urgente de tu higiene del sueño necesaria")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Apaga dispositivos 2 horas antes de dormir")
+                    when {
+                        risk.value >= RiskLevel.ALTO.value     -> add("💤 Mejora urgente de tu higiene del sueño necesaria", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Apaga dispositivos 2 horas antes de dormir", RiskLevel.MODERADO)
                     }
                 }
                 "actividad_fisica" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("🏃 Incrementa tu actividad física gradualmente")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Objetivo: 150 minutos de ejercicio semanal")
+                    when {
+                        risk.value >= RiskLevel.ALTO.value     -> add("🏃 Incrementa tu actividad física gradualmente", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Objetivo: 150 minutos de ejercicio semanal", RiskLevel.MODERADO)
                     }
                 }
                 "balance" -> {
-                    if (risk.value >= RiskLevel.ALTO.value) {
-                        recommendations.add("⚖️ Tu balance vida-trabajo está comprometido - toma acción")
-                    } else if (risk.value >= RiskLevel.MODERADO.value) {
-                        recommendations.add("Dedica tiempo de calidad a tu vida personal")
+                    when {
+                        risk.value >= RiskLevel.ALTO.value     -> add("⚖️ Tu balance vida-trabajo está comprometido - toma acción", RiskLevel.ALTO)
+                        risk.value >= RiskLevel.MODERADO.value -> add("Dedica tiempo de calidad a tu vida personal", RiskLevel.MODERADO)
                     }
                 }
             }
         }
 
-        if (recommendations.isEmpty()) {
-            recommendations.add("✅ ¡Excelente! Mantén tus hábitos saludables")
-        }
+        // Construir lista ordenada por urgencia: MUY_ALTO → ALTO → MODERADO.
+        // MUY_ALTO y ALTO se muestran todos; MODERADO hasta completar máximo 7.
+        val result = mutableListOf<Entry>()
+        result.addAll(muyAltas)
+        result.addAll(altas)
+        val slotsLeft = (7 - result.size).coerceAtLeast(0)
+        result.addAll(moderadas.take(slotsLeft))
 
-        return recommendations.take(5)
+        return if (result.isEmpty()) {
+            listOf(Recommendation("✅ ¡Excelente! Mantén tus hábitos saludables actuales", RiskLevel.BAJO))
+        } else {
+            result.map { Recommendation(it.text, it.urgency) }
+        }
     }
 
     private suspend fun saveToFirestore(healthScore: HealthScore) {
@@ -497,17 +545,30 @@ class ScoringRepository(private val context: Context) {
         )
 
         allScores.forEach { (area, score) ->
-            if (score !in 0..100) {
+            if (score != -1 && score !in 0..100) {
                 errors.add("Score de $area fuera de rango: $score")
             }
         }
 
-        if (healthScore.overallScore < 25 && healthScore.overallRisk != RiskLevel.BAJO) {
-            errors.add("Inconsistencia: overall score ${healthScore.overallScore} con riesgo ${healthScore.overallRisk.displayName}")
-        }
-
-        if (healthScore.overallScore >= 65 && healthScore.overallRisk != RiskLevel.ALTO && healthScore.overallRisk != RiskLevel.MUY_ALTO) {
-            errors.add("Inconsistencia: overall score ${healthScore.overallScore} debería ser riesgo alto/muy alto")
+        // overallScore está en escala "mayor = peor" (igual que la mayoría de áreas)
+        // ergonomia ya fue normalizada antes de calcular el overall, así que esta
+        // validación es directa sobre el overallScore resultante
+        if (healthScore.overallScore in 0..100) {
+            val expectedRisk = when {
+                healthScore.overallScore < 25 -> RiskLevel.BAJO
+                healthScore.overallScore < 45 -> RiskLevel.MODERADO
+                healthScore.overallScore < 65 -> RiskLevel.ALTO
+                else -> RiskLevel.MUY_ALTO
+            }
+            // El riesgo real puede ser MAYOR que el esperado (por área individual crítica),
+            // pero nunca debería ser MENOR
+            if (healthScore.overallRisk.value < expectedRisk.value) {
+                errors.add(
+                    "Inconsistencia: overall score ${healthScore.overallScore} " +
+                            "con riesgo ${healthScore.overallRisk.displayName} " +
+                            "(esperado mínimo: ${expectedRisk.displayName})"
+                )
+            }
         }
 
         return ValidationResult(
