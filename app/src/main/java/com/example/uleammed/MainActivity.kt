@@ -1,10 +1,7 @@
 package com.example.uleammed
 
 import android.app.Application
-import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -19,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,12 +38,10 @@ import com.example.uleammed.perfil.SettingsScreen
 import com.example.uleammed.questionnaires.*
 import com.example.uleammed.scoring.ScoringViewModel
 import com.example.uleammed.ui.UleamAppTheme
-// ⭐ AGREGAR: Importaciones para análisis de burnout
 import com.example.uleammed.burnoutprediction.model.QuestionnaireData
 import com.example.uleammed.burnoutprediction.presentation.screen.BurnoutAnalysisScreen
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutAnalysisViewModel
 import com.example.uleammed.burnoutprediction.presentation.viewmodel.BurnoutViewModelFactory
-// ✅ CORREGIDO: Agregar imports para coroutines y Firebase
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -62,13 +58,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Inicializar canal de notificaciones
         LocalNotificationScheduler.createNotificationChannel(this)
-
-        // Iniciar verificación periódica automática
         LocalNotificationScheduler.schedulePeriodicCheck(this)
-
-        // Sincronizar notificaciones al abrir la app
         syncNotificationsOnResume()
 
         setContent {
@@ -78,10 +69,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     UleamApp(
-                        openFromNotification = intent.getBooleanExtra(
-                            "open_from_notification",
-                            false
-                        ),
+                        openFromNotification = intent.getBooleanExtra("open_from_notification", false),
                         questionnaireType = intent.getStringExtra("questionnaire_type")
                     )
                 }
@@ -94,61 +82,33 @@ class MainActivity : ComponentActivity() {
         syncNotificationsOnResume()
     }
 
-    /**
-     * ⚠️ CRÍTICO: Manejar deep links cuando la app ya está abierta
-     *
-     * Este método se llama cuando el usuario toca una notificación
-     * y la app ya está en memoria (no se vuelve a llamar onCreate)
-     */
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-
-        // Actualizar el intent de la actividad
         setIntent(intent)
-
         val openFromNotification = intent?.getBooleanExtra("open_from_notification", false) ?: false
         val questionnaireType = intent?.getStringExtra("questionnaire_type")
-
         if (openFromNotification && questionnaireType != null) {
-            android.util.Log.d(TAG, """
-                📱 Navegación desde notificación (app ya abierta)
-                - Tipo de cuestionario: $questionnaireType
-                - Intent actualizado correctamente
-            """.trimIndent())
-
-            // TODO: Si necesitas navegar programáticamente al cuestionario, hazlo aquí
-            // Ejemplo: navigationController.navigate("questionnaire/$questionnaireType")
+            android.util.Log.d(TAG, "📱 Navegación desde notificación (app ya abierta) - tipo: $questionnaireType")
         }
     }
 
-    /**
-     * ✅ CORREGIDO: Sincroniza notificaciones con Firebase
-     *
-     * Cambios:
-     * 1. Llamar a syncWithFirebase() PRIMERO (suspend)
-     * 2. Luego llamar a checkAndGenerateNotifications() (NO suspend)
-     */
     private fun syncNotificationsOnResume() {
         lifecycleScope.launch {
             try {
                 val appNotificationManager = QuestionnaireNotificationManager(this@MainActivity)
                 val userId = FirebaseAuth.getInstance().currentUser?.uid
-
                 if (userId != null) {
-                    android.util.Log.d(TAG, "📱 App abierta, sincronizando notificaciones...")  // ← Mejorado
-                    // Paso 1: Sincronizar con Firebase (elimina notificaciones obsoletas)
+                    android.util.Log.d(TAG, "📱 Sincronizando notificaciones...")
                     withContext(Dispatchers.IO) {
                         appNotificationManager.syncWithFirebase(userId)
                     }
-                    // Paso 2: 🆕 NUEVO - Generar notificaciones faltantes
-                    appNotificationManager.checkAndGenerateNotifications(userId)  // ← NUEVA LÍNEA
-
+                    appNotificationManager.checkAndGenerateNotifications(userId)
                     android.util.Log.d(TAG, "✅ Sincronización completada")
                 } else {
                     android.util.Log.w(TAG, "⚠️ Usuario no autenticado")
                 }
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "❌ Error sincronizando notificaciones", e)  // ← Mejorado
+                android.util.Log.e(TAG, "❌ Error sincronizando notificaciones", e)
             }
         }
     }
@@ -163,39 +123,39 @@ fun UleamApp(
     val authViewModel: AuthViewModel = viewModel()
     val notificationViewModel: NotificationViewModel = viewModel()
     val context = LocalContext.current
-    val application = context.applicationContext as Application // Obtenido para el factory de ScoringViewModel
+    val application = context.applicationContext as Application
 
-    val authState by authViewModel.authState.collectAsState()
+    // ✅ scope para lanzar coroutines en callbacks de Compose
+    val scope = rememberCoroutineScope()
+
     val currentUser by authViewModel.currentUser.collectAsState()
 
     var permissionGranted by remember { mutableStateOf(context.hasNotificationPermission()) }
 
     if (!permissionGranted) {
         NotificationPermissionHandler(
-            onPermissionGranted = {
-                permissionGranted = true
-            }
+            onPermissionGranted = { permissionGranted = true }
         )
     }
 
+    // startDestination basado en el estado actual al abrir la app
     val startDestination = remember(currentUser) {
         if (currentUser != null) {
-            if (currentUser?.hasCompletedQuestionnaire == false) {
-                Screen.Questionnaire.route
-            } else {
-                Screen.Home.route
-            }
+            if (currentUser?.hasCompletedQuestionnaire == false) Screen.Questionnaire.route
+            else Screen.Home.route
         } else {
             Screen.Login.route
         }
     }
 
+    // ✅ Solo para notificaciones y sincronización, NO para navegación principal
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
             notificationViewModel.checkForNewNotifications()
         }
     }
 
+    // Navegación desde notificación push
     LaunchedEffect(openFromNotification, questionnaireType, currentUser) {
         if (openFromNotification && questionnaireType != null && currentUser != null) {
             try {
@@ -211,7 +171,6 @@ fun UleamApp(
                     QuestionnaireType.ACTIVIDAD_FISICA -> Screen.ActividadFisicaQuestionnaire.route
                     QuestionnaireType.BALANCE_VIDA_TRABAJO -> Screen.BalanceVidaTrabajoQuestionnaire.route
                 }
-
                 navController.navigate(Screen.Home.route) {
                     popUpTo(Screen.Login.route) { inclusive = true }
                 }
@@ -233,20 +192,42 @@ fun UleamApp(
         composable(Screen.Login.route) {
             LoginScreen(
                 onNavigateToRegister = {
-                    navController.navigate(Screen.Register.route) {
-                        launchSingleTop = true
-                    }
+                    navController.navigate(Screen.Register.route) { launchSingleTop = true }
                 },
+                // ✅ FIX: Usamos scope.launch para el admin check y luego navegamos
                 onLoginSuccess = { needsQuestionnaire ->
-                    if (needsQuestionnaire) {
-                        navController.navigate(Screen.Questionnaire.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                            launchSingleTop = true
+                    scope.launch {
+                        android.util.Log.d("UleamApp", "🔑 Login exitoso, verificando rol...")
+
+                        val destination = try {
+                            com.example.uleammed.admin.AdminNavigationHelper
+                                .getPostLoginDestination()
+                        } catch (e: Exception) {
+                            android.util.Log.e("UleamApp", "❌ Error verificando rol", e)
+                            "home"
                         }
-                    } else {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                            launchSingleTop = true
+
+                        android.util.Log.d("UleamApp", "🔀 Destino: $destination")
+
+                        when {
+                            destination == "admin_dashboard" -> {
+                                navController.navigate(Screen.AdminDashboard.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                            needsQuestionnaire -> {
+                                navController.navigate(Screen.Questionnaire.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                            else -> {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Login.route) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
                         }
                     }
                 }
@@ -255,9 +236,7 @@ fun UleamApp(
 
         composable(Screen.Register.route) {
             RegisterScreen(
-                onNavigateToLogin = {
-                    navController.popBackStack()
-                },
+                onNavigateToLogin = { navController.popBackStack() },
                 onRegisterSuccess = {
                     navController.navigate(Screen.Questionnaire.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
@@ -267,9 +246,7 @@ fun UleamApp(
             )
         }
 
-        // ✅ CUESTIONARIO INICIAL: Mantiene el recálculo de scores
         composable(Screen.Questionnaire.route) {
-            // ✅ CORRECCIÓN: Inicializar el ViewModel DENTRO del contexto Composable
             val scoringViewModel: ScoringViewModel = viewModel(
                 factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
@@ -278,12 +255,9 @@ fun UleamApp(
                     }
                 }
             )
-
             QuestionnaireScreen(
                 onComplete = {
-                    // ✅ Usar la instancia ya creada (sin llamar a viewModel() de nuevo)
                     scoringViewModel.recalculateScores()
-
                     navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Questionnaire.route) { inclusive = true }
                         launchSingleTop = true
@@ -302,14 +276,10 @@ fun UleamApp(
                     }
                 },
                 onNavigateToQuestionnaire = { route ->
-                    navController.navigate(route) {
-                        launchSingleTop = true
-                    }
+                    navController.navigate(route) { launchSingleTop = true }
                 },
                 onNavigateToSettings = {
-                    navController.navigate(Screen.Settings.route) {
-                        launchSingleTop = true
-                    }
+                    navController.navigate(Screen.Settings.route) { launchSingleTop = true }
                 },
                 onNavigateToResourceDetail = { resourceId ->
                     navController.navigate(Screen.ResourceDetail.createRoute(resourceId)) {
@@ -317,10 +287,8 @@ fun UleamApp(
                     }
                 },
                 mainNavController = navController,
-                // ⭐ AGREGAR: Callback para análisis de burnout
                 onNavigateToBurnoutAnalysis = { indices ->
                     android.util.Log.d("MainActivity", "🎯 Iniciando análisis de burnout con IA")
-
                     val data = QuestionnaireData(
                         estresIndex = indices["estres"] ?: 0f,
                         ergonomiaIndex = indices["ergonomia"] ?: 0f,
@@ -331,234 +299,140 @@ fun UleamApp(
                         sintomasVisualesIndex = indices["sintomas_visuales"] ?: 0f,
                         saludGeneralIndex = indices["salud_general"] ?: 0f
                     )
-
                     burnoutViewModel.analyzeBurnout(data)
-
-                    navController.navigate(Screen.BurnoutAnalysis.route) {
-                        launchSingleTop = true
-                    }
+                    navController.navigate(Screen.BurnoutAnalysis.route) { launchSingleTop = true }
                 }
             )
         }
 
         composable(Screen.Settings.route) {
-            SettingsScreen(
-                onBack = {
-                    navController.popBackStack()
-                }
-            )
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
 
         composable(Screen.BurnoutAnalysis.route) {
             BurnoutAnalysisScreen(
                 viewModel = burnoutViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
-        // --- CUESTIONARIOS ESPECÍFICOS: OPTIMIZADOS (SIN RECÁLCULO DE SCORES) ---
+        // ===== CUESTIONARIOS =====
 
-        // ===== CUESTIONARIO 1: Ergonomía =====
         composable(Screen.ErgonomiaQuestionnaire.route) {
             ErgonomiaQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ERGONOMIA)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario de Ergonomía completado. El análisis se actualizará automáticamente.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario de Ergonomía completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== CUESTIONARIO 2: Estrés y Salud Mental =====
         composable(Screen.EstresSaludMentalQuestionnaire.route) {
             EstresSaludMentalQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ESTRES_SALUD_MENTAL)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario de Estrés completado.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario de Estrés completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== CUESTIONARIO 3: Síntomas Musculares =====
         composable(Screen.SintomasMuscularesQuestionnaire.route) {
             SintomasMuscularesQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_MUSCULARES)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario completado.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== CUESTIONARIO 4: Carga de Trabajo =====
         composable(Screen.CargaTrabajoQuestionnaire.route) {
             CargaTrabajoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.CARGA_TRABAJO)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario completado.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== CUESTIONARIO 5: Síntomas Visuales =====
         composable(Screen.SintomasVisualesQuestionnaire.route) {
             SintomasVisualesQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.SINTOMAS_VISUALES)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario completado.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== CUESTIONARIO 6: Actividad Física =====
         composable(Screen.ActividadFisicaQuestionnaire.route) {
             ActividadFisicaQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.ACTIVIDAD_FISICA)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario completado.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== CUESTIONARIO 7: Hábitos de Sueño =====
         composable(Screen.HabitosSuenoQuestionnaire.route) {
             HabitosSuenoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.HABITOS_SUENO)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario completado.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== CUESTIONARIO 8: Balance Vida-Trabajo =====
         composable(Screen.BalanceVidaTrabajoQuestionnaire.route) {
             BalanceVidaTrabajoQuestionnaireScreen(
                 onComplete = {
                     notificationViewModel.markQuestionnaireCompleted(QuestionnaireType.BALANCE_VIDA_TRABAJO)
-
-                    // ✅ OPTIMIZADO: Eliminado el recálculo
-                    Toast.makeText(
-                        context,
-                        "✅ Cuestionario completado.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Cuestionario completado.", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
                 },
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
-        // ===== OTRAS PANTALLAS (se mantienen igual) =====
+        // ===== OTRAS PANTALLAS =====
 
         composable(
             route = Screen.ResourceDetail.route,
-            arguments = listOf(
-                navArgument("resourceId") { type = NavType.StringType }
-            )
+            arguments = listOf(navArgument("resourceId") { type = NavType.StringType })
         ) { backStackEntry ->
             val resourceId = backStackEntry.arguments?.getString("resourceId") ?: ""
-
             com.example.uleammed.resources.ResourceDetailScreen(
                 resourceId = resourceId,
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
         composable(
             route = Screen.ArticleViewer.route,
-            arguments = listOf(
-                navArgument("resourceId") { type = NavType.StringType }
-            )
+            arguments = listOf(navArgument("resourceId") { type = NavType.StringType })
         ) { backStackEntry ->
             val resourceId = backStackEntry.arguments?.getString("resourceId") ?: ""
-
             com.example.uleammed.resources.ArticleViewerScreen(
                 resourceId = resourceId,
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
         composable(Screen.EditProfile.route) {
             com.example.uleammed.perfil.EditProfileScreen(
-                onBack = {
-                    navController.popBackStack()
-                },
+                onBack = { navController.popBackStack() },
                 onSaveSuccess = {
                     authViewModel.checkCurrentUser()
                     navController.popBackStack()
@@ -568,40 +442,63 @@ fun UleamApp(
 
         composable(Screen.ViewQuestionnaire.route) {
             com.example.uleammed.perfil.ViewQuestionnaireScreen(
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
         composable(Screen.HelpSupport.route) {
             com.example.uleammed.perfil.HelpSupportScreen(
-                onBack = {
-                    navController.popBackStack()
-                }
+                onBack = { navController.popBackStack() }
             )
         }
 
         composable(
             route = Screen.ExerciseGuided.route,
-            arguments = listOf(
-                navArgument("exerciseId") { type = NavType.StringType }
-            )
+            arguments = listOf(navArgument("exerciseId") { type = NavType.StringType })
         ) { backStackEntry ->
             val exerciseId = backStackEntry.arguments?.getString("exerciseId") ?: ""
-
             com.example.uleammed.resources.ExerciseGuidedScreen(
                 exerciseId = exerciseId,
-                onBack = {
-                    navController.popBackStack()
-                },
+                onBack = { navController.popBackStack() },
                 onComplete = {
-                    Toast.makeText(
-                        context,
-                        "✅ Ejercicio completado",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "✅ Ejercicio completado", Toast.LENGTH_SHORT).show()
                 }
+            )
+        }
+
+        // ===== ADMIN =====
+
+        composable(Screen.AdminDashboard.route) {
+            com.example.uleammed.admin.AdminDashboardScreen(
+                onNavigateToUserManagement = {
+                    navController.navigate(Screen.AdminUserManagement.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onNavigateToCreateAdmin = {
+                    navController.navigate(Screen.AdminCreateAdmin.route) {
+                        launchSingleTop = true
+                    }
+                },
+                onBack = {
+                    authViewModel.signOut()
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.AdminCreateAdmin.route) {
+            com.example.uleammed.admin.CreateAdminScreen(
+                onBack = { navController.popBackStack() },
+                onAdminCreated = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.AdminUserManagement.route) {
+            com.example.uleammed.admin.UserManagementScreen(
+                onBack = { navController.popBackStack() }
             )
         }
     }

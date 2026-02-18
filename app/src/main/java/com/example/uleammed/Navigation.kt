@@ -23,6 +23,11 @@ sealed class Screen(val route: String) {
     object ViewQuestionnaire : Screen("view_questionnaire")
     object HelpSupport : Screen("help_support")
 
+    // ✅ ADMIN
+    object AdminDashboard : Screen("admin_dashboard")
+    object AdminCreateAdmin : Screen("admin_create_admin")
+    object AdminUserManagement : Screen("admin_user_management")
+
     // RECURSOS - Rutas actualizadas
     object ResourceDetail : Screen("resource_detail/{resourceId}") {
         fun createRoute(resourceId: String) = "resource_detail/$resourceId"
