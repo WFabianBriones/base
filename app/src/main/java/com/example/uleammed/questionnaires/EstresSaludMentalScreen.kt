@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// ViewModel
+// ViewModel — sin cambios de lógica
 class EstresSaludMentalViewModel : ViewModel() {
     private val repository = AuthRepository()
 
@@ -63,15 +63,12 @@ class EstresSaludMentalViewModel : ViewModel() {
                 _state.value = QuestionnaireState.Error("Por favor completa todas las preguntas")
                 return@launch
             }
-
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if (userId == null) {
                 _state.value = QuestionnaireState.Error("Usuario no autenticado")
                 return@launch
             }
-
             _state.value = QuestionnaireState.Loading
-
             val questionnaire = EstresSaludMentalQuestionnaire(
                 userId = userId,
                 nivelEstresGeneral = nivelEstresGeneral,
@@ -94,19 +91,15 @@ class EstresSaludMentalViewModel : ViewModel() {
                 consideraCambiarTrabajo = consideraCambiarTrabajo,
                 trabajoInterfiereTiempoDescanso = trabajoInterfiereTiempoDescanso
             )
-
             val result = repository.saveEstresSaludMentalQuestionnaire(questionnaire)
-            result.onSuccess {
-                _state.value = QuestionnaireState.Success
-            }.onFailure { exception ->
-                _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
-            }
+            result.onSuccess { _state.value = QuestionnaireState.Success }
+                .onFailure { exception ->
+                    _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
+                }
         }
     }
 
-    fun resetState() {
-        _state.value = QuestionnaireState.Idle
-    }
+    fun resetState() { _state.value = QuestionnaireState.Idle }
 }
 
 // Screen
@@ -123,9 +116,7 @@ fun EstresSaludMentalQuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -142,9 +133,7 @@ fun EstresSaludMentalQuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -152,7 +141,7 @@ fun EstresSaludMentalQuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Estrés y Salud Mental") },
+                title = { Text("Estrés y bienestar emocional") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -175,22 +164,13 @@ fun EstresSaludMentalQuestionnaireScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Identifica niveles de estrés, burnout y bienestar emocional. 19 preguntas, 7-9 minutos.",
+                        text = "Cuéntanos cómo te sientes emocionalmente en relación a tu trabajo. Tus respuestas son confidenciales. 19 preguntas, 7-9 minutos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -199,42 +179,43 @@ fun EstresSaludMentalQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Nivel de Estrés
-            SectionHeader("Nivel de Estrés")
+            // ── Nivel de estrés ────────────────────────────────────────
+            SectionHeader("¿Cuánto estrés sientes?")
 
-            // 81. Nivel de estrés general
-            QuestionTitle("81. Nivel de estrés laboral general (1-10)")
-            Text(
-                text = "Valor actual: ${viewModel.nivelEstresGeneral}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Slider(
-                value = viewModel.nivelEstresGeneral.toFloat(),
-                onValueChange = { viewModel.nivelEstresGeneral = it.toInt() },
-                valueRange = 1f..10f,
-                steps = 8,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(
+            QuestionTitle("Del 1 al 10, ¿qué tan estresado/a te sientes por tu trabajo en general? (1 = nada, 10 = muchísimo)")
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Text("1 (Muy bajo)", style = MaterialTheme.typography.bodySmall)
-                Text("10 (Extremo)", style = MaterialTheme.typography.bodySmall)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Nivel seleccionado: ${viewModel.nivelEstresGeneral}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Slider(
+                        value = viewModel.nivelEstresGeneral.toFloat(),
+                        onValueChange = { viewModel.nivelEstresGeneral = it.toInt() },
+                        valueRange = 1f..10f,
+                        steps = 8
+                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("1 (nada)", style = MaterialTheme.typography.bodySmall)
+                        Text("10 (muchísimo)", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 82. Aumento del estrés
-            QuestionTitle("82. ¿El estrés ha aumentado en los últimos 6 meses?")
+            QuestionTitle("Comparado con hace 6 meses, ¿tu nivel de estrés ha cambiado?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, significativamente",
-                    "Sí, un poco",
+                    "Sí, ha aumentado bastante",
+                    "Sí, ha aumentado un poco",
                     "Se ha mantenido igual",
-                    "Ha disminuido"
+                    "Ha bajado un poco",
+                    "Ha bajado bastante"
                 ),
                 selectedOption = viewModel.estresAumento6Meses,
                 onOptionSelected = { viewModel.estresAumento6Meses = it }
@@ -242,158 +223,102 @@ fun EstresSaludMentalQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Síntomas de Estrés Crónico
-            SectionHeader("Síntomas de Estrés Crónico")
-            Text(
-                text = "Frecuencia: 0=Nunca, 1=Rara vez, 2=Ocasionalmente, 3=Frecuentemente, 4=Muy frecuentemente, 5=Constantemente",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            // ── Síntomas ─────────────────────────────────────────────────
+            SectionHeader("¿Cómo te afecta el estrés?")
 
-            // 83. Fatiga/agotamiento
-            QuestionTitle("83. Fatiga/agotamiento extremo")
-            ScaleQuestion(
-                value = viewModel.fatigaAgotamiento,
-                onValueChange = { viewModel.fatigaAgotamiento = it }
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Escala:  0 = Nunca  ·  1 = Rara vez  ·  2 = A veces  ·  3 = Seguido  ·  4 = Muy seguido  ·  5 = Siempre",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
 
-            // 84. Dificultad concentración
-            QuestionTitle("84. Dificultad para concentrarse")
-            ScaleQuestion(
-                value = viewModel.dificultadConcentracion,
-                onValueChange = { viewModel.dificultadConcentracion = it }
-            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 85. Problemas memoria
-            QuestionTitle("85. Problemas de memoria a corto plazo")
-            ScaleQuestion(
-                value = viewModel.problemasMemoria,
-                onValueChange = { viewModel.problemasMemoria = it }
-            )
+            QuestionTitle("¿Llegas al final del día sintiéndote agotado/a, sin energía?")
+            ScaleQuestion(value = viewModel.fatigaAgotamiento, onValueChange = { viewModel.fatigaAgotamiento = it })
 
-            // 86. Irritabilidad
-            QuestionTitle("86. Irritabilidad/cambios de humor")
-            ScaleQuestion(
-                value = viewModel.irritabilidad,
-                onValueChange = { viewModel.irritabilidad = it }
-            )
+            QuestionTitle("¿Te cuesta concentrarte en lo que estás haciendo?")
+            ScaleQuestion(value = viewModel.dificultadConcentracion, onValueChange = { viewModel.dificultadConcentracion = it })
 
-            // 87. Ansiedad
-            QuestionTitle("87. Ansiedad relacionada con el trabajo")
-            ScaleQuestion(
-                value = viewModel.ansiedadTrabajo,
-                onValueChange = { viewModel.ansiedadTrabajo = it }
-            )
+            QuestionTitle("¿Se te olvidan cosas con más frecuencia de lo normal?")
+            ScaleQuestion(value = viewModel.problemasMemoria, onValueChange = { viewModel.problemasMemoria = it })
 
-            // 88. Preocupaciones constantes
-            QuestionTitle("88. Preocupaciones constantes sobre el trabajo")
-            ScaleQuestion(
-                value = viewModel.preocupacionesConstantes,
-                onValueChange = { viewModel.preocupacionesConstantes = it }
-            )
+            QuestionTitle("¿Te irritas o cambias de humor con facilidad?")
+            ScaleQuestion(value = viewModel.irritabilidad, onValueChange = { viewModel.irritabilidad = it })
 
-            // 89. Sensación abrumado
-            QuestionTitle("89. Sensación de estar abrumado/a")
-            ScaleQuestion(
-                value = viewModel.sensacionAbrumado,
-                onValueChange = { viewModel.sensacionAbrumado = it }
-            )
+            QuestionTitle("¿Sientes angustia o nerviosismo relacionado con el trabajo?")
+            ScaleQuestion(value = viewModel.ansiedadTrabajo, onValueChange = { viewModel.ansiedadTrabajo = it })
 
-            // 90. Dificultad desconectar
-            QuestionTitle("90. Dificultad para desconectar del trabajo")
-            ScaleQuestion(
-                value = viewModel.dificultadDesconectar,
-                onValueChange = { viewModel.dificultadDesconectar = it }
-            )
+            QuestionTitle("¿Tu cabeza no para de pensar en temas del trabajo?")
+            ScaleQuestion(value = viewModel.preocupacionesConstantes, onValueChange = { viewModel.preocupacionesConstantes = it })
+
+            QuestionTitle("¿Sientes que tienes más trabajo del que puedes manejar?")
+            ScaleQuestion(value = viewModel.sensacionAbrumado, onValueChange = { viewModel.sensacionAbrumado = it })
+
+            QuestionTitle("¿Te cuesta \"apagar\" la mente del trabajo cuando terminas la jornada?")
+            ScaleQuestion(value = viewModel.dificultadDesconectar, onValueChange = { viewModel.dificultadDesconectar = it })
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Síntomas de Burnout
-            SectionHeader("Síntomas de Burnout")
+            // ── Señales de agotamiento (burnout) ──────────────────────────
+            SectionHeader("Señales de agotamiento")
 
-            // 91. Pérdida de motivación
-            QuestionTitle("91. Pérdida de motivación/entusiasmo por el trabajo")
-            ScaleQuestion(
-                value = viewModel.perdidaMotivacion,
-                onValueChange = { viewModel.perdidaMotivacion = it }
-            )
+            QuestionTitle("¿Has perdido el entusiasmo o las ganas de ir a trabajar?")
+            ScaleQuestion(value = viewModel.perdidaMotivacion, onValueChange = { viewModel.perdidaMotivacion = it })
 
-            // 92. Sensación de improductividad
-            QuestionTitle("92. Sensación de no lograr nada/improductividad")
-            ScaleQuestion(
-                value = viewModel.sensacionInproductividad,
-                onValueChange = { viewModel.sensacionInproductividad = it }
-            )
+            QuestionTitle("¿Sientes que trabajas mucho pero logras poco?")
+            ScaleQuestion(value = viewModel.sensacionInproductividad, onValueChange = { viewModel.sensacionInproductividad = it })
 
-            // 93. Actitud negativa
-            QuestionTitle("93. Cinismo o actitud negativa hacia el trabajo")
-            ScaleQuestion(
-                value = viewModel.actitudNegativa,
-                onValueChange = { viewModel.actitudNegativa = it }
-            )
+            QuestionTitle("¿Te has vuelto más negativo/a o indiferente hacia tu trabajo?")
+            ScaleQuestion(value = viewModel.actitudNegativa, onValueChange = { viewModel.actitudNegativa = it })
 
-            // 94. Sentimiento de ineficacia
-            QuestionTitle("94. Sentimiento de ineficacia profesional")
-            ScaleQuestion(
-                value = viewModel.sentimientoIneficacia,
-                onValueChange = { viewModel.sentimientoIneficacia = it }
-            )
+            QuestionTitle("¿Sientes que no eres tan bueno/a en tu trabajo como antes?")
+            ScaleQuestion(value = viewModel.sentimientoIneficacia, onValueChange = { viewModel.sentimientoIneficacia = it })
 
-            // 95. Agotamiento emocional
-            QuestionTitle("95. Agotamiento emocional")
+            QuestionTitle("¿Te sientes emocionalmente vacío/a o quemado/a por el trabajo?")
             SingleChoiceQuestion(
-                options = listOf(
-                    "Nunca",
-                    "Rara vez",
-                    "Ocasionalmente",
-                    "Frecuentemente",
-                    "Constantemente/Siempre"
-                ),
+                options = listOf("Nunca", "Rara vez", "A veces", "Con frecuencia", "Siempre o casi siempre"),
                 selectedOption = viewModel.agotamientoEmocional,
                 onOptionSelected = { viewModel.agotamientoEmocional = it }
             )
 
-            // 96. Despersonalización
-            QuestionTitle("96. Despersonalización (distanciamiento de estudiantes/colegas)")
+            QuestionTitle("¿Te sientes desconectado/a o indiferente hacia las personas con quienes trabajas (compañeros, estudiantes, clientes)?")
             SingleChoiceQuestion(
-                options = listOf(
-                    "Nunca",
-                    "Rara vez",
-                    "Ocasionalmente",
-                    "Frecuentemente",
-                    "Constantemente"
-                ),
+                options = listOf("Nunca", "Rara vez", "A veces", "Con frecuencia", "Constantemente"),
                 selectedOption = viewModel.despersonalizacion,
                 onOptionSelected = { viewModel.despersonalizacion = it }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Impacto en Vida Personal
-            SectionHeader("Impacto en la Vida Personal")
+            // ── Impacto fuera del trabajo ─────────────────────────────────
+            SectionHeader("¿Cómo afecta el estrés tu vida personal?")
 
-            // 97. Afecta vida personal
-            QuestionTitle("97. ¿El estrés laboral afecta tu vida personal/familiar?")
+            QuestionTitle("¿El estrés del trabajo afecta tu vida en casa o tus relaciones personales?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No, para nada",
                     "Un poco",
                     "Moderadamente",
-                    "Significativamente",
-                    "Severamente"
+                    "Bastante",
+                    "Mucho, afecta todo"
                 ),
                 selectedOption = viewModel.estresAfectaVidaPersonal,
                 onOptionSelected = { viewModel.estresAfectaVidaPersonal = it }
             )
 
-            // 98. Cambiar de trabajo
-            QuestionTitle("98. ¿Has considerado cambiar de trabajo por el estrés?")
+            QuestionTitle("¿Has pensado en cambiar de trabajo por el estrés que sientes?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No, estoy bien",
                     "Lo he pensado vagamente",
-                    "Lo pienso frecuentemente",
+                    "Lo pienso con frecuencia",
                     "Sí, estoy buscando activamente",
                     "Ya decidí cambiar"
                 ),
@@ -401,41 +326,24 @@ fun EstresSaludMentalQuestionnaireScreen(
                 onOptionSelected = { viewModel.consideraCambiarTrabajo = it }
             )
 
-            // 99. Interfiere con descanso
-            QuestionTitle("99. ¿El trabajo interfiere con tu tiempo de descanso?")
+            QuestionTitle("¿El trabajo te quita tiempo de descanso o sueño?")
             SingleChoiceQuestion(
-                options = listOf(
-                    "Nunca",
-                    "Rara vez",
-                    "Ocasionalmente",
-                    "Frecuentemente",
-                    "Siempre"
-                ),
+                options = listOf("Nunca", "Rara vez", "A veces", "Con frecuencia", "Siempre"),
                 selectedOption = viewModel.trabajoInterfiereTiempoDescanso,
                 onOptionSelected = { viewModel.trabajoInterfiereTiempoDescanso = it }
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = state !is QuestionnaireState.Loading && viewModel.isFormValid()
             ) {
                 if (state is QuestionnaireState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario")
                 }
@@ -461,14 +369,8 @@ fun ScaleQuestion(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.weight(1f)
             ) {
-                RadioButton(
-                    selected = value == scale,
-                    onClick = { onValueChange(scale) }
-                )
-                Text(
-                    text = scale.toString(),
-                    style = MaterialTheme.typography.bodySmall
-                )
+                RadioButton(selected = value == scale, onClick = { onValueChange(scale) })
+                Text(text = scale.toString(), style = MaterialTheme.typography.bodySmall)
             }
         }
     }

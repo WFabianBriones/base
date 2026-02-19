@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// ViewModel
+// ViewModel — sin cambios de lógica
 class CargaTrabajoViewModel : ViewModel() {
     private val repository = AuthRepository()
 
@@ -67,15 +67,12 @@ class CargaTrabajoViewModel : ViewModel() {
                 _state.value = QuestionnaireState.Error("Por favor completa todas las preguntas")
                 return@launch
             }
-
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if (userId == null) {
                 _state.value = QuestionnaireState.Error("Usuario no autenticado")
                 return@launch
             }
-
             _state.value = QuestionnaireState.Loading
-
             val questionnaire = CargaTrabajoQuestionnaire(
                 userId = userId,
                 cargaTrabajoActual = cargaTrabajoActual,
@@ -94,19 +91,15 @@ class CargaTrabajoViewModel : ViewModel() {
                 satisfaccionGeneral = satisfaccionGeneral,
                 salarioAdecuado = salarioAdecuado
             )
-
             val result = repository.saveCargaTrabajoQuestionnaire(questionnaire)
-            result.onSuccess {
-                _state.value = QuestionnaireState.Success
-            }.onFailure { exception ->
-                _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
-            }
+            result.onSuccess { _state.value = QuestionnaireState.Success }
+                .onFailure { exception ->
+                    _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
+                }
         }
     }
 
-    fun resetState() {
-        _state.value = QuestionnaireState.Idle
-    }
+    fun resetState() { _state.value = QuestionnaireState.Idle }
 }
 
 // Screen
@@ -123,9 +116,7 @@ fun CargaTrabajoQuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -142,9 +133,7 @@ fun CargaTrabajoQuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -152,7 +141,7 @@ fun CargaTrabajoQuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Carga de Trabajo") },
+                title = { Text("Tu carga de trabajo") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -175,22 +164,13 @@ fun CargaTrabajoQuestionnaireScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Evalúa la demanda laboral, control, apoyo social y satisfacción. 15 preguntas, 5-7 minutos.",
+                        text = "Cuéntanos cómo vives el día a día en tu trabajo: cuánto tienes que hacer, qué libertad tienes y cómo te llevas con tu equipo. 15 preguntas, 5-7 minutos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -199,86 +179,80 @@ fun CargaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // DEMANDAS LABORALES
-            SectionHeader("Demandas Laborales")
+            // ── Cantidad de trabajo ───────────────────────────────────────
+            SectionHeader("¿Cuánto trabajo tienes?")
 
-            // 66. Carga de trabajo
-            QuestionTitle("66. Carga de trabajo actual")
+            QuestionTitle("¿Cómo describes la cantidad de trabajo que tienes actualmente?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Muy baja (tengo mucho tiempo libre)",
-                    "Baja (puedo hacer todo cómodamente)",
-                    "Adecuada (equilibrada)",
-                    "Alta (requiere esfuerzo extra)",
-                    "Excesiva (no puedo con todo)"
+                    "Muy poca, tengo mucho tiempo libre",
+                    "Poca, puedo hacer todo cómodamente",
+                    "La justa, está bien equilibrada",
+                    "Bastante, me exige esfuerzo extra",
+                    "Demasiada, no puedo con todo"
                 ),
                 selectedOption = viewModel.cargaTrabajoActual,
                 onOptionSelected = { viewModel.cargaTrabajoActual = it }
             )
 
-            // 67. Presión de tiempo
-            QuestionTitle("67. Presión de tiempo y plazos")
+            QuestionTitle("¿Cuánta presión sientes por cumplir plazos y fechas límite?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Muy baja",
-                    "Baja",
-                    "Moderada",
+                    "Muy poca o ninguna",
+                    "Poca",
+                    "Normal, manejable",
                     "Alta",
-                    "Muy alta/Constante"
+                    "Muy alta, es constante"
                 ),
                 selectedOption = viewModel.presionTiempoPlazos,
                 onOptionSelected = { viewModel.presionTiempoPlazos = it }
             )
 
-            // 68. Ritmo de trabajo
-            QuestionTitle("68. Ritmo de trabajo")
+            QuestionTitle("¿Cómo describirías el ritmo de tu trabajo diario?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Puedo manejarlo con calma",
+                    "Tranquilo, puedo manejarlo sin apuros",
                     "Constante pero manejable",
-                    "Acelerado frecuentemente",
-                    "Frenético/Agobiante"
+                    "Acelerado con frecuencia",
+                    "Frenético, me siento agobiado"
                 ),
                 selectedOption = viewModel.ritmoTrabajo,
                 onOptionSelected = { viewModel.ritmoTrabajo = it }
             )
 
-            // 69. Trabajo a casa
-            QuestionTitle("69. ¿Llevas trabajo a casa?")
+            QuestionTitle("¿Con qué frecuencia llevas trabajo a casa fuera del horario laboral?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Nunca",
-                    "Ocasionalmente (1-2 veces al mes)",
-                    "Frecuentemente (1-2 veces por semana)",
-                    "Muy frecuentemente (3-4 veces por semana)",
-                    "Siempre/Todos los días"
+                    "Alguna vez al mes",
+                    "1 o 2 veces por semana",
+                    "3 o 4 veces por semana",
+                    "Todos los días"
                 ),
                 selectedOption = viewModel.llevaTrabajoCasa,
                 onOptionSelected = { viewModel.llevaTrabajoCasa = it }
             )
 
-            // 70. Fines de semana
-            QuestionTitle("70. ¿Trabajas en fines de semana?")
+            QuestionTitle("¿Trabajas durante los fines de semana?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Nunca",
-                    "1-2 veces al mes",
-                    "1-2 fines de semana al mes",
-                    "3 fines de semana al mes",
+                    "1 o 2 veces al mes",
+                    "1 o 2 fines de semana al mes",
+                    "Casi todos los fines de semana",
                     "Todos los fines de semana"
                 ),
                 selectedOption = viewModel.trabajaFinesSemana,
                 onOptionSelected = { viewModel.trabajaFinesSemana = it }
             )
 
-            // 71. Horas extra
-            QuestionTitle("71. Horas de trabajo fuera del horario oficial (semanal)")
+            QuestionTitle("¿Cuántas horas extra trabajas a la semana, fuera de tu horario oficial?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Ninguna",
-                    "1-3 horas",
-                    "4-7 horas",
-                    "8-12 horas",
+                    "Entre 1 y 3 horas",
+                    "Entre 4 y 7 horas",
+                    "Entre 8 y 12 horas",
                     "Más de 12 horas"
                 ),
                 selectedOption = viewModel.horasFueraHorario,
@@ -287,41 +261,38 @@ fun CargaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // CONTROL Y AUTONOMÍA
-            SectionHeader("Control y Autonomía")
+            // ── Libertad en el trabajo ────────────────────────────────────
+            SectionHeader("¿Cuánta libertad tienes en tu trabajo?")
 
-            // 72. Decidir cómo hacer el trabajo
-            QuestionTitle("72. ¿Puedes decidir cómo hacer tu trabajo?")
+            QuestionTitle("¿Puedes decidir cómo hacer tu trabajo o todo está muy controlado?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, tengo total autonomía",
+                    "Tengo total libertad",
                     "Sí, en la mayoría de casos",
-                    "Parcialmente",
-                    "Poco",
+                    "A medias",
+                    "Muy poca libertad",
                     "No, todo está muy controlado"
                 ),
                 selectedOption = viewModel.puedeDecidirComoTrabajar,
                 onOptionSelected = { viewModel.puedeDecidirComoTrabajar = it }
             )
 
-            // 73. Planificar pausas
-            QuestionTitle("73. ¿Puedes planificar tus pausas cuando lo necesitas?")
+            QuestionTitle("¿Puedes tomar un descanso cuando lo necesitas?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, libremente",
+                    "Sí, cuando quiero",
                     "Sí, con algunas restricciones",
-                    "Con dificultad",
+                    "Me cuesta, pero a veces puedo",
                     "No puedo"
                 ),
                 selectedOption = viewModel.puedePlanificarPausas,
                 onOptionSelected = { viewModel.puedePlanificarPausas = it }
             )
 
-            // 74. Participar en decisiones
-            QuestionTitle("74. ¿Participas en decisiones que afectan tu trabajo?")
+            QuestionTitle("¿Te incluyen en las decisiones que afectan tu trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, frecuentemente",
+                    "Sí, con frecuencia",
                     "A veces",
                     "Rara vez",
                     "Nunca"
@@ -332,45 +303,42 @@ fun CargaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // APOYO SOCIAL
-            SectionHeader("Apoyo Social")
+            // ── Relaciones laborales ──────────────────────────────────────
+            SectionHeader("Relaciones en el trabajo")
 
-            // 75. Apoyo del superior
-            QuestionTitle("75. Apoyo de tu superior inmediato")
+            QuestionTitle("¿Cómo es el apoyo que recibes de tu jefe o superior inmediato?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Muy bueno (siempre disponible)",
+                    "Muy bueno, siempre está disponible",
                     "Bueno",
                     "Regular",
                     "Malo",
-                    "Muy malo/Ninguno"
+                    "Muy malo o inexistente"
                 ),
                 selectedOption = viewModel.apoyoSuperior,
                 onOptionSelected = { viewModel.apoyoSuperior = it }
             )
 
-            // 76. Relación con compañeros
-            QuestionTitle("76. Relación con compañeros de trabajo")
+            QuestionTitle("¿Cómo es tu relación con los compañeros de trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Excelente (colaborativa)",
+                    "Excelente, muy colaborativa",
                     "Buena",
                     "Regular",
-                    "Mala (conflictiva)",
-                    "Trabajo solo"
+                    "Mala, hay muchos conflictos",
+                    "Trabajo solo, no tengo compañeros"
                 ),
                 selectedOption = viewModel.relacionCompaneros,
                 onOptionSelected = { viewModel.relacionCompaneros = it }
             )
 
-            // 77. Acoso laboral
-            QuestionTitle("77. ¿Has experimentado acoso laboral o mobbing?")
+            QuestionTitle("¿Has vivido situaciones de acoso, intimidación o maltrato en el trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No, nunca",
-                    "Alguna vez",
-                    "Ocasionalmente",
-                    "Frecuentemente",
+                    "Alguna vez aislada",
+                    "De vez en cuando",
+                    "Con frecuencia",
                     "Constantemente"
                 ),
                 selectedOption = viewModel.acosoLaboral,
@@ -379,46 +347,43 @@ fun CargaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // RECONOCIMIENTO Y SATISFACCIÓN
-            SectionHeader("Reconocimiento y Satisfacción")
+            // ── Reconocimiento y satisfacción ─────────────────────────────
+            SectionHeader("Reconocimiento y satisfacción")
 
-            // 78. Trabajo valorado
-            QuestionTitle("78. ¿Sientes que tu trabajo es valorado/reconocido?")
+            QuestionTitle("¿Sientes que tu trabajo es valorado y reconocido?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, definitivamente",
+                    "Sí, siempre",
                     "En general sí",
                     "A veces",
-                    "Rara vez",
+                    "Casi nunca",
                     "Nunca"
                 ),
                 selectedOption = viewModel.trabajoValorado,
                 onOptionSelected = { viewModel.trabajoValorado = it }
             )
 
-            // 79. Satisfacción general
-            QuestionTitle("79. Satisfacción general con tu trabajo")
+            QuestionTitle("En general, ¿qué tan satisfecho/a estás con tu trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Muy satisfecho",
-                    "Satisfecho",
-                    "Neutral",
-                    "Insatisfecho",
-                    "Muy insatisfecho"
+                    "Muy satisfecho/a",
+                    "Satisfecho/a",
+                    "Ni satisfecho ni insatisfecho",
+                    "Insatisfecho/a",
+                    "Muy insatisfecho/a"
                 ),
                 selectedOption = viewModel.satisfaccionGeneral,
                 onOptionSelected = { viewModel.satisfaccionGeneral = it }
             )
 
-            // 80. Salario adecuado
-            QuestionTitle("80. ¿El salario es adecuado para tu carga de trabajo?")
+            QuestionTitle("¿Sientes que tu salario es justo para la cantidad de trabajo que haces?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, muy adecuado",
+                    "Sí, muy justo",
                     "Sí, adecuado",
                     "Apenas suficiente",
-                    "Insuficiente",
-                    "Muy insuficiente"
+                    "No, es insuficiente",
+                    "Es muy insuficiente"
                 ),
                 selectedOption = viewModel.salarioAdecuado,
                 onOptionSelected = { viewModel.salarioAdecuado = it }
@@ -426,25 +391,15 @@ fun CargaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = state !is QuestionnaireState.Loading && viewModel.isFormValid()
             ) {
                 if (state is QuestionnaireState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario")
                 }

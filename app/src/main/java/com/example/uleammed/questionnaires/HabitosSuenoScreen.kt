@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// ViewModel
+// ViewModel — sin cambios de lógica
 class HabitosSuenoViewModel : ViewModel() {
     private val repository = AuthRepository()
 
@@ -52,15 +52,12 @@ class HabitosSuenoViewModel : ViewModel() {
                 _state.value = QuestionnaireState.Error("Por favor completa todas las preguntas")
                 return@launch
             }
-
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if (userId == null) {
                 _state.value = QuestionnaireState.Error("Usuario no autenticado")
                 return@launch
             }
-
             _state.value = QuestionnaireState.Loading
-
             val questionnaire = HabitosSuenoQuestionnaire(
                 userId = userId,
                 horasSuenoSemana = horasSuenoSemana,
@@ -73,19 +70,15 @@ class HabitosSuenoViewModel : ViewModel() {
                 piensaProblemasTrabajoAntesDormir = piensaProblemasTrabajoAntesDormir,
                 revisaCorreosFueraHorario = revisaCorreosFueraHorario
             )
-
             val result = repository.saveHabitosSuenoQuestionnaire(questionnaire)
-            result.onSuccess {
-                _state.value = QuestionnaireState.Success
-            }.onFailure { exception ->
-                _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
-            }
+            result.onSuccess { _state.value = QuestionnaireState.Success }
+                .onFailure { exception ->
+                    _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
+                }
         }
     }
 
-    fun resetState() {
-        _state.value = QuestionnaireState.Idle
-    }
+    fun resetState() { _state.value = QuestionnaireState.Idle }
 }
 
 // Screen
@@ -102,9 +95,7 @@ fun HabitosSuenoQuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -121,9 +112,7 @@ fun HabitosSuenoQuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -131,7 +120,7 @@ fun HabitosSuenoQuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Hábitos de Sueño") },
+                title = { Text("Tu sueño") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -154,22 +143,13 @@ fun HabitosSuenoQuestionnaireScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Evalúa la cantidad, calidad e higiene de tu sueño. 9 preguntas, 3-4 minutos.",
+                        text = "Cuéntanos sobre la cantidad, la calidad de tu sueño y qué haces antes de acostarte. 9 preguntas, 3-4 minutos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -178,30 +158,28 @@ fun HabitosSuenoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // CANTIDAD DE SUEÑO
-            SectionHeader("Cantidad de Sueño")
+            // ── Cuánto duermes ───────────────────────────────────────────
+            SectionHeader("¿Cuántas horas duermes?")
 
-            // 100. Horas de sueño semana
-            QuestionTitle("100. Horas de sueño promedio por noche (entre semana)")
+            QuestionTitle("Entre semana (días de trabajo), ¿cuántas horas duermes por noche?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Menos de 5 horas",
-                    "5-6 horas",
-                    "7-8 horas",
+                    "Entre 5 y 6 horas",
+                    "Entre 7 y 8 horas",
                     "Más de 8 horas"
                 ),
                 selectedOption = viewModel.horasSuenoSemana,
                 onOptionSelected = { viewModel.horasSuenoSemana = it }
             )
 
-            // 101. Horas fin de semana
-            QuestionTitle("101. Horas de sueño en fines de semana")
+            QuestionTitle("Los fines de semana, ¿cuánto duermes comparado con entre semana?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Igual que entre semana",
-                    "1-2 horas más",
-                    "3-4 horas más",
-                    "Duermo menos"
+                    "Lo mismo que entre semana",
+                    "1 o 2 horas más",
+                    "3 o 4 horas más",
+                    "Duermo menos que entre semana"
                 ),
                 selectedOption = viewModel.horasSuenoFinSemana,
                 onOptionSelected = { viewModel.horasSuenoFinSemana = it }
@@ -209,18 +187,17 @@ fun HabitosSuenoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // CALIDAD DEL SUEÑO
-            SectionHeader("Calidad del Sueño")
+            // ── Calidad del sueño ────────────────────────────────────────
+            SectionHeader("¿Cómo es tu sueño?")
 
-            // 102. Calidad general
-            QuestionTitle("102. Calidad general del sueño")
+            QuestionTitle("En general, ¿cómo es la calidad de tu sueño?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Excelente (despierto descansado)",
-                    "Buena (generalmente descansado)",
-                    "Regular (a veces descansado)",
-                    "Mala (rara vez descansado)",
-                    "Muy mala (nunca descansado)"
+                    "Excelente, me despierto descansado/a",
+                    "Buena, casi siempre descanso bien",
+                    "Regular, a veces descanso y a veces no",
+                    "Mala, casi nunca me siento descansado/a",
+                    "Muy mala, nunca descanso bien"
                 ),
                 selectedOption = viewModel.calidadSueno,
                 onOptionSelected = { viewModel.calidadSueno = it }
@@ -228,66 +205,50 @@ fun HabitosSuenoQuestionnaireScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Frecuencia: 0=Nunca, 1=Rara vez, 2=Ocasionalmente, 3=Frecuentemente, 4=Muy frecuentemente, 5=Constantemente",
+                        text = "Escala:  0 = Nunca  ·  1 = Rara vez  ·  2 = A veces  ·  3 = Seguido  ·  4 = Muy seguido  ·  5 = Siempre",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // 103. Dificultad para conciliar
-            QuestionTitle("103. Dificultad para conciliar el sueño")
-            ScaleQuestion(
-                value = viewModel.dificultadConciliarFrecuencia,
-                onValueChange = { viewModel.dificultadConciliarFrecuencia = it }
-            )
+            QuestionTitle("¿Te cuesta quedarte dormido/a cuando te acuestas?")
+            ScaleQuestion(value = viewModel.dificultadConciliarFrecuencia, onValueChange = { viewModel.dificultadConciliarFrecuencia = it })
 
-            // 104. Despertares nocturnos
-            QuestionTitle("104. Despertares nocturnos")
-            ScaleQuestion(
-                value = viewModel.despertaresNocturnosFrecuencia,
-                onValueChange = { viewModel.despertaresNocturnosFrecuencia = it }
-            )
+            QuestionTitle("¿Te despiertas varias veces durante la noche?")
+            ScaleQuestion(value = viewModel.despertaresNocturnosFrecuencia, onValueChange = { viewModel.despertaresNocturnosFrecuencia = it })
 
-            // 105. Despertar temprano
-            QuestionTitle("105. Despertar muy temprano sin poder volver a dormir")
-            ScaleQuestion(
-                value = viewModel.despertarTempranoFrecuencia,
-                onValueChange = { viewModel.despertarTempranoFrecuencia = it }
-            )
+            QuestionTitle("¿Te despiertas muy temprano sin poder volver a dormir?")
+            ScaleQuestion(value = viewModel.despertarTempranoFrecuencia, onValueChange = { viewModel.despertarTempranoFrecuencia = it })
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // HIGIENE DEL SUEÑO
-            SectionHeader("Higiene del Sueño")
+            // ── Hábitos antes de dormir ───────────────────────────────────
+            SectionHeader("¿Qué haces antes de dormir?")
 
-            // 106. Dispositivos electrónicos
-            QuestionTitle("106. ¿Usas dispositivos electrónicos antes de dormir?")
+            QuestionTitle("¿Usas el celular, tablet o computadora justo antes de acostarte?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, hasta el momento de dormir",
-                    "Sí, pero dejo de usarlos 30 min antes",
-                    "Sí, pero dejo de usarlos 1 hora antes",
-                    "Sí, pero dejo de usarlos 2+ horas antes",
-                    "No los uso por la noche"
+                    "Sí, hasta que me duermo",
+                    "Sí, pero lo apago 30 minutos antes",
+                    "Sí, pero lo apago 1 hora antes",
+                    "Sí, pero lo apago 2 horas o más antes",
+                    "No uso pantallas por las noches"
                 ),
                 selectedOption = viewModel.usaDispositivosAntesDormir,
                 onOptionSelected = { viewModel.usaDispositivosAntesDormir = it }
             )
 
-            // 107. Pensar en trabajo
-            QuestionTitle("107. ¿Piensas en problemas del trabajo antes de dormir?")
+            QuestionTitle("¿Cuando te acuestas, tu mente sigue dando vueltas a temas del trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Siempre/Muy frecuentemente",
-                    "Frecuentemente",
+                    "Siempre o casi siempre",
+                    "Con frecuencia",
                     "A veces",
                     "Rara vez",
                     "Nunca"
@@ -296,13 +257,12 @@ fun HabitosSuenoQuestionnaireScreen(
                 onOptionSelected = { viewModel.piensaProblemasTrabajoAntesDormir = it }
             )
 
-            // 108. Revisar correos
-            QuestionTitle("108. ¿Revisas correos/mensajes de trabajo fuera del horario?")
+            QuestionTitle("¿Revisas correos o mensajes del trabajo fuera de tu horario laboral?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Sí, constantemente",
                     "Sí, varias veces al día",
-                    "Ocasionalmente",
+                    "De vez en cuando",
                     "Rara vez",
                     "Nunca"
                 ),
@@ -312,25 +272,15 @@ fun HabitosSuenoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = state !is QuestionnaireState.Loading && viewModel.isFormValid()
             ) {
                 if (state is QuestionnaireState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario")
                 }

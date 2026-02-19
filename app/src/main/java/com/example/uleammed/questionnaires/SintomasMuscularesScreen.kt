@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// ViewModel
+// ViewModel — sin cambios de lógica
 class SintomasMuscularesViewModel : ViewModel() {
     private val repository = AuthRepository()
 
@@ -73,15 +73,12 @@ class SintomasMuscularesViewModel : ViewModel() {
                 _state.value = QuestionnaireState.Error("Por favor completa todas las preguntas")
                 return@launch
             }
-
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if (userId == null) {
                 _state.value = QuestionnaireState.Error("Usuario no autenticado")
                 return@launch
             }
-
             _state.value = QuestionnaireState.Loading
-
             val questionnaire = SintomasMuscularesQuestionnaire(
                 userId = userId,
                 dolorCuelloFrecuencia = dolorCuelloFrecuencia,
@@ -114,19 +111,15 @@ class SintomasMuscularesViewModel : ViewModel() {
                 dolorImpidenActividades = dolorImpidenActividades,
                 haConsultadoMedico = haConsultadoMedico
             )
-
             val result = repository.saveSintomasMuscularesQuestionnaire(questionnaire)
-            result.onSuccess {
-                _state.value = QuestionnaireState.Success
-            }.onFailure { exception ->
-                _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
-            }
+            result.onSuccess { _state.value = QuestionnaireState.Success }
+                .onFailure { exception ->
+                    _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
+                }
         }
     }
 
-    fun resetState() {
-        _state.value = QuestionnaireState.Idle
-    }
+    fun resetState() { _state.value = QuestionnaireState.Idle }
 }
 
 // Screen
@@ -143,9 +136,7 @@ fun SintomasMuscularesQuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -162,9 +153,7 @@ fun SintomasMuscularesQuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -172,7 +161,7 @@ fun SintomasMuscularesQuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Síntomas Músculo-Esqueléticos") },
+                title = { Text("Dolores y molestias físicas") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -195,51 +184,28 @@ fun SintomasMuscularesQuestionnaireScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Evalúa la frecuencia e intensidad de síntomas en los últimos 3 meses. 18 preguntas, 6-8 minutos.",
+                        text = "Cuéntanos si has sentido dolores o molestias en el cuerpo relacionados con tu trabajo. Selecciona qué tan seguido ocurre y qué tan fuerte es.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Escalas
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Escalas de Valoración:",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Frecuencia: 0=Nunca, 1=Rara vez, 2=Ocasionalmente, 3=Frecuentemente, 4=Muy frecuentemente, 5=Constantemente",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Intensidad: 0=Sin dolor, 1=Muy leve, 2=Leve, 3=Moderado, 4=Severo, 5=Muy severo",
+                        text = "Escala:  0 = Nunca  ·  1 = Rara vez  ·  2 = A veces  ·  3 = Seguido  ·  4 = Muy seguido  ·  5 = Siempre",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -247,113 +213,64 @@ fun SintomasMuscularesQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // CUELLO Y HOMBROS
-            SectionHeader("Cuello y Hombros")
+            // ── Cuello ──────────────────────────────────────────────────
+            SectionHeader("Cuello")
 
-            // 34. Dolor en cuello
-            QuestionTitle("34. Dolor en cuello/nuca")
+            QuestionTitle("¿Con qué frecuencia te duele el cuello?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorCuelloFrecuencia,
-                onValueChange = { viewModel.dolorCuelloFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorCuelloIntensidad,
-                onValueChange = { viewModel.dolorCuelloIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorCuelloFrecuencia, onValueChange = { viewModel.dolorCuelloFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorCuelloIntensidad, onValueChange = { viewModel.dolorCuelloIntensidad = it })
 
-            // 35. Rigidez de cuello
-            QuestionTitle("35. Rigidez de cuello")
+            QuestionTitle("¿Sientes el cuello agarrotado o rígido?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.rigidezCuelloFrecuencia,
-                onValueChange = { viewModel.rigidezCuelloFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.rigidezCuelloIntensidad,
-                onValueChange = { viewModel.rigidezCuelloIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.rigidezCuelloFrecuencia, onValueChange = { viewModel.rigidezCuelloFrecuencia = it })
+            Text("¿Qué tan fuerte es esa rigidez?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.rigidezCuelloIntensidad, onValueChange = { viewModel.rigidezCuelloIntensidad = it })
 
-            // 36. Dolor en hombros
-            QuestionTitle("36. Dolor en hombros")
+            QuestionTitle("¿Con qué frecuencia te duelen los hombros?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorHombrosFrecuencia,
-                onValueChange = { viewModel.dolorHombrosFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorHombrosIntensidad,
-                onValueChange = { viewModel.dolorHombrosIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorHombrosFrecuencia, onValueChange = { viewModel.dolorHombrosFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorHombrosIntensidad, onValueChange = { viewModel.dolorHombrosIntensidad = it })
 
-            // 37. Dolor aumenta al final del día
-            QuestionTitle("37. ¿El dolor aumenta al final del día?")
+            QuestionTitle("¿El dolor de cuello u hombros empeora hacia el final del día?")
             SingleChoiceQuestion(
-                options = listOf(
-                    "Sí, significativamente",
-                    "Sí, un poco",
-                    "No cambia",
-                    "No aplica (no tengo dolor)"
-                ),
+                options = listOf("Sí, siempre empeora", "Sí, a veces", "No cambia", "No tengo ese dolor"),
                 selectedOption = viewModel.dolorAumentaFinDia,
                 onOptionSelected = { viewModel.dolorAumentaFinDia = it }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ESPALDA
+            // ── Espalda ─────────────────────────────────────────────────
             SectionHeader("Espalda")
 
-            // 38. Dolor espalda alta
-            QuestionTitle("38. Dolor en espalda alta (dorsal/entre omóplatos)")
+            QuestionTitle("¿Con qué frecuencia te duele la parte alta de la espalda (entre los omóplatos)?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorEspaldaAltaFrecuencia,
-                onValueChange = { viewModel.dolorEspaldaAltaFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorEspaldaAltaIntensidad,
-                onValueChange = { viewModel.dolorEspaldaAltaIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorEspaldaAltaFrecuencia, onValueChange = { viewModel.dolorEspaldaAltaFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorEspaldaAltaIntensidad, onValueChange = { viewModel.dolorEspaldaAltaIntensidad = it })
 
-            // 39. Dolor espalda baja
-            QuestionTitle("39. Dolor en espalda baja (lumbar)")
+            QuestionTitle("¿Con qué frecuencia te duele la parte baja de la espalda (zona lumbar)?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorEspaldaBajaFrecuencia,
-                onValueChange = { viewModel.dolorEspaldaBajaFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorEspaldaBajaIntensidad,
-                onValueChange = { viewModel.dolorEspaldaBajaIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorEspaldaBajaFrecuencia, onValueChange = { viewModel.dolorEspaldaBajaFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorEspaldaBajaIntensidad, onValueChange = { viewModel.dolorEspaldaBajaIntensidad = it })
 
-            // 40. Rigidez al despertar
-            QuestionTitle("40. Rigidez muscular en espalda al despertar")
+            QuestionTitle("¿Al despertar, sientes la espalda rígida o entumecida?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.rigidezEspaldaMañanaFrecuencia,
-                onValueChange = { viewModel.rigidezEspaldaMañanaFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.rigidezEspaldaMañanaIntensidad,
-                onValueChange = { viewModel.rigidezEspaldaMañanaIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.rigidezEspaldaMañanaFrecuencia, onValueChange = { viewModel.rigidezEspaldaMañanaFrecuencia = it })
+            Text("¿Qué tan fuerte es esa rigidez?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.rigidezEspaldaMañanaIntensidad, onValueChange = { viewModel.rigidezEspaldaMañanaIntensidad = it })
 
-            // 41. Dolor con movimiento
-            QuestionTitle("41. ¿El dolor mejora con movimiento o empeora?")
+            QuestionTitle("Cuando te mueves o cambias de posición, ¿el dolor de espalda...?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Mejora con movimiento",
-                    "Empeora con movimiento",
+                    "Mejora con el movimiento",
+                    "Empeora con el movimiento",
                     "No cambia",
-                    "No tengo dolor"
+                    "No tengo dolor de espalda"
                 ),
                 selectedOption = viewModel.dolorConMovimiento,
                 onOptionSelected = { viewModel.dolorConMovimiento = it }
@@ -361,109 +278,68 @@ fun SintomasMuscularesQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // BRAZOS Y MANOS
-            SectionHeader("Brazos y Manos")
+            // ── Brazos y manos ───────────────────────────────────────────
+            SectionHeader("Brazos y manos")
 
-            // 42. Dolor muñecas
-            QuestionTitle("42. Dolor en muñecas")
+            QuestionTitle("¿Con qué frecuencia te duelen las muñecas?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorMunecasFrecuencia,
-                onValueChange = { viewModel.dolorMunecasFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorMunecasIntensidad,
-                onValueChange = { viewModel.dolorMunecasIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorMunecasFrecuencia, onValueChange = { viewModel.dolorMunecasFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorMunecasIntensidad, onValueChange = { viewModel.dolorMunecasIntensidad = it })
 
-            // 43. Dolor manos
-            QuestionTitle("43. Dolor en manos/dedos")
+            QuestionTitle("¿Con qué frecuencia te duelen las manos o los dedos?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorManosFrecuencia,
-                onValueChange = { viewModel.dolorManosFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorManosIntensidad,
-                onValueChange = { viewModel.dolorManosIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorManosFrecuencia, onValueChange = { viewModel.dolorManosFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorManosIntensidad, onValueChange = { viewModel.dolorManosIntensidad = it })
 
-            // 44. Hormigueo
-            QuestionTitle("44. Hormigueo o entumecimiento en manos")
+            QuestionTitle("¿Sientes hormigueo o adormecimiento en las manos?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.hormigueoManosFrecuencia,
-                onValueChange = { viewModel.hormigueoManosFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.hormigueoManosIntensidad,
-                onValueChange = { viewModel.hormigueoManosIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.hormigueoManosFrecuencia, onValueChange = { viewModel.hormigueoManosFrecuencia = it })
+            Text("¿Qué tan molesto es?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.hormigueoManosIntensidad, onValueChange = { viewModel.hormigueoManosIntensidad = it })
 
-            // 45. Hormigueo por la noche
-            QuestionTitle("45. ¿El hormigueo se presenta más por la noche?")
+            QuestionTitle("¿Ese hormigueo aparece o empeora por las noches?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, me despierta",
-                    "Sí, ocasionalmente",
-                    "No",
+                    "Sí, me despierta por las noches",
+                    "Sí, a veces de noche",
+                    "No, solo de día",
                     "No tengo hormigueo"
                 ),
                 selectedOption = viewModel.hormigueoPorNoche,
                 onOptionSelected = { viewModel.hormigueoPorNoche = it }
             )
 
-            // 46. Dolor codos
-            QuestionTitle("46. Dolor en codos")
+            QuestionTitle("¿Con qué frecuencia te duelen los codos?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorCodosFrecuencia,
-                onValueChange = { viewModel.dolorCodosFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorCodosIntensidad,
-                onValueChange = { viewModel.dolorCodosIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorCodosFrecuencia, onValueChange = { viewModel.dolorCodosFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorCodosIntensidad, onValueChange = { viewModel.dolorCodosIntensidad = it })
 
-            // 47. Debilidad
-            QuestionTitle("47. Debilidad al agarrar objetos")
-            Text("Frecuencia (0-5):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.debilidadAgarrar,
-                onValueChange = { viewModel.debilidadAgarrar = it }
-            )
+            QuestionTitle("¿Sientes que te cuesta fuerza agarrar objetos?")
+            Text("Frecuencia (0 = nunca  ·  5 = siempre):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.debilidadAgarrar, onValueChange = { viewModel.debilidadAgarrar = it })
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // DOLOR DE CABEZA
-            SectionHeader("Dolor de Cabeza")
+            // ── Cabeza ───────────────────────────────────────────────────
+            SectionHeader("Dolores de cabeza")
 
-            // 48. Dolor de cabeza
-            QuestionTitle("48. Dolor de cabeza tensional")
+            QuestionTitle("¿Con qué frecuencia sientes dolor de cabeza por tensión?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorCabezaFrecuencia,
-                onValueChange = { viewModel.dolorCabezaFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dolorCabezaIntensidad,
-                onValueChange = { viewModel.dolorCabezaIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.dolorCabezaFrecuencia, onValueChange = { viewModel.dolorCabezaFrecuencia = it })
+            Text("¿Qué tan fuerte es ese dolor?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.dolorCabezaIntensidad, onValueChange = { viewModel.dolorCabezaIntensidad = it })
 
-            // 49. Momento del dolor
-            QuestionTitle("49. ¿En qué momento del día aparece más el dolor de cabeza?")
+            QuestionTitle("¿En qué momento del día te aparece más el dolor de cabeza?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Por la mañana",
-                    "A media tarde",
-                    "Al final del día",
-                    "Sin patrón específico",
-                    "No tengo dolor de cabeza"
+                    "A media mañana o al mediodía",
+                    "Al final del día o la tarde",
+                    "No tiene un momento fijo",
+                    "No tengo dolores de cabeza"
                 ),
                 selectedOption = viewModel.momentoDolorCabeza,
                 onOptionSelected = { viewModel.momentoDolorCabeza = it }
@@ -471,29 +347,27 @@ fun SintomasMuscularesQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // IMPACTO FUNCIONAL
-            SectionHeader("Impacto Funcional")
+            // ── Impacto en el día a día ───────────────────────────────────
+            SectionHeader("¿Cómo te afectan estos dolores?")
 
-            // 50. Impiden actividades
-            QuestionTitle("50. ¿Algún dolor te ha impedido realizar actividades cotidianas?")
+            QuestionTitle("¿Alguno de estos dolores te ha impedido hacer actividades del día a día?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, frecuentemente",
-                    "Sí, ocasionalmente",
+                    "Sí, con frecuencia no puedo hacer cosas normales",
+                    "Sí, de vez en cuando",
                     "Rara vez",
-                    "Nunca"
+                    "No, nunca me han limitado"
                 ),
                 selectedOption = viewModel.dolorImpidenActividades,
                 onOptionSelected = { viewModel.dolorImpidenActividades = it }
             )
 
-            // 51. Consulta médica
-            QuestionTitle("51. ¿Has consultado a un médico por estos dolores?")
+            QuestionTitle("¿Has ido al médico por alguno de estos dolores?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, y estoy en tratamiento",
-                    "Sí, pero no continué tratamiento",
-                    "No, pero debería",
+                    "Sí, y sigo en tratamiento",
+                    "Sí, pero no continué el tratamiento",
+                    "No, pero creo que debería ir",
                     "No, no lo considero necesario"
                 ),
                 selectedOption = viewModel.haConsultadoMedico,
@@ -502,25 +376,15 @@ fun SintomasMuscularesQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = state !is QuestionnaireState.Loading && viewModel.isFormValid()
             ) {
                 if (state is QuestionnaireState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario")
                 }

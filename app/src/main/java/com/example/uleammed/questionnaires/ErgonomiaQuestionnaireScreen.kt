@@ -9,19 +9,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.uleammed.auth.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.example.uleammed.auth.AuthRepository
 
-// ViewModel
+// ViewModel — sin cambios de lógica
 class ErgonomiaViewModel : ViewModel() {
     private val repository = AuthRepository()
 
@@ -80,15 +79,12 @@ class ErgonomiaViewModel : ViewModel() {
                 _state.value = QuestionnaireState.Error("Por favor completa todas las preguntas")
                 return@launch
             }
-
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if (userId == null) {
                 _state.value = QuestionnaireState.Error("Usuario no autenticado")
                 return@launch
             }
-
             _state.value = QuestionnaireState.Loading
-
             val questionnaire = ErgonomiaQuestionnaire(
                 userId = userId,
                 tipoSilla = tipoSilla,
@@ -113,7 +109,6 @@ class ErgonomiaViewModel : ViewModel() {
                 realizaEstiramientos = realizaEstiramientos,
                 tiempoSentadoContinuo = tiempoSentadoContinuo
             )
-
             val result = repository.saveErgonomiaQuestionnaire(questionnaire)
             result.onSuccess {
                 _state.value = QuestionnaireState.Success
@@ -142,9 +137,7 @@ fun ErgonomiaQuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -161,9 +154,7 @@ fun ErgonomiaQuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -192,25 +183,15 @@ fun ErgonomiaQuestionnaireScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Información
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Evalúa tu espacio de trabajo, mobiliario y condiciones ambientales. 22 preguntas, 8-10 minutos.",
+                        text = "Cuéntanos cómo está organizado tu puesto de trabajo: muebles, pantalla y condiciones del ambiente. 22 preguntas, 8-10 minutos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -219,53 +200,49 @@ fun ErgonomiaQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // SECCIÓN 1: Mobiliario
-            SectionHeader("Mobiliario y Equipamiento")
+            // ── SECCIÓN 1: Silla y escritorio ──────────────────────────────
+            SectionHeader("Tu silla y escritorio")
 
-            // 13. Tipo de silla
-            QuestionTitle("13. Tipo de silla que utilizas")
+            QuestionTitle("¿Qué tipo de silla usas para trabajar?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Silla ergonómica ajustable (altura, respaldo, apoyabrazos)",
+                    "Silla ergonómica con ajuste de altura, respaldo y apoyabrazos",
                     "Silla con ajuste de altura y respaldo",
-                    "Silla con ajuste de altura solamente",
-                    "Silla básica sin ajustes",
-                    "Silla inadecuada (comedor, cocina, etc.)"
+                    "Silla solo con ajuste de altura",
+                    "Silla básica sin ningún ajuste",
+                    "Silla inapropiada (comedor, taburete, etc.)"
                 ),
                 selectedOption = viewModel.tipoSilla,
                 onOptionSelected = { viewModel.tipoSilla = it }
             )
 
-            // 14. Soporte lumbar
-            QuestionTitle("14. ¿Tu silla tiene soporte lumbar?")
+            QuestionTitle("¿Tu silla tiene un apoyo para la parte baja de la espalda (zona lumbar)?")
             SingleChoiceQuestion(
-                options = listOf("Sí, ajustable", "Sí, fijo", "No tiene"),
+                options = listOf("Sí, y se puede ajustar", "Sí, pero es fijo", "No tiene"),
                 selectedOption = viewModel.soporteLumbar,
                 onOptionSelected = { viewModel.soporteLumbar = it }
             )
 
-            // 15. Altura del escritorio
-            QuestionTitle("15. Altura del escritorio/mesa")
+            QuestionTitle("¿Cómo es la altura de tu escritorio o mesa de trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Altura ajustable",
-                    "Altura adecuada para mi estatura",
-                    "Muy alto",
-                    "Muy bajo",
-                    "No tengo escritorio dedicado"
+                    "Se puede ajustar",
+                    "Está a buena altura para mí",
+                    "Está demasiado alto",
+                    "Está demasiado bajo",
+                    "No tengo un escritorio fijo"
                 ),
                 selectedOption = viewModel.alturaEscritorio,
                 onOptionSelected = { viewModel.alturaEscritorio = it }
             )
 
-            // 16. Espacio en escritorio
-            QuestionTitle("16. Espacio en el escritorio")
+            QuestionTitle("¿Tienes suficiente espacio en tu escritorio para trabajar cómodamente?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Amplio (puedo extender brazos)",
-                    "Adecuado",
-                    "Limitado",
-                    "Muy reducido"
+                    "Sí, tengo mucho espacio",
+                    "Sí, espacio suficiente",
+                    "Poco espacio",
+                    "Muy poco, me resulta incómodo"
                 ),
                 selectedOption = viewModel.espacioEscritorio,
                 onOptionSelected = { viewModel.espacioEscritorio = it }
@@ -273,101 +250,90 @@ fun ErgonomiaQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SECCIÓN 2: Configuración del Monitor
-            SectionHeader("Configuración del Monitor")
+            // ── SECCIÓN 2: Pantalla ────────────────────────────────────────
+            SectionHeader("Tu pantalla (monitor)")
 
-            // 17. Tipo de monitor
-            QuestionTitle("17. Tipo de monitor principal")
+            QuestionTitle("¿Qué pantalla usas principalmente para trabajar?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Monitor externo de escritorio (19\" o más)",
+                    "Monitor de escritorio externo (19\" o más)",
                     "Laptop con monitor externo adicional",
-                    "Solo laptop (con soporte elevado)",
-                    "Solo laptop (sin soporte)",
-                    "Tablet/iPad"
+                    "Solo laptop elevada con soporte",
+                    "Solo laptop sin soporte",
+                    "Tablet o iPad"
                 ),
                 selectedOption = viewModel.tipoMonitor,
                 onOptionSelected = { viewModel.tipoMonitor = it }
             )
 
-            // 18. Altura del monitor
-            QuestionTitle("18. Altura del monitor respecto a tus ojos")
+            QuestionTitle("¿A qué altura está tu pantalla en relación con tus ojos?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "A la altura de los ojos (correcto)",
-                    "10-15cm por debajo de los ojos (correcto)",
+                    "A la altura de los ojos",
+                    "Un poco por debajo de los ojos (correcto)",
                     "Por encima de los ojos",
-                    "Más de 15cm por debajo de los ojos",
-                    "Varía constantemente"
+                    "Mucho más abajo de los ojos",
+                    "Cambia constantemente"
                 ),
                 selectedOption = viewModel.alturaMonitor,
                 onOptionSelected = { viewModel.alturaMonitor = it }
             )
 
-            // 19. Distancia del monitor
-            QuestionTitle("19. Distancia del monitor a tus ojos")
+            QuestionTitle("¿A qué distancia está tu pantalla de tus ojos?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "50-70 cm (longitud de brazo) - correcto",
+                    "Entre 50 y 70 cm (la longitud de un brazo extendido) — lo ideal",
                     "Menos de 50 cm (muy cerca)",
                     "Más de 70 cm (muy lejos)",
-                    "No sé/No lo he medido"
+                    "No lo sé / no lo he medido"
                 ),
                 selectedOption = viewModel.distanciaMonitor,
                 onOptionSelected = { viewModel.distanciaMonitor = it }
             )
 
-            // 20. Múltiples monitores
-            QuestionTitle("20. ¿Usas más de un monitor?")
+            QuestionTitle("¿Trabajas con más de una pantalla a la vez?")
             SingleChoiceQuestion(
-                options = listOf(
-                    "No, solo uno",
-                    "Sí, dos monitores",
-                    "Sí, tres o más"
-                ),
+                options = listOf("No, solo una", "Sí, dos pantallas", "Sí, tres o más"),
                 selectedOption = viewModel.usaMasDeUnMonitor,
                 onOptionSelected = { viewModel.usaMasDeUnMonitor = it }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SECCIÓN 3: Teclado y Mouse
-            SectionHeader("Teclado y Mouse")
+            // ── SECCIÓN 3: Teclado y mouse ────────────────────────────────
+            SectionHeader("Teclado y mouse")
 
-            // 21. Posición del teclado
-            QuestionTitle("21. Posición del teclado respecto a tus codos")
+            QuestionTitle("Cuando escribes, ¿el teclado está a la altura de tus codos?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "A la altura de los codos (codos en 90°)",
-                    "Por encima de los codos",
-                    "Por debajo de los codos",
-                    "Varía constantemente"
+                    "Sí, a la altura de los codos (codos doblados en 90°)",
+                    "Más alto que los codos",
+                    "Más bajo que los codos",
+                    "Varía todo el tiempo"
                 ),
                 selectedOption = viewModel.posicionTeclado,
                 onOptionSelected = { viewModel.posicionTeclado = it }
             )
 
-            // 22. Tipo de mouse
-            QuestionTitle("22. Tipo de mouse")
+            QuestionTitle("¿Qué tipo de mouse usas?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Mouse ergonómico vertical",
                     "Mouse estándar",
-                    "Trackpad de laptop",
+                    "Trackpad de la laptop",
                     "Mouse inalámbrico estándar"
                 ),
                 selectedOption = viewModel.tipoMouse,
                 onOptionSelected = { viewModel.tipoMouse = it }
             )
 
-            // 23. Almohadilla
-            QuestionTitle("23. ¿Usas almohadilla de apoyo para muñeca?")
+            QuestionTitle("¿Usas algún apoyo o cojín bajo las muñecas al escribir o usar el mouse?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Sí, para teclado y mouse",
-                    "Sí, solo para mouse",
-                    "Sí, solo para teclado",
-                    "No uso"
+                    "Sí, solo para el mouse",
+                    "Sí, solo para el teclado",
+                    "No uso ningún apoyo"
                 ),
                 selectedOption = viewModel.usaAlmohadilla,
                 onOptionSelected = { viewModel.usaAlmohadilla = it }
@@ -375,69 +341,68 @@ fun ErgonomiaQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SECCIÓN 4: Iluminación
-            SectionHeader("Iluminación y Ambiente")
+            // ── SECCIÓN 4: Ambiente ───────────────────────────────────────
+            SectionHeader("Luz, temperatura y ruido")
 
-            // 24. Iluminación principal
-            QuestionTitle("24. Iluminación principal del espacio")
+            QuestionTitle("¿Cómo es la iluminación en el lugar donde trabajas?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Luz natural abundante (ventana grande)",
-                    "Luz natural moderada",
-                    "Luz artificial (LED blanco/neutro)",
-                    "Luz artificial (amarilla/cálida)",
-                    "Mezcla de natural y artificial",
-                    "Insuficiente/Tenue"
+                    "Mucha luz natural (ventana grande)",
+                    "Algo de luz natural",
+                    "Luz artificial blanca o neutra",
+                    "Luz artificial amarilla o cálida",
+                    "Mezcla de luz natural y artificial",
+                    "Poca luz, está oscuro"
                 ),
                 selectedOption = viewModel.iluminacionPrincipal,
                 onOptionSelected = { viewModel.iluminacionPrincipal = it }
             )
 
-            // 25. Reflejos
-            QuestionTitle("25. ¿Hay reflejos en tu pantalla?")
+            QuestionTitle("¿Ves reflejos o brillos molestos en tu pantalla?")
             SingleChoiceQuestion(
-                options = listOf("Nunca", "Ocasionalmente", "Frecuentemente", "Constantemente"),
+                options = listOf("Nunca", "De vez en cuando", "Con frecuencia", "Siempre"),
                 selectedOption = viewModel.reflejosPantalla,
                 onOptionSelected = { viewModel.reflejosPantalla = it }
             )
 
-            // 26. Lámpara de escritorio
-            QuestionTitle("26. ¿Usas lámpara de escritorio adicional?")
+            QuestionTitle("¿Tienes una lámpara extra en tu escritorio?")
             SingleChoiceQuestion(
-                options = listOf("Sí, ajustable", "Sí, fija", "No"),
+                options = listOf("Sí, con ajuste de dirección", "Sí, fija", "No"),
                 selectedOption = viewModel.lamparaEscritorio,
                 onOptionSelected = { viewModel.lamparaEscritorio = it }
             )
 
-            // 27. Temperatura
-            QuestionTitle("27. Temperatura del espacio de trabajo")
+            QuestionTitle("¿Cómo es la temperatura donde trabajas?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Confortable",
-                    "Frío frecuentemente",
-                    "Calor frecuentemente",
-                    "Varía mucho"
+                    "Cómoda la mayor parte del tiempo",
+                    "Suele estar frío",
+                    "Suele hacer calor",
+                    "Cambia mucho"
                 ),
                 selectedOption = viewModel.temperatura,
                 onOptionSelected = { viewModel.temperatura = it }
             )
 
-            // 28. Ruido
-            QuestionTitle("28. Nivel de ruido")
+            QuestionTitle("¿Cuánto ruido hay en tu espacio de trabajo?")
             SingleChoiceQuestion(
-                options = listOf("Silencioso", "Ruido moderado", "Ruidoso", "Muy ruidoso"),
+                options = listOf(
+                    "Silencioso",
+                    "Algo de ruido, pero soportable",
+                    "Bastante ruidoso",
+                    "Muy ruidoso, me distrae"
+                ),
                 selectedOption = viewModel.nivelRuido,
                 onOptionSelected = { viewModel.nivelRuido = it }
             )
 
-            // 29. Ventilación
-            QuestionTitle("29. Ventilación del espacio")
+            QuestionTitle("¿Cómo es el aire en tu lugar de trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Excelente (aire fresco)",
-                    "Buena",
-                    "Regular (algo cargado)",
-                    "Mala (aire viciado)"
+                    "Muy fresco, con buena ventilación",
+                    "Buena ventilación",
+                    "Regular, a veces el aire se siente pesado",
+                    "Malo, el aire está viciado"
                 ),
                 selectedOption = viewModel.ventilacion,
                 onOptionSelected = { viewModel.ventilacion = it }
@@ -445,29 +410,27 @@ fun ErgonomiaQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SECCIÓN 5: Pausas
-            SectionHeader("Pausas y Movimiento")
+            // ── SECCIÓN 5: Pausas ────────────────────────────────────────
+            SectionHeader("Pausas y movimiento")
 
-            // 30. Pausas activas
-            QuestionTitle("30. ¿Realizas pausas activas durante tu jornada?")
+            QuestionTitle("¿Con qué frecuencia te levantas o cambias de posición durante tu jornada?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, cada 30-60 minutos",
-                    "Sí, cada 1-2 horas",
-                    "Sí, cada 3-4 horas",
+                    "Cada 30 a 60 minutos",
+                    "Cada 1 o 2 horas",
+                    "Cada 3 o 4 horas",
                     "Solo cuando voy al baño",
-                    "Nunca/Muy rara vez"
+                    "Casi nunca me levanto"
                 ),
                 selectedOption = viewModel.pausasActivas,
                 onOptionSelected = { viewModel.pausasActivas = it }
             )
 
-            // 31. Duración pausas
-            QuestionTitle("31. Duración típica de las pausas")
+            QuestionTitle("Cuando haces una pausa, ¿cuánto tiempo suele durar?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "5-10 minutos",
-                    "2-5 minutos",
+                    "Entre 5 y 10 minutos",
+                    "Entre 2 y 5 minutos",
                     "Menos de 2 minutos",
                     "No hago pausas"
                 ),
@@ -475,21 +438,19 @@ fun ErgonomiaQuestionnaireScreen(
                 onOptionSelected = { viewModel.duracionPausas = it }
             )
 
-            // 32. Estiramientos
-            QuestionTitle("32. Durante las pausas, ¿realizas estiramientos?")
+            QuestionTitle("Durante las pausas, ¿haces estiramientos o ejercicios cortos?")
             SingleChoiceQuestion(
                 options = listOf("Sí, siempre", "A veces", "Rara vez", "Nunca"),
                 selectedOption = viewModel.realizaEstiramientos,
                 onOptionSelected = { viewModel.realizaEstiramientos = it }
             )
 
-            // 33. Tiempo sentado
-            QuestionTitle("33. Tiempo promedio continuo sentado sin levantarte")
+            QuestionTitle("¿Cuánto tiempo seguido puedes estar sentado sin levantarte?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Menos de 1 hora",
-                    "1-2 horas",
-                    "2-3 horas",
+                    "Entre 1 y 2 horas",
+                    "Entre 2 y 3 horas",
                     "Más de 3 horas"
                 ),
                 selectedOption = viewModel.tiempoSentadoContinuo,
@@ -498,25 +459,15 @@ fun ErgonomiaQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = state !is QuestionnaireState.Loading && viewModel.isFormValid()
             ) {
                 if (state is QuestionnaireState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario")
                 }

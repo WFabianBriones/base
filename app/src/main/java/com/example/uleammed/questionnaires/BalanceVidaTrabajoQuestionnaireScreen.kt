@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// ViewModel
+// ViewModel — sin cambios de lógica
 class BalanceVidaTrabajoViewModel : ViewModel() {
     private val repository = AuthRepository()
 
@@ -53,15 +53,12 @@ class BalanceVidaTrabajoViewModel : ViewModel() {
                 _state.value = QuestionnaireState.Error("Por favor completa todas las preguntas")
                 return@launch
             }
-
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if (userId == null) {
                 _state.value = QuestionnaireState.Error("Usuario no autenticado")
                 return@launch
             }
-
             _state.value = QuestionnaireState.Loading
-
             val questionnaire = BalanceVidaTrabajoQuestionnaire(
                 userId = userId,
                 equilibrioTrabajoVida = equilibrioTrabajoVida,
@@ -73,19 +70,15 @@ class BalanceVidaTrabajoViewModel : ViewModel() {
                 revisaCorreosVacaciones = revisaCorreosVacaciones,
                 ultimasVacaciones = ultimasVacaciones
             )
-
             val result = repository.saveBalanceVidaTrabajoQuestionnaire(questionnaire)
-            result.onSuccess {
-                _state.value = QuestionnaireState.Success
-            }.onFailure { exception ->
-                _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
-            }
+            result.onSuccess { _state.value = QuestionnaireState.Success }
+                .onFailure { exception ->
+                    _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
+                }
         }
     }
 
-    fun resetState() {
-        _state.value = QuestionnaireState.Idle
-    }
+    fun resetState() { _state.value = QuestionnaireState.Idle }
 }
 
 // Screen
@@ -102,9 +95,7 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -121,9 +112,7 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -131,7 +120,7 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Balance Vida-Trabajo") },
+                title = { Text("Trabajo y vida personal") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -154,22 +143,13 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Evalúa el equilibrio entre tu vida personal y profesional. 8 preguntas, 3-4 minutos.",
+                        text = "Cuéntanos si sientes que el trabajo te deja tiempo y energía para disfrutar tu vida personal. 8 preguntas, 3-4 minutos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -178,46 +158,43 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // EQUILIBRIO PERSONAL
-            SectionHeader("Equilibrio Personal")
+            // ── Equilibrio personal ───────────────────────────────────────
+            SectionHeader("¿Cómo está tu equilibrio?")
 
-            // 133. Equilibrio vida-trabajo
-            QuestionTitle("133. ¿Sientes que tienes un buen equilibrio entre trabajo y vida personal?")
+            QuestionTitle("¿Sientes que tienes un buen balance entre el trabajo y tu vida personal?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Sí, excelente balance",
                     "Sí, buen balance",
-                    "Parcialmente equilibrado",
-                    "Más trabajo que vida personal",
-                    "El trabajo domina completamente mi vida"
+                    "Más o menos equilibrado",
+                    "El trabajo me quita más tiempo del que quisiera",
+                    "El trabajo domina por completo mi vida"
                 ),
                 selectedOption = viewModel.equilibrioTrabajoVida,
                 onOptionSelected = { viewModel.equilibrioTrabajoVida = it }
             )
 
-            // 134. Tiempo libre
-            QuestionTitle("134. Tiempo libre de calidad por semana (sin pensar en trabajo)")
+            QuestionTitle("¿Cuánto tiempo libre de calidad tienes a la semana, sin pensar en el trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Más de 20 horas",
-                    "15-20 horas",
-                    "10-15 horas",
-                    "5-10 horas",
+                    "Entre 15 y 20 horas",
+                    "Entre 10 y 15 horas",
+                    "Entre 5 y 10 horas",
                     "Menos de 5 horas"
                 ),
                 selectedOption = viewModel.tiempoLibreCalidad,
                 onOptionSelected = { viewModel.tiempoLibreCalidad = it }
             )
 
-            // 135. Actividades recreativas
-            QuestionTitle("135. ¿Realizas actividades recreativas/hobbies regularmente?")
+            QuestionTitle("¿Tienes tiempo para pasatiempos o actividades que disfrutes?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, varias veces por semana",
-                    "Sí, una vez por semana",
-                    "Ocasionalmente (1-2 veces al mes)",
+                    "Sí, varias veces a la semana",
+                    "Sí, una vez a la semana",
+                    "De vez en cuando (1 o 2 veces al mes)",
                     "Rara vez",
-                    "Nunca, no tengo tiempo"
+                    "No, no tengo tiempo para nada"
                 ),
                 selectedOption = viewModel.actividadesRecreativas,
                 onOptionSelected = { viewModel.actividadesRecreativas = it }
@@ -225,30 +202,28 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // RELACIONES PERSONALES
-            SectionHeader("Relaciones Personales")
+            // ── Relaciones personales ─────────────────────────────────────
+            SectionHeader("Familia y amigos")
 
-            // 136. Afecta relaciones
-            QuestionTitle("136. ¿Tu trabajo afecta negativamente tus relaciones personales/familiares?")
+            QuestionTitle("¿El trabajo afecta negativamente tus relaciones con tu familia o amigos?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No, para nada",
                     "Un poco",
                     "Moderadamente",
                     "Bastante",
-                    "Severamente"
+                    "Mucho, ha afectado mis relaciones seriamente"
                 ),
                 selectedOption = viewModel.trabajoAfectaRelaciones,
                 onOptionSelected = { viewModel.trabajoAfectaRelaciones = it }
             )
 
-            // 137. Tiempo con familia/amigos
-            QuestionTitle("137. Tiempo de calidad con familia/amigos por semana")
+            QuestionTitle("¿Cuánto tiempo de calidad pasas con tu familia o amigos a la semana?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Más de 10 horas",
-                    "5-10 horas",
-                    "2-5 horas",
+                    "Entre 5 y 10 horas",
+                    "Entre 2 y 5 horas",
                     "Menos de 2 horas",
                     "Casi ninguno"
                 ),
@@ -258,47 +233,44 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // DESCONEXIÓN LABORAL
-            SectionHeader("Desconexión Laboral")
+            // ── Desconexión del trabajo ────────────────────────────────────
+            SectionHeader("¿Puedes desconectarte del trabajo?")
 
-            // 138. Desconectar días libres
-            QuestionTitle("138. ¿Puedes desconectarte completamente del trabajo en tus días libres?")
+            QuestionTitle("En tus días libres, ¿logras desconectarte completamente del trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, completamente",
-                    "Mayormente sí",
-                    "Con dificultad",
-                    "Rara vez",
-                    "Nunca puedo desconectar"
+                    "Sí, sin problema",
+                    "Sí, la mayor parte del tiempo",
+                    "Me cuesta, pero a veces lo logro",
+                    "Rara vez lo consigo",
+                    "Nunca puedo desconectarme"
                 ),
                 selectedOption = viewModel.puedeDesconectarseDiasLibres,
                 onOptionSelected = { viewModel.puedeDesconectarseDiasLibres = it }
             )
 
-            // 139. Correos en vacaciones
-            QuestionTitle("139. ¿Revisas correos/mensajes de trabajo en vacaciones?")
+            QuestionTitle("Cuando estás de vacaciones, ¿revisas correos o mensajes del trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No tomo vacaciones",
-                    "Nunca",
+                    "Nunca, me desconecto totalmente",
                     "Rara vez",
-                    "Ocasionalmente",
-                    "Frecuentemente",
-                    "Constantemente"
+                    "De vez en cuando",
+                    "Con frecuencia",
+                    "Constantemente, casi como si trabajara"
                 ),
                 selectedOption = viewModel.revisaCorreosVacaciones,
                 onOptionSelected = { viewModel.revisaCorreosVacaciones = it }
             )
 
-            // 140. Últimas vacaciones
-            QuestionTitle("140. Última vez que tomaste vacaciones completas (sin pensar en trabajo)")
+            QuestionTitle("¿Cuándo fue la última vez que tomaste vacaciones sin pensar en el trabajo?")
             SingleChoiceQuestion(
                 options = listOf(
                     "En los últimos 6 meses",
-                    "Hace 6-12 meses",
-                    "Hace 1-2 años",
+                    "Hace entre 6 y 12 meses",
+                    "Hace entre 1 y 2 años",
                     "Hace más de 2 años",
-                    "Nunca/No recuerdo"
+                    "Nunca o no lo recuerdo"
                 ),
                 selectedOption = viewModel.ultimasVacaciones,
                 onOptionSelected = { viewModel.ultimasVacaciones = it }
@@ -306,25 +278,15 @@ fun BalanceVidaTrabajoQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = state !is QuestionnaireState.Loading && viewModel.isFormValid()
             ) {
                 if (state is QuestionnaireState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario")
                 }

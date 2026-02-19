@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// ViewModel
+// ViewModel — sin cambios de lógica
 class SintomasVisualesViewModel : ViewModel() {
     private val repository = AuthRepository()
 
@@ -60,15 +60,12 @@ class SintomasVisualesViewModel : ViewModel() {
                 _state.value = QuestionnaireState.Error("Por favor completa todas las preguntas")
                 return@launch
             }
-
             val userId = FirebaseAuth.getInstance().currentUser?.uid
             if (userId == null) {
                 _state.value = QuestionnaireState.Error("Usuario no autenticado")
                 return@launch
             }
-
             _state.value = QuestionnaireState.Loading
-
             val questionnaire = SintomasVisualesQuestionnaire(
                 userId = userId,
                 ojosSecosFrecuencia = ojosSecosFrecuencia,
@@ -88,19 +85,15 @@ class SintomasVisualesViewModel : ViewModel() {
                 aplicaRegla202020 = aplicaRegla202020,
                 brilloPantalla = brilloPantalla
             )
-
             val result = repository.saveSintomasVisualesQuestionnaire(questionnaire)
-            result.onSuccess {
-                _state.value = QuestionnaireState.Success
-            }.onFailure { exception ->
-                _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
-            }
+            result.onSuccess { _state.value = QuestionnaireState.Success }
+                .onFailure { exception ->
+                    _state.value = QuestionnaireState.Error("Error al guardar: ${exception.message}")
+                }
         }
     }
 
-    fun resetState() {
-        _state.value = QuestionnaireState.Idle
-    }
+    fun resetState() { _state.value = QuestionnaireState.Idle }
 }
 
 // Screen
@@ -117,9 +110,7 @@ fun SintomasVisualesQuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -136,9 +127,7 @@ fun SintomasVisualesQuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -146,7 +135,7 @@ fun SintomasVisualesQuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Síntomas Visuales") },
+                title = { Text("Molestias en los ojos") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -169,39 +158,28 @@ fun SintomasVisualesQuestionnaireScreen(
         ) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Evalúa el síndrome visual informático y fatiga ocular. 14 preguntas, 4-5 minutos.",
+                        text = "Cuéntanos sobre molestias en los ojos o problemas para ver que puedas tener por el uso de pantallas. 16 preguntas, 5-7 minutos.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Escala: 0=Nunca, 1=Rara vez, 2=Ocasionalmente, 3=Frecuentemente, 4=Muy frecuentemente, 5=Constantemente",
+                        text = "Escala:  0 = Nunca  ·  1 = Rara vez  ·  2 = A veces  ·  3 = Seguido  ·  4 = Muy seguido  ·  5 = Siempre",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -209,109 +187,69 @@ fun SintomasVisualesQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // MOLESTIAS OCULARES
-            SectionHeader("Molestias Oculares")
+            // ── Molestias oculares ───────────────────────────────────────
+            SectionHeader("Molestias en los ojos")
 
-            // 52. Ojos secos
-            QuestionTitle("52. Ojos secos")
+            QuestionTitle("¿Sientes los ojos secos mientras trabajas?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.ojosSecosFrecuencia,
-                onValueChange = { viewModel.ojosSecosFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.ojosSecosIntensidad,
-                onValueChange = { viewModel.ojosSecosIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.ojosSecosFrecuencia, onValueChange = { viewModel.ojosSecosFrecuencia = it })
+            Text("¿Qué tan molesto es?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.ojosSecosIntensidad, onValueChange = { viewModel.ojosSecosIntensidad = it })
 
-            // 53. Ardor
-            QuestionTitle("53. Sensación de ardor en los ojos")
+            QuestionTitle("¿Sientes ardor o picazón en los ojos?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.ardorOjosFrecuencia,
-                onValueChange = { viewModel.ardorOjosFrecuencia = it }
-            )
-            Text("Intensidad:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.ardorOjosIntensidad,
-                onValueChange = { viewModel.ardorOjosIntensidad = it }
-            )
+            ScaleQuestion(value = viewModel.ardorOjosFrecuencia, onValueChange = { viewModel.ardorOjosFrecuencia = it })
+            Text("¿Qué tan molesto es?", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            ScaleQuestion(value = viewModel.ardorOjosIntensidad, onValueChange = { viewModel.ardorOjosIntensidad = it })
 
-            // 54. Ojos rojos
-            QuestionTitle("54. Ojos rojos/irritados")
+            QuestionTitle("¿Se te ponen los ojos rojos o irritados?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.ojosRojosFrecuencia,
-                onValueChange = { viewModel.ojosRojosFrecuencia = it }
-            )
+            ScaleQuestion(value = viewModel.ojosRojosFrecuencia, onValueChange = { viewModel.ojosRojosFrecuencia = it })
 
-            // 55. Lagrimeo
-            QuestionTitle("55. Lagrimeo excesivo")
+            QuestionTitle("¿Se te llenan los ojos de lágrimas sin querer?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.lagrimeoFrecuencia,
-                onValueChange = { viewModel.lagrimeoFrecuencia = it }
-            )
+            ScaleQuestion(value = viewModel.lagrimeoFrecuencia, onValueChange = { viewModel.lagrimeoFrecuencia = it })
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // PROBLEMAS VISUALES
-            SectionHeader("Problemas Visuales")
+            // ── Problemas para ver ────────────────────────────────────────
+            SectionHeader("Problemas para ver")
 
-            // 56. Visión borrosa
-            QuestionTitle("56. Visión borrosa temporal")
+            QuestionTitle("¿Se te nubla la vista por momentos?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.visionBorrosaFrecuencia,
-                onValueChange = { viewModel.visionBorrosaFrecuencia = it }
-            )
+            ScaleQuestion(value = viewModel.visionBorrosaFrecuencia, onValueChange = { viewModel.visionBorrosaFrecuencia = it })
 
-            // 57. Dificultad para enfocar
-            QuestionTitle("57. Dificultad para enfocar (cambiar entre distancias)")
+            QuestionTitle("¿Te cuesta enfocar cuando cambias la vista de la pantalla a algo lejano (o al revés)?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.dificultadEnfocarFrecuencia,
-                onValueChange = { viewModel.dificultadEnfocarFrecuencia = it }
-            )
+            ScaleQuestion(value = viewModel.dificultadEnfocarFrecuencia, onValueChange = { viewModel.dificultadEnfocarFrecuencia = it })
 
-            // 58. Sensibilidad a la luz
-            QuestionTitle("58. Sensibilidad a la luz (fotofobia)")
+            QuestionTitle("¿Te molesta mucho la luz (te encandila o irrita)?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.sensibilidadLuzFrecuencia,
-                onValueChange = { viewModel.sensibilidadLuzFrecuencia = it }
-            )
+            ScaleQuestion(value = viewModel.sensibilidadLuzFrecuencia, onValueChange = { viewModel.sensibilidadLuzFrecuencia = it })
 
-            // 59. Visión doble
-            QuestionTitle("59. Visión doble ocasional")
+            QuestionTitle("¿Ves doble de forma ocasional?")
             Text("Frecuencia:", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-            ScaleQuestion(
-                value = viewModel.visionDobleFrecuencia,
-                onValueChange = { viewModel.visionDobleFrecuencia = it }
-            )
+            ScaleQuestion(value = viewModel.visionDobleFrecuencia, onValueChange = { viewModel.visionDobleFrecuencia = it })
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // FATIGA VISUAL
-            SectionHeader("Fatiga Visual")
+            // ── Cansancio visual ─────────────────────────────────────────
+            SectionHeader("Cansancio visual")
 
-            // 60. Ojos cansados
-            QuestionTitle("60. ¿Sientes los ojos cansados al final del día?")
+            QuestionTitle("¿Sientes los ojos cansados o pesados al terminar el día?")
             SingleChoiceQuestion(
-                options = listOf("Siempre", "Frecuentemente", "A veces", "Nunca"),
+                options = listOf("Siempre", "Con frecuencia", "A veces", "Nunca"),
                 selectedOption = viewModel.ojosCansadosFinDia,
                 onOptionSelected = { viewModel.ojosCansadosFinDia = it }
             )
 
-            // 61. Esfuerzo para ver
-            QuestionTitle("61. ¿Necesitas hacer más esfuerzo para ver nítidamente?")
+            QuestionTitle("¿Tienes que esforzarte más de lo normal para ver con claridad?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, constantemente",
-                    "Sí, al final del día",
-                    "Ocasionalmente",
-                    "No"
+                    "Sí, todo el tiempo",
+                    "Sí, sobre todo al final del día",
+                    "De vez en cuando",
+                    "No, veo bien sin esfuerzo"
                 ),
                 selectedOption = viewModel.esfuerzoVerNitidamente,
                 onOptionSelected = { viewModel.esfuerzoVerNitidamente = it }
@@ -319,71 +257,55 @@ fun SintomasVisualesQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // CUIDADO VISUAL
-            SectionHeader("Cuidado Visual")
+            // ── Cuidado de la vista ───────────────────────────────────────
+            SectionHeader("Cuidado de la vista")
 
-            // 62. Uso de lentes
-            QuestionTitle("62. ¿Usas lentes?")
+            QuestionTitle("¿Usas lentes o gafas?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, graduados (miopía/hipermetropía/astigmatismo)",
-                    "Sí, para leer (presbicia)",
+                    "Sí, para ver de lejos o de cerca (graduados)",
+                    "Sí, solo para leer",
                     "Sí, con filtro de luz azul",
                     "Sí, lentes de contacto",
-                    "No uso"
+                    "No uso lentes"
                 ),
                 selectedOption = viewModel.usaLentes,
                 onOptionSelected = { viewModel.usaLentes = it }
             )
 
-            // 63. Último examen
-            QuestionTitle("63. ¿Cuándo fue tu último examen visual?")
+            QuestionTitle("¿Cuándo fue tu último examen de la vista?")
             SingleChoiceQuestion(
                 options = listOf(
                     "Hace menos de 6 meses",
-                    "Hace 6-12 meses",
-                    "Hace 1-2 años",
+                    "Hace entre 6 y 12 meses",
+                    "Hace entre 1 y 2 años",
                     "Hace más de 2 años",
-                    "Nunca"
+                    "Nunca me he hecho uno"
                 ),
                 selectedOption = viewModel.ultimoExamenVisual,
                 onOptionSelected = { viewModel.ultimoExamenVisual = it }
             )
 
-            // 64. Regla 20-20-20
-            QuestionTitle("64. ¿Aplicas la regla 20-20-20?")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-                )
-            ) {
-                Text(
-                    text = "Cada 20 minutos, mira a 20 pies (6m) de distancia por 20 segundos",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(12.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
+            QuestionTitle("¿Aplicas la regla 20-20-20? (Cada 20 minutos, mira algo a 20 pies de distancia durante 20 segundos)")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Sí, siempre",
-                    "A veces",
+                    "Sí, lo hago regularmente",
+                    "A veces lo recuerdo",
                     "Rara vez",
-                    "No sé qué es/Nunca"
+                    "No sabía de esa regla",
+                    "No lo hago"
                 ),
                 selectedOption = viewModel.aplicaRegla202020,
                 onOptionSelected = { viewModel.aplicaRegla202020 = it }
             )
 
-            // 65. Brillo de pantalla
-            QuestionTitle("65. Brillo de tu pantalla")
+            QuestionTitle("¿Cómo tienes configurado el brillo de tu pantalla?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Ajustado a la iluminación ambiente",
-                    "Muy brillante",
-                    "Muy tenue",
-                    "No lo ajusto"
+                    "Ajustado según la luz del ambiente",
+                    "Siempre en brillo alto",
+                    "Siempre en brillo bajo",
+                    "No lo he ajustado nunca"
                 ),
                 selectedOption = viewModel.brilloPantalla,
                 onOptionSelected = { viewModel.brilloPantalla = it }
@@ -391,25 +313,15 @@ fun SintomasVisualesQuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = state !is QuestionnaireState.Loading && viewModel.isFormValid()
             ) {
                 if (state is QuestionnaireState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario")
                 }

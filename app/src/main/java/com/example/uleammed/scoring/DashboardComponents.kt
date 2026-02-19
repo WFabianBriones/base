@@ -31,6 +31,14 @@ import androidx.compose.ui.graphics.nativeCanvas
 import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.material.icons.filled.Psychology  // ⭐ AGREGAR
+import android.content.Context
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 // --- Asume que RiskLevel, HealthScore, ScoringState y ScoringViewModel existen en otros archivos ---
 // No se incluyen aquí por simplicidad, pero son necesarios para que el código compile.
 
@@ -192,6 +200,7 @@ fun DashboardContent(
 
         // Espaciado final
         item {
+            ExportPdfButton(healthScore = healthScore)
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -994,7 +1003,7 @@ fun EmptyDashboardView() {
             )
 
             Text(
-                text = "Responde al menos una encuesta en la pestaña 'Explorar' para ver tu análisis de salud laboral",
+                text = "Responde las encuestas en la pestaña 'Explorar' para ver tu análisis de salud laboral",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
