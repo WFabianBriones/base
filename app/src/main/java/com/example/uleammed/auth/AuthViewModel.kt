@@ -193,6 +193,17 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    // Agrega este método en AuthViewModel
+    fun refreshCurrentUser() {
+        viewModelScope.launch {
+            val uid = _currentUser.value?.uid ?: return@launch
+            val result = repository.getUserData(uid)
+            result.onSuccess { user ->
+                _currentUser.value = user
+            }
+        }
+    }
+
     // Función para limpiar recursos
     override fun onCleared() {
         super.onCleared()

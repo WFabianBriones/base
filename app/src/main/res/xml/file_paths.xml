@@ -1,3 +1,6 @@
 <paths>
     <cache-path name="pdf_reports" path="pdf_reports/" />
+    <files-path
+        name="profile_photos"
+        path="profile_photos/" />
 </paths>

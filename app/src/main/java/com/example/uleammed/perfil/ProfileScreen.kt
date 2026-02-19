@@ -1,7 +1,9 @@
 package com.example.uleammed.perfil
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -9,9 +11,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.uleammed.User
+import coil.compose.AsyncImage
 
 @Composable
 fun ProfileContent(
@@ -67,12 +73,28 @@ fun ProfileContent(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    imageVector = Icons.Filled.AccountCircle,
-                    contentDescription = "Foto de perfil",
-                    modifier = Modifier.size(80.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                // Mostrar foto local si existe, si no el ícono por defecto
+                val photoFile = user?.photoUrl?.let { java.io.File(it) }
+                val hasPhoto  = photoFile != null && photoFile.exists()
+
+                if (hasPhoto) {
+                    AsyncImage(
+                        model              = photoFile,
+                        contentDescription = "Foto de perfil",
+                        contentScale       = ContentScale.Crop,
+                        modifier           = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                    )
+                } else {
+                    Icon(
+                        imageVector        = Icons.Filled.AccountCircle,
+                        contentDescription = "Foto de perfil",
+                        modifier           = Modifier.size(80.dp),
+                        tint               = MaterialTheme.colorScheme.primary
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

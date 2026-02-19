@@ -33,9 +33,7 @@ fun QuestionnaireScreen(
 
     LaunchedEffect(state) {
         when (state) {
-            is QuestionnaireState.Success -> {
-                onComplete()
-            }
+            is QuestionnaireState.Success -> onComplete()
             is QuestionnaireState.Error -> {
                 errorMessage = (state as QuestionnaireState.Error).message
                 showErrorDialog = true
@@ -52,9 +50,7 @@ fun QuestionnaireScreen(
             title = { Text("Error") },
             text = { Text(errorMessage) },
             confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("Entendido")
-                }
+                TextButton(onClick = { showErrorDialog = false }) { Text("Entendido") }
             }
         )
     }
@@ -62,7 +58,7 @@ fun QuestionnaireScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Cuestionario de Salud") },
+                title = { Text("Tu salud general") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
@@ -77,25 +73,16 @@ fun QuestionnaireScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Información introductoria
+            // Introducción
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Este cuestionario nos ayudará a crear un diagnóstico personalizado de tu salud. Por favor responde con honestidad.",
+                        text = "Este cuestionario nos ayuda a conocer tu estado de salud general. Responde con sinceridad, tus datos son confidenciales.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -104,58 +91,66 @@ fun QuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Sección 1: Información Básica
-            SectionHeader("Información Básica")
+            // ── Sección 1: Datos básicos ──────────────────────────────────
+            SectionHeader("Datos básicos")
 
-            // 1. Edad
-            QuestionTitle("1. Edad")
+            QuestionTitle("¿Cuál es tu rango de edad?")
             SingleChoiceQuestion(
-                options = listOf("18-25", "26-35", "36-45", "46-55", "56-65", "66+"),
+                options = listOf("18-25", "26-35", "36-45", "46-55", "56-65", "66 o más"),
                 selectedOption = viewModel.ageRange,
                 onOptionSelected = { viewModel.ageRange = it }
             )
 
-            // 2. Género
-            QuestionTitle("2. Género")
+            QuestionTitle("¿Con qué género te identificas?")
             SingleChoiceQuestion(
-                options = listOf("Masculino", "Femenino", "Otro", "Prefiero no decir"),
+                options = listOf("Masculino", "Femenino", "Otro", "Prefiero no decirlo"),
                 selectedOption = viewModel.gender,
                 onOptionSelected = { viewModel.gender = it }
             )
 
-            // 3. Peso
-            QuestionTitle("3. Peso (kg)")
+            // ── Campo Peso — solo números y un punto decimal ──────────────
+            QuestionTitle("¿Cuánto pesas? (kg)")
             OutlinedTextField(
                 value = viewModel.weight,
-                onValueChange = {
-                    viewModel.weight = it
-                    viewModel.calculateBMI()
+                onValueChange = { input ->
+                    // Solo permite dígitos y un único punto decimal
+                    val filtered = input.filter { it.isDigit() || it == '.' }
+                    val dotCount = filtered.count { it == '.' }
+                    if (dotCount <= 1) {
+                        viewModel.weight = filtered
+                        viewModel.calculateBMI()
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                placeholder = { Text("Ej: 70") }
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                placeholder = { Text("Ej: 70") },
+                supportingText = { Text("Solo números, por ejemplo: 68 o 68.5") },
+                singleLine = true
             )
 
-            // 4. Altura
-            QuestionTitle("4. Altura (cm)")
+            // ── Campo Altura — solo números enteros ───────────────────────
+            QuestionTitle("¿Cuánto mides? (cm)")
             OutlinedTextField(
                 value = viewModel.height,
-                onValueChange = {
-                    viewModel.height = it
+                onValueChange = { input ->
+                    // Solo permite dígitos (la altura en cm es un número entero)
+                    val filtered = input.filter { it.isDigit() }
+                    viewModel.height = filtered
                     viewModel.calculateBMI()
                 },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                placeholder = { Text("Ej: 170") }
+                placeholder = { Text("Ej: 170") },
+                supportingText = { Text("Solo números, por ejemplo: 165") },
+                singleLine = true
             )
 
-            // 5. IMC (auto-calculado)
+            // IMC calculado automáticamente
             if (viewModel.bmi.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -169,35 +164,32 @@ fun QuestionnaireScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sección 2: Hábitos
-            SectionHeader("Hábitos de Salud")
+            // ── Sección 2: Hábitos ────────────────────────────────────────
+            SectionHeader("Hábitos de salud")
 
-            // 6. ¿Fumas?
-            QuestionTitle("6. ¿Fumas?")
+            QuestionTitle("¿Fumas?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No",
-                    "Sí, ocasionalmente",
-                    "Sí, regularmente (menos de 10 cigarrillos/día)",
-                    "Sí, regularmente (más de 10 cigarrillos/día)"
+                    "Sí, de vez en cuando",
+                    "Sí, regularmente (menos de 10 cigarrillos al día)",
+                    "Sí, regularmente (más de 10 cigarrillos al día)"
                 ),
                 selectedOption = viewModel.smokingStatus,
                 onOptionSelected = { viewModel.smokingStatus = it }
             )
 
-            // 7. Consumo de alcohol
-            QuestionTitle("7. Consumo de alcohol")
+            QuestionTitle("¿Con qué frecuencia consumes alcohol?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No consumo",
-                    "Ocasional (1-2 veces/mes)",
-                    "Moderado (1-2 veces/semana)",
-                    "Frecuente (3+ veces/semana)"
+                    "De vez en cuando (1 o 2 veces al mes)",
+                    "Moderadamente (1 o 2 veces a la semana)",
+                    "Con frecuencia (3 o más veces a la semana)"
                 ),
                 selectedOption = viewModel.alcoholConsumption,
                 onOptionSelected = { viewModel.alcoholConsumption = it }
@@ -205,77 +197,66 @@ fun QuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sección 3: Condiciones Médicas
-            SectionHeader("Condiciones Médicas")
+            // ── Sección 3: Condiciones médicas ────────────────────────────
+            SectionHeader("Condiciones médicas")
 
-            // 8. Condiciones médicas preexistentes
-            QuestionTitle("8. Condiciones médicas preexistentes (selecciona todas las que apliquen)")
+            QuestionTitle("¿Tienes alguna de estas condiciones médicas? (puedes marcar varias)")
             MultipleChoiceQuestion(
                 options = listOf(
-                    "Diabetes", "Hipertensión", "Problemas cardíacos", "Asma",
-                    "Artritis", "Problemas de tiroides", "Migrañas crónicas",
-                    "Ansiedad/Depresión", "Hernia discal", "Problemas de columna", "Ninguna"
+                    "Diabetes",
+                    "Hipertensión (presión alta)",
+                    "Problemas cardíacos",
+                    "Asma",
+                    "Artritis",
+                    "Problemas de tiroides",
+                    "Migrañas crónicas",
+                    "Ansiedad o depresión",
+                    "Hernia discal",
+                    "Problemas de columna",
+                    "Ninguna"
                 ),
                 selectedOptions = viewModel.preexistingConditions,
                 onOptionToggled = { option ->
                     viewModel.preexistingConditions = if (option == "Ninguna") {
-                        if (viewModel.preexistingConditions.contains("Ninguna")) {
-                            emptyList()
-                        } else {
-                            listOf("Ninguna")
-                        }
+                        if (viewModel.preexistingConditions.contains("Ninguna")) emptyList()
+                        else listOf("Ninguna")
                     } else {
                         val newList = viewModel.preexistingConditions.toMutableList()
                         newList.remove("Ninguna")
-                        if (newList.contains(option)) {
-                            newList.remove(option)
-                        } else {
-                            newList.add(option)
-                        }
+                        if (newList.contains(option)) newList.remove(option) else newList.add(option)
                         newList
                     }
                 }
             )
 
-            // 9. Medicamentos
-            QuestionTitle("9. Medicamentos que toma regularmente")
+            QuestionTitle("¿Tomas alguno de estos medicamentos de forma regular? (puedes marcar varios)")
             MultipleChoiceQuestion(
                 options = listOf(
-                    "Ninguno", "Analgésicos", "Antiinflamatorios",
-                    "Antidepresivos/Ansiolíticos", "Medicamentos para presión",
-                    "Medicamentos para diabetes", "Relajantes musculares"
+                    "Ninguno",
+                    "Analgésicos (para el dolor)",
+                    "Antiinflamatorios",
+                    "Antidepresivos o ansiolíticos",
+                    "Medicamentos para la presión",
+                    "Medicamentos para la diabetes",
+                    "Relajantes musculares"
                 ),
                 selectedOptions = viewModel.medications,
                 onOptionToggled = { option ->
                     viewModel.medications = if (option == "Ninguno") {
-                        if (viewModel.medications.contains("Ninguno")) {
-                            emptyList()
-                        } else {
-                            listOf("Ninguno")
-                        }
+                        if (viewModel.medications.contains("Ninguno")) emptyList()
+                        else listOf("Ninguno")
                     } else {
                         val newList = viewModel.medications.toMutableList()
                         newList.remove("Ninguno")
-                        if (newList.contains(option)) {
-                            newList.remove(option)
-                        } else {
-                            newList.add(option)
-                        }
+                        if (newList.contains(option)) newList.remove(option) else newList.add(option)
                         newList
                     }
                 }
             )
 
-            // 10. Cirugías recientes
-            QuestionTitle("10. ¿Ha tenido cirugías en los últimos 5 años?")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+            QuestionTitle("¿Has tenido alguna cirugía en los últimos 5 años?")
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
                         selected = !viewModel.recentSurgeries,
                         onClick = {
@@ -285,10 +266,7 @@ fun QuestionnaireScreen(
                     )
                     Text("No")
                 }
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
                         selected = viewModel.recentSurgeries,
                         onClick = { viewModel.recentSurgeries = true }
@@ -302,35 +280,31 @@ fun QuestionnaireScreen(
                     value = viewModel.surgeryDetails,
                     onValueChange = { viewModel.surgeryDetails = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Especificar tipo de cirugía") },
-                    placeholder = { Text("Ej: Apendicectomía") }
+                    label = { Text("¿Qué tipo de cirugía?") },
+                    placeholder = { Text("Ej: Apendicitis, rodilla, etc.") }
                 )
             }
 
-            // 11. Historial familiar
-            QuestionTitle("11. Historial familiar de enfermedades")
+            QuestionTitle("¿Hay enfermedades que se repitan en tu familia? (puedes marcar varias)")
             MultipleChoiceQuestion(
                 options = listOf(
-                    "Enfermedades cardíacas", "Diabetes", "Cáncer",
-                    "Enfermedades autoinmunes", "Problemas de espalda/articulaciones",
-                    "Trastornos mentales", "Ninguno conocido"
+                    "Enfermedades del corazón",
+                    "Diabetes",
+                    "Cáncer",
+                    "Enfermedades autoinmunes",
+                    "Problemas de espalda o articulaciones",
+                    "Trastornos mentales",
+                    "Ninguna conocida"
                 ),
                 selectedOptions = viewModel.familyHistory,
                 onOptionToggled = { option ->
-                    viewModel.familyHistory = if (option == "Ninguno conocido") {
-                        if (viewModel.familyHistory.contains("Ninguno conocido")) {
-                            emptyList()
-                        } else {
-                            listOf("Ninguno conocido")
-                        }
+                    viewModel.familyHistory = if (option == "Ninguna conocida") {
+                        if (viewModel.familyHistory.contains("Ninguna conocida")) emptyList()
+                        else listOf("Ninguna conocida")
                     } else {
                         val newList = viewModel.familyHistory.toMutableList()
-                        newList.remove("Ninguno conocido")
-                        if (newList.contains(option)) {
-                            newList.remove(option)
-                        } else {
-                            newList.add(option)
-                        }
+                        newList.remove("Ninguna conocida")
+                        if (newList.contains(option)) newList.remove(option) else newList.add(option)
                         newList
                     }
                 }
@@ -338,123 +312,113 @@ fun QuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sección 4: Estado General
-            SectionHeader("Estado General de Salud")
+            // ── Sección 4: Estado general ─────────────────────────────────
+            SectionHeader("¿Cómo te sientes en general?")
 
-            // 12. Nivel de energía
-            QuestionTitle("12. Nivel de energía general")
+            QuestionTitle("¿Cómo describirías tu nivel de energía durante el día?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Muy bajo (constantemente cansado)",
-                    "Bajo (frecuentemente cansado)",
+                    "Muy bajo, siempre me siento cansado/a",
+                    "Bajo, me canso con frecuencia",
                     "Normal",
-                    "Alto (raramente cansado)"
+                    "Alto, rara vez me siento cansado/a"
                 ),
                 selectedOption = viewModel.energyLevel,
                 onOptionSelected = { viewModel.energyLevel = it }
             )
 
-            // 13. COVID-19
-            QuestionTitle("13. ¿Ha tenido COVID-19?")
+            QuestionTitle("¿Has tenido COVID-19?")
             SingleChoiceQuestion(
                 options = listOf(
                     "No",
-                    "Sí, sin secuelas",
-                    "Sí, con secuelas persistentes (COVID largo)"
+                    "Sí, me recuperé sin secuelas",
+                    "Sí, y aún tengo síntomas persistentes (COVID largo)"
                 ),
                 selectedOption = viewModel.hadCovid,
                 onOptionSelected = { viewModel.hadCovid = it }
             )
 
-            // 14. Síntomas post-COVID
             if (viewModel.hadCovid.contains("secuelas")) {
-                QuestionTitle("14. Síntomas post-COVID")
+                QuestionTitle("¿Qué síntomas de COVID largo tienes? (puedes marcar varios)")
                 MultipleChoiceQuestion(
                     options = listOf(
-                        "Fatiga prolongada",
+                        "Cansancio prolongado",
                         "Problemas respiratorios",
-                        "Problemas de concentración (niebla mental)",
-                        "Dolor muscular/articular",
+                        "Dificultad para concentrarse (niebla mental)",
+                        "Dolor muscular o en articulaciones",
                         "Ninguno"
                     ),
                     selectedOptions = viewModel.covidSymptoms,
                     onOptionToggled = { option ->
                         viewModel.covidSymptoms = if (option == "Ninguno") {
-                            if (viewModel.covidSymptoms.contains("Ninguno")) {
-                                emptyList()
-                            } else {
-                                listOf("Ninguno")
-                            }
+                            if (viewModel.covidSymptoms.contains("Ninguno")) emptyList()
+                            else listOf("Ninguno")
                         } else {
                             val newList = viewModel.covidSymptoms.toMutableList()
                             newList.remove("Ninguno")
-                            if (newList.contains(option)) {
-                                newList.remove(option)
-                            } else {
-                                newList.add(option)
-                            }
+                            if (newList.contains(option)) newList.remove(option) else newList.add(option)
                             newList
                         }
                     }
                 )
             }
 
-            // 15. Estado general de salud
-            QuestionTitle("15. Estado general de salud percibido")
+            QuestionTitle("En general, ¿cómo calificarías tu salud?")
             SingleChoiceQuestion(
-                options = listOf("Excelente", "Muy bueno", "Bueno", "Regular", "Malo"),
+                options = listOf("Excelente", "Muy buena", "Buena", "Regular", "Mala"),
                 selectedOption = viewModel.generalHealthStatus,
                 onOptionSelected = { viewModel.generalHealthStatus = it }
             )
 
-            // 16. Chequeos médicos
-            QuestionTitle("16. ¿Realiza chequeos médicos anuales?")
+            QuestionTitle("¿Te haces chequeos médicos de rutina?")
             SingleChoiceQuestion(
-                options = listOf("Sí, regularmente", "Ocasionalmente", "Rara vez", "Nunca"),
+                options = listOf(
+                    "Sí, regularmente",
+                    "De vez en cuando",
+                    "Rara vez",
+                    "Nunca"
+                ),
                 selectedOption = viewModel.annualCheckups,
                 onOptionSelected = { viewModel.annualCheckups = it }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sección 5: Indicadores de Salud
-            SectionHeader("Indicadores de Salud")
+            // ── Sección 5: Indicadores de salud ──────────────────────────
+            SectionHeader("Indicadores de salud (si los conoces)")
 
-            // 17. Presión arterial
-            QuestionTitle("17. Presión arterial (si la conoce)")
+            QuestionTitle("¿Cómo está tu presión arterial?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Normal (<120/80)",
-                    "Elevada (120-129/<80)",
-                    "Hipertensión leve (130-139/80-89)",
-                    "Hipertensión moderada/severa (140+/90+)",
-                    "No sé"
+                    "Normal (menos de 120/80)",
+                    "Algo elevada (120-129 / menos de 80)",
+                    "Hipertensión leve (130-139 / 80-89)",
+                    "Hipertensión moderada o severa (140 o más / 90 o más)",
+                    "No lo sé"
                 ),
                 selectedOption = viewModel.bloodPressure,
                 onOptionSelected = { viewModel.bloodPressure = it }
             )
 
-            // 18. Colesterol
-            QuestionTitle("18. Nivel de colesterol (si lo conoce)")
+            QuestionTitle("¿Cómo está tu nivel de colesterol?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Normal (<200 mg/dL)",
-                    "Límite alto (200-239)",
-                    "Alto (240+)",
-                    "No sé"
+                    "Normal (menos de 200 mg/dL)",
+                    "Un poco alto (200-239 mg/dL)",
+                    "Alto (240 mg/dL o más)",
+                    "No lo sé"
                 ),
                 selectedOption = viewModel.cholesterolLevel,
                 onOptionSelected = { viewModel.cholesterolLevel = it }
             )
 
-            // 19. Glucosa
-            QuestionTitle("19. Glucosa en sangre (si la conoce)")
+            QuestionTitle("¿Cómo está tu glucosa en sangre (azúcar)?")
             SingleChoiceQuestion(
                 options = listOf(
-                    "Normal (<100 mg/dL)",
-                    "Prediabetes (100-125)",
-                    "Diabetes (126+)",
-                    "No sé"
+                    "Normal (menos de 100 mg/dL)",
+                    "Prediabetes (100-125 mg/dL)",
+                    "Diabetes (126 mg/dL o más)",
+                    "No lo sé"
                 ),
                 selectedOption = viewModel.bloodGlucose,
                 onOptionSelected = { viewModel.bloodGlucose = it }
@@ -462,67 +426,51 @@ fun QuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sección 6: Alergias y Problemas Laborales
-            SectionHeader("Alergias y Vida Laboral")
+            // ── Sección 6: Alergias y vida laboral ────────────────────────
+            SectionHeader("Alergias y trabajo")
 
-            // 20. Alergias
-            QuestionTitle("20. ¿Tiene alergias conocidas?")
+            QuestionTitle("¿Tienes alguna alergia conocida? (puedes marcar varias)")
             MultipleChoiceQuestion(
                 options = listOf(
                     "No",
-                    "Alergias alimentarias",
+                    "Alergias a alimentos",
                     "Alergias a medicamentos",
-                    "Alergias ambientales (polen, polvo)",
+                    "Alergias ambientales (polen, polvo, etc.)",
                     "Alergias a productos químicos"
                 ),
                 selectedOptions = viewModel.allergies,
                 onOptionToggled = { option ->
                     viewModel.allergies = if (option == "No") {
-                        if (viewModel.allergies.contains("No")) {
-                            emptyList()
-                        } else {
-                            listOf("No")
-                        }
+                        if (viewModel.allergies.contains("No")) emptyList()
+                        else listOf("No")
                     } else {
                         val newList = viewModel.allergies.toMutableList()
                         newList.remove("No")
-                        if (newList.contains(option)) {
-                            newList.remove(option)
-                        } else {
-                            newList.add(option)
-                        }
+                        if (newList.contains(option)) newList.remove(option) else newList.add(option)
                         newList
                     }
                 }
             )
 
-            // 21. Problemas laborales
-            QuestionTitle("21. Problemas de salud que interfieren con el trabajo")
+            QuestionTitle("¿Algún problema de salud te limita o dificulta tu trabajo? (puedes marcar varios)")
             MultipleChoiceQuestion(
                 options = listOf(
                     "Ninguno",
                     "Dolor crónico",
                     "Limitaciones físicas",
                     "Problemas de movilidad",
-                    "Problemas de visión/audición",
-                    "Fatiga crónica"
+                    "Problemas de vista o audición",
+                    "Cansancio crónico"
                 ),
                 selectedOptions = viewModel.workInterference,
                 onOptionToggled = { option ->
                     viewModel.workInterference = if (option == "Ninguno") {
-                        if (viewModel.workInterference.contains("Ninguno")) {
-                            emptyList()
-                        } else {
-                            listOf("Ninguno")
-                        }
+                        if (viewModel.workInterference.contains("Ninguno")) emptyList()
+                        else listOf("Ninguno")
                     } else {
                         val newList = viewModel.workInterference.toMutableList()
                         newList.remove("Ninguno")
-                        if (newList.contains(option)) {
-                            newList.remove(option)
-                        } else {
-                            newList.add(option)
-                        }
+                        if (newList.contains(option)) newList.remove(option) else newList.add(option)
                         newList
                     }
                 }
@@ -530,7 +478,6 @@ fun QuestionnaireScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón de enviar
             Button(
                 onClick = { viewModel.submitQuestionnaire() },
                 modifier = Modifier
@@ -544,11 +491,7 @@ fun QuestionnaireScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
-                    Icon(
-                        imageVector = Icons.Filled.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Icon(Icons.Filled.Send, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Enviar Cuestionario", style = MaterialTheme.typography.bodyLarge)
                 }
@@ -559,6 +502,8 @@ fun QuestionnaireScreen(
     }
 }
 
+// ── Componentes compartidos ────────────────────────────────────────────────────
+
 @Composable
 fun SectionHeader(title: String) {
     Text(
@@ -568,10 +513,7 @@ fun SectionHeader(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(vertical = 8.dp)
     )
-    HorizontalDivider(
-        thickness = 2.dp,
-        color = MaterialTheme.colorScheme.primary
-    )
+    HorizontalDivider(thickness = 2.dp, color = MaterialTheme.colorScheme.primary)
     Spacer(modifier = Modifier.height(16.dp))
 }
 
@@ -604,10 +546,7 @@ fun SingleChoiceQuestion(
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                RadioButton(
-                    selected = (option == selectedOption),
-                    onClick = null
-                )
+                RadioButton(selected = (option == selectedOption), onClick = null)
                 Text(
                     text = option,
                     style = MaterialTheme.typography.bodyMedium,

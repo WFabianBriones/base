@@ -647,6 +647,51 @@ class AuthRepository {
             Result.failure(e)
         }
     }
+
+    // ── En AuthRepository.kt ─────────────────────────────────────────────────────
+
+    suspend fun uploadProfilePhoto(userId: String, imageUri: android.net.Uri): Result<String> {
+        return try {
+            val context = com.google.firebase.FirebaseApp.getInstance().applicationContext
+
+            val photoDir = java.io.File(context.filesDir, "profile_photos").also { it.mkdirs() }
+            val photoFile = java.io.File(photoDir, "$userId.jpg")
+
+            context.contentResolver.openInputStream(imageUri)?.use { input ->
+                val bitmap = android.graphics.BitmapFactory.decodeStream(input)
+                photoFile.outputStream().use { output ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, output)
+                }
+            } ?: throw Exception("No se pudo leer la imagen seleccionada")
+
+            // ✅ Guardar la ruta absoluta del archivo — Coil puede leerla directamente
+            val absolutePath = photoFile.absolutePath
+            android.util.Log.d("AuthRepository", "✅ Foto guardada en: $absolutePath")
+            Result.success(absolutePath)
+        } catch (e: Exception) {
+            android.util.Log.e("AuthRepository", "❌ Error guardando foto local", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updatePassword(currentPassword: String, newPassword: String): Result<Unit> {
+        return try {
+            val user = auth.currentUser ?: throw Exception("Usuario no autenticado")
+            val email = user.email ?: throw Exception("Email no disponible")
+
+            // Re-autenticar antes de cambiar contraseña (requerido por Firebase)
+            val credential = com.google.firebase.auth.EmailAuthProvider
+                .getCredential(email, currentPassword)
+            user.reauthenticate(credential).await()
+
+            user.updatePassword(newPassword).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
 }
 
 /**

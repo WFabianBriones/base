@@ -131,6 +131,9 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
 
+    //implementation("io.github.ehsannarmani:compose-charts:0.1.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
